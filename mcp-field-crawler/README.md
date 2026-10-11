@@ -1,0 +1,47 @@
+# mcp-field-crawler
+
+MCP Field 的数据采集服务：可插拔的多源爬虫，数据写入与 mcp-field 共用的 MySQL（`mcp_field` 库）。
+
+设计说明见 [docs/DESIGN.md](docs/DESIGN.md)。
+
+## 准备
+
+```bash
+npm install
+cp .env.example .env      # 填写 DATABASE_URL
+npm run db:migrate        # 创建 / 升级表结构
+```
+
+本机 MySQL 跑在 Colima 的 `mysql-master` 容器里，电脑重启后需要先执行 `colima start`。
+
+## 使用
+
+```bash
+npm run crawler -- sources                                   # 已注册的数据源
+npm run crawler -- discover --source mcpso                   # 只登记目标
+npm run crawler -- crawl --source mcpso --limit 2            # 每种类型抽样 2 个
+npm run crawler -- crawl --source mcpso --kind server,skill  # 只抓指定类型
+npm run crawler -- crawl --source mcpso --since 2026-10-01   # 只抓近期更新的
+npm run crawler -- crawl --source mcpso --store file         # 不写数据库，输出到 data/runs
+npm run crawler -- stats                                     # 采集层统计
+npm run crawler -- remap --source mcpso --kind client        # 改了映射规则后重建草稿（不发网络请求）
+npm run crawler -- translate --kind client                   # 把简介翻译成中英日三语
+npm run crawler -- translate --kind client --recheck         # 按当前规则重新校验已有译文，只重翻不合格的
+npm run crawler -- overview --kind client                    # 根据 README 生成三语介绍
+npm run crawler -- readme --kind client                      # README 整篇翻译成中文、日文（增量）
+npm run crawler -- assets                                    # 图标转存到 Cloudflare R2（增量）
+npm run crawler -- describe                                  # 为 Loop / CLI / Agent 撰写我们自己的三语内容（增量）
+npm run api:dev                                              # 启动后端 API（http://localhost:3100）
+```
+
+翻译和生成介绍需要在 `.env` 中配置 `ANTHROPIC_API_KEY`（可选 `ANTHROPIC_BASE_URL` 指向兼容代理）。
+图片转存需要配置 `R2_ACCOUNT_ID`、`R2_BUCKET`、`R2_PUBLIC_BASE_URL`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`。
+
+## 开发
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run db:generate -- --name <变更名>   # 修改 src/db/schema 后生成迁移
+```

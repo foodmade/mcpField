@@ -1,0 +1,267 @@
+# MCP Field 采集服务设计
+
+## 1. 目标
+
+- 从多个外部来源采集 MCP 服务、客户端、CLI、Skill、Loop、Agent 数据，写入与 mcp-field 共用的 MySQL（库名 `mcp_field`）。
+- 数据源可插拔：新增一个源站只写一个"数据源工厂"，运行器、存储、表结构都不用改。
+- 数据细粒度落库：凡是可能被查询、筛选、统计的信息都拆成独立的行，不存 JSON 字符串。
+- 每一层都可以单独重跑：改了解析逻辑不用重新抓取，改了映射逻辑不用重新解析。
+- 礼貌抓取：遵守 robots.txt、按主机限速、条件请求、增量更新，遇到人机验证就停，不做绕过。
+
+## 2. 总体流程
+
+```
+              ┌───────────── 数据源工厂（每个源站一个）─────────────┐
+              │  Discoverer   Fetcher      Parser        Mapper    │
+              └──────┬──────────┬────────────┬─────────────┬───────┘
+                     ▼          ▼            ▼             ▼
+发现 ──► 目标 ──► 抓取 ──► 原始文档 ──► 解析 ──► 源记录 ──► 映射 ──► 草稿 ──► [补全] ──► [合并发布] ──► 目录表
+     ingest_targets   ingest_documents       ingest_records        ingest_drafts   ingest_enrichments     catalog
+                      + 文件存储(gzip)                             + ingest_issues
+```
+
+| 阶段 | 输入 → 输出 | 当前状态 |
+| --- | --- | --- |
+| 发现 | 站点地图 / API 列表 → `ingest_targets` | ✅ 已实现（通用站点地图发现器） |
+| 抓取 | 目标 → 原始 HTML（文件存储）+ `ingest_documents` | ✅ 已实现（重试、robots、限速、条件请求） |
+| 解析 | HTML → 源站原生结构 `ingest_records` | ✅ 已实现（mcp.so 内嵌数据沙箱解析） |
+| 映射 | 源记录 → 统一结构的细粒度草稿 `ingest_drafts` + 问题 `ingest_issues` | ✅ 已实现（mcp.so 六种类型） |
+| 补全 | GitHub / 官方 Registry / npm / PyPI / 实时探测 → `ingest_enrichments` | ⏳ 下一阶段 |
+| 合并发布 | 多来源草稿按身份键合并 → 目录表 | ⏳ 下一阶段 |
+| 生成 | LLM 生成中英日简介、介绍 → `entity_texts` | ⏳ 下一阶段 |
+
+## 3. 设计模式
+
+| 模式 | 位置 | 作用 |
+| --- | --- | --- |
+| 抽象工厂 | `core/source.ts` `SourceFactory` | 每个源站提供一整套相互匹配的产品：发现器、抓取器、解析器、映射器 |
+| 模板方法 | `core/base-source.ts` `BaseSourceFactory` | 默认提供"HTTP + 重试 + robots + 限速"的抓取器，子类只实现站点相关部分 |
+| 模板方法 | `core/runner.ts` `CrawlRunner` | 固定"开始 → 发现 → 增量判断 → 分派 → 收尾"流程；`DiscoverRunner` 只登记，`InlineRunner` 本进程处理，以后的 Worker 从队列领取 |
+| 注册表 | `core/registry.ts` | 按 ID 查找数据源，运行器不依赖任何具体源站 |
+| 装饰器 | `fetch/*.ts` | 重试、robots、限速都是包装 `Fetcher` 的中间件，可自由组合 |
+| 策略 | `discover/` `extract/` | 站点地图发现、TanStack 内嵌数据提取、MCP 配置解析、工具参数展开等可在不同源站复用 |
+| 建造者 | `core/draft-builder.ts` | 映射器逐项添加数据，统一处理空值、URL 校验、去重、问题记录 |
+| 仓储 | `core/store.ts` | `MySqlIngestStore` 正式运行，`FileStore` 本地调试；运行器只依赖接口 |
+| 观察者 | `core/events.ts` | 进度显示、指标统计订阅运行事件，不侵入业务逻辑 |
+| 组合根 | `bootstrap.ts` | 所有具体实现只在这里装配 |
+
+## 4. 目录结构
+
+```
+src/
+├── cli/index.ts            命令行入口
+├── bootstrap.ts            组合根：注册数据源、创建存储
+├── config.ts               环境变量（zod 校验）
+├── core/                   与具体站点无关的领域抽象
+│   ├── types.ts            实体类型、目标、原始文档、源记录
+│   ├── draft.ts            细粒度草稿结构（与目录表一一对应）
+│   ├── draft-builder.ts    草稿建造者
+│   ├── identity.ts         仓库地址归一化、跨源合并键
+│   ├── source.ts           抽象工厂与四个产品接口
+│   ├── base-source.ts      工厂基类
+│   ├── registry.ts         数据源注册表
+│   ├── runner.ts           运行器（模板方法）与单目标处理器
+│   ├── store.ts            仓储接口
+│   ├── events.ts / errors.ts / logger.ts
+├── fetch/                  抓取层：HTTP + 装饰器（retry / robots / rate-limit）
+├── discover/sitemap.ts     通用站点地图发现器
+├── extract/                通用提取：HTML、TanStack 内嵌数据（QuickJS 沙箱）、MCP 配置、工具参数
+├── store/                  MySQL 仓储、文件仓储、原始文档存储
+├── db/schema/              表结构：catalog.ts（目录层）、ingest.ts（采集层）
+└── sources/mcpso/          mcp.so 数据源：URL 规则、字段校验、解析、映射、分类映射
+```
+
+## 5. 数据库设计
+
+### 5.1 约定
+
+- 库：`mcp_field`，utf8mb4 / utf8mb4_unicode_ci，InnoDB。
+- 采集服务自己的表带 `ingest_` 前缀，网站不直接读；不带前缀的是目录层，是两个项目之间的契约。
+- 主键 `id BIGINT UNSIGNED AUTO_INCREMENT`；关联表用复合主键。
+- 业务时间 `DATETIME(3)`，一律 UTC；`created_at` / `updated_at` 由数据库自动维护。
+- 枚举类取值用 `VARCHAR` + TypeScript 联合类型约束，新增取值不需要改表。
+- 超长 URL 另存 SHA-256（`*_hash`）用于唯一约束。
+- 有来历之分的行都带 `origin`（source / generated / translated / manual / live）和 `source_id`，可以追溯每条数据从哪来。
+- 外键：子表 `ON DELETE CASCADE`，可选引用 `ON DELETE SET NULL`。
+
+### 5.2 目录层（41 张表）
+
+**共享维度**
+
+| 表 | 粒度 | 典型查询 |
+| --- | --- | --- |
+| `categories` | 每类型的分类，含中英日名称、父分类 | 分类导航 |
+| `tags` | 全局标签 | 标签页 |
+| `authors` | GitHub 账号 / 组织 / 厂商 | "microsoft 的所有项目" |
+| `repositories` | 源码仓库，挂星数、Fork、语言、许可证、最后提交 | 按星数排序；monorepo 下多个服务共享 |
+| `repository_topics` | 仓库主题，一行一个 | 按 GitHub topic 聚合 |
+
+**实体主表与通用子表**
+
+| 表 | 粒度 | 典型查询 |
+| --- | --- | --- |
+| `entities` | 每个服务 / 客户端 / CLI / Skill / Loop / Agent 一行；冗余了排序用的星数、安装数 | 列表页、排序、分页 |
+| `entity_texts` | 一行 = 一个字段 × 一种语言（tagline / description / overview / readme / goal …） | 按语言取文案；找"缺日文翻译的条目" |
+| `entity_sources` | 实体在各来源中的条目 | 溯源；源站下架检测 |
+| `entity_links` | 仓库、官网、文档、npm、PyPI、远程端点等 | "有官方文档的服务" |
+| `entity_aliases` | 旧 slug、命令别名、规范键 | 301 跳转；站内搜索命中别名 |
+| `entity_categories` / `entity_tags` / `entity_authors` / `entity_platforms` | 多对多 | 组合筛选 |
+| `entity_metrics` | 指标时间序列：每来源每天一行 | 星数趋势、本周增长榜 |
+| `entity_media` | 图标、截图 | 详情页画廊 |
+| `entity_list_items` | 多语言有序短列表（CLI 能力、要点） | 详情页列表 |
+| `entity_relations` | 同类、替代、同仓库、可配合使用 | "同类推荐" |
+
+**按类型的详情与子表**
+
+| 类型 | 表 |
+| --- | --- |
+| MCP 服务 | `server_details`（本地/远程、运行时、鉴权、Registry 名称、能力计数、探测状态）<br>`server_transports`、`server_packages` → `server_package_arguments`<br>`server_env_vars`（只存变量名和说明，从不存取值）<br>`server_remotes` → `server_remote_headers`<br>`server_tools` → `server_tool_params`（参数按点号路径展开，行为提示拆成独立列）<br>`server_prompts` → `server_prompt_arguments`、`server_resources` |
+| 客户端 | `client_details`、`client_capabilities`（对 tools / resources / prompts / sampling / oauth 等的支持矩阵） |
+| CLI | `cli_details`、`cli_install_methods`（包管理器 × 平台）、`cli_examples` |
+| Skill | `skill_details`（owner/repo#skill 规范键）、`skill_security_audits` |
+| Loop | `loop_details`、`loop_steps`（按语言）、`loop_supported_agents` |
+| Agent | `agent_details` |
+
+### 5.3 采集层（8 张表）
+
+| 表 | 作用 |
+| --- | --- |
+| `ingest_sources` | 已注册的数据源及其礼貌参数 |
+| `ingest_runs` | 每次运行一行，统计数字都是独立列；进程被杀后会在下次启动时标记为 aborted |
+| `ingest_targets` | URL 前沿兼任务队列：状态、ETag、Last-Modified、内容哈希、失败次数、下次抓取时间、锁 |
+| `ingest_documents` | 抓取历史；正文 gzip 后存文件，内容不变不重复存 |
+| `ingest_records` | 源站原生结构（JSON），记录解析器版本和内容最近变化时间 |
+| `ingest_drafts` | 细粒度草稿（JSON）、身份键、合并到的实体 |
+| `ingest_issues` | 数据质量问题，每次映射时重建 |
+| `ingest_enrichments` | 补全阶段的响应缓存，带过期时间 |
+
+### 5.4 细粒度查询示例
+
+```sql
+-- 需要 OPENAI_API_KEY 的 MCP 服务
+SELECT e.slug FROM server_env_vars v JOIN entities e ON e.id = v.entity_id WHERE v.name = 'OPENAI_API_KEY';
+
+-- 提供只读工具、且有名为 url 的必填参数的服务
+SELECT DISTINCT e.slug
+FROM server_tools t
+JOIN server_tool_params p ON p.tool_id = t.id AND p.name = 'url' AND p.is_required
+JOIN entities e ON e.id = t.entity_id
+WHERE t.hint_read_only = TRUE;
+
+-- 本周星数增长最多的 20 个服务
+SELECT e.slug, MAX(m.value) - MIN(m.value) AS growth
+FROM entity_metrics m JOIN entities e ON e.id = m.entity_id
+WHERE m.metric = 'github_stars' AND m.observed_on >= CURRENT_DATE - INTERVAL 7 DAY AND e.kind = 'server'
+GROUP BY e.id ORDER BY growth DESC LIMIT 20;
+
+-- 支持 sampling 的客户端
+SELECT e.slug FROM client_capabilities c JOIN entities e ON e.id = c.entity_id WHERE c.capability = 'sampling' AND c.support = 'full';
+
+-- 采集侧：哪些源站分类还没映射
+SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROUP BY detail ORDER BY 2 DESC;
+```
+
+## 6. 身份与合并
+
+- 合并键（`core/identity.ts`）按可信度：Skill 键 `owner/repo#skill` > 仓库（含 monorepo 子目录）> 官方 Registry 名称 > npm 包 > PyPI 包 > 远程地址 > 官网。
+- 仓库地址统一小写、去 `.git`、去分支名但保留子目录：`modelcontextprotocol/servers` 下的十几个服务不会被合成一个。
+- Skill 必须用规范键：同一仓库里通常有多个 Skill。
+- 合并时按字段设来源优先级（下一阶段实现），例如：星数 GitHub > mcp.so；安装方式 官方 Registry > npm > README；简介 我们生成 > 上游仓库描述。
+
+## 7. mcp.so 数据源
+
+- 发现：站点地图索引按分区展开（servers 分 19 页约 1.84 万条，clients 388、cli 170、skills 250、loops 40、agents 63）；只抓英文版，中日文是同一条数据的翻译；分类/标签页（8348 个）不抓。
+- 解析：页面由 TanStack Start 渲染，完整数据以 JavaScript（seroval）形式内嵌在 `<script class="$tsr">` 中。这是第三方代码，放进 QuickJS（WebAssembly）沙箱执行：无网络、无文件系统、2 秒超时、64 MB 内存上限。实测单页 3–30 ms。
+- 各类型在加载数据中的键名：server / client / tool(CLI) / skill / loop / entry(Agent)。
+- 解析时直接丢弃：mcp.so 用户的个人数据（提交者、所有者账号）、mcp.so 自己撰写的长篇介绍。
+- 映射只取事实；以下内容不进入草稿，由我们自己生成：CLI 描述与能力列表、Skill 摘要、Agent 简介、Loop 的提示词与步骤。
+- 已发现的源站数据问题（会记入 `ingest_issues`）：
+  - 安装配置被替换成 mcp.so 自己的代理（`npx -y mcprouter` + `SERVER_KEY`），不是项目真实的安装方式 → `proxied_install_config`，安装信息改从官方 Registry / npm 获取。
+  - 名称错误，例如 `playwright-microsoft` 的名称是 "Slack Slack" → `suspicious_name`，名称以 GitHub / Registry 为准。
+  - 同一仓库重复收录（`firecrawl` 与 `firecrawl-firecrawl`）→ 合并阶段按身份键去重。
+- 礼貌参数：每秒 1 个请求、并发 2、遵守 robots.txt、最多重试 4 次、30 秒超时。
+
+## 8. 增量与调度
+
+- 站点地图 `lastmod` 不晚于上次成功抓取时间 → 直接跳过，不发请求。
+- 需要抓取时带 `If-None-Match` / `If-Modified-Since`；304 只更新状态。
+- 内容哈希不变 → 不重复存原文、不重新解析。
+- 失败按 1h、2h、4h…… 最长 7 天退避；404/410 标记为 gone，robots 禁止标记为 blocked。
+- 以后多进程运行：Worker 用 `SELECT … FOR UPDATE SKIP LOCKED` 从 `ingest_targets` 领取到期目标（MySQL 8 支持），复用 `TargetProcessor`，不需要额外的队列组件。
+
+## 9. 规模估算（基于 12 页实测）
+
+| 项 | 估算 |
+| --- | --- |
+| 首次全量详情页 | 约 1.93 万页，按每秒 1 个约 5.5 小时 |
+| 原始 HTML 存储 | 平均约 17 KB/页（gzip 后），全量约 330 MB |
+| 之后每天增量 | 只抓 lastmod 变化的页面，通常几分钟 |
+
+## 10. 新增数据源的步骤
+
+1. 在 `src/sources/<id>/` 下实现一个继承 `BaseSourceFactory` 的工厂：
+   - `meta`：ID、名称、支持的类型、礼貌参数
+   - `createDiscoverer`：能用站点地图就复用 `SitemapDiscoverer`，否则实现分页 API 发现器
+   - `createParser`：复用 `extract/` 里的提取器（TanStack、JSON-LD 等），或新写一个
+   - `createMapper`：用 `DraftBuilder` 把源站字段映射到草稿
+   - 需要浏览器渲染或走 API 时覆盖 `createFetcher`
+2. 在 `bootstrap.ts` 里 `register(new XxxFactory())`。
+3. 补单元测试（用合成数据，不提交源站页面）。
+
+运行器、存储、表结构都不用改。
+
+## 11. 多语言：翻译与 AI 介绍
+
+两类大模型任务共用 `src/llm/`：
+
+- `claude.ts`：调用 Claude 并强制通过工具返回结构化 JSON；模型不支持强制指定工具时自动改用 auto，并兼容模型在文本里直接返回 JSON
+- `batch.ts`：通用批处理（模板方法）——分批、并发、输出截断时拆批、校验不合格时小批次重做（最多 3 次）、统计用量
+- `checks.ts`：通用语言检查——中文里不能有假名、日文里不能混入简体字或中文词、与原文照抄的最长连续词数
+
+| 任务 | 命令 | 输入 | 存储 |
+| --- | --- | --- | --- |
+| 翻译简介 | `translate` | 草稿里的 tagline / description | `ingest_translation_sources`（按原文指纹去重）+ `ingest_translations`（每种语言一行） |
+| 生成三语介绍 | `overview` | 名称、简介、分类、标签、清理后的 README | `ingest_overviews`（每个条目每种语言一行：概述、MCP 相关）+ `ingest_overview_items`（主要功能、适用场景，一条一行） |
+
+- 翻译和介绍都记录模型与提示词版本；提示词改进后用 `--stale` 重做旧版本结果。
+- 翻译记忆库里人工修改过的译文（origin = manual）不会被自动翻译覆盖。
+- 介绍按输入指纹判断是否需要重新生成：README、简介等没变就跳过。
+- 介绍只使用 README 中写明的事实，用自己的话写；与 README 连续 15 个词以上相同视为照抄，自动重写。
+- 介绍按热度选模型：星数 ≥ 1000 用 Claude Sonnet 5.5，其余用 Claude Haiku 4.5。
+- README 整篇翻译（`readme` 命令，中文、日文）：
+  - 围栏代码块替换成占位符 `⟦CODE n⟧` 不发给模型，翻完原样放回；HTML 注释去掉。
+  - 按标题切分成不超过 4,000 字符的片段，章节过长再按段落切；表格不会被切开。
+  - 片段按内容指纹存进翻译记忆库（与简介共用），不同项目里相同的段落只翻一次；README 更新后只重翻变化的片段。
+  - 只有代码、徽章、链接的片段不翻译；已经是目标语言的片段（本来就用中文写的 README）沿用原文。
+  - 逐段校验：占位符个数、链接和图片地址（页内锚点除外）必须一个不少，必须真的译成目标语言，日文不能混入中文；行内代码、标题数、表格行数、长度比例不一致标记为待抽查。
+  - 所有正文片段都有译文后，拼回整篇并还原代码块，存入 `ingest_readme_translations`，记录翻译时的原文指纹（原文更新后接口返回 outdated）和原项目许可证。
+  - 模型：项目星数 ≥ 1000 用 Sonnet 5.5，其余用 Haiku 4.5；`--licensed-only` 可只翻译有明确开源许可证的 README。
+
+### 自己撰写的内容（Loop / CLI / Agent）
+
+这三类没有项目 README，mcp.so 上的简介、提示词、步骤说明是 mcp.so 自己写的，不搬运。`describe` 命令按"事实优先"生成我们自己的三语内容：
+
+- 输入：由各数据源的事实整理器（`sources/mcpso/describe-facts.ts`）从源记录里提取事实——命令、安装方式、示例、链接、轮数、检查命令、标签等。
+  Loop 不传 mcp.so 的简介、启动提示词和步骤说明，只传每步的命令和几个词的用途标签，步骤由模型自行设计；CLI / Agent 的一句话说明作为背景提示。
+- 输出：三语的一句话简介、概述、主要功能、适用场景；Loop 另有目标、退出条件和步骤（步骤通过下标引用事实里的命令，三种语言一一对应）。
+- 校验：与源站说明连续 6 个英文词或 12 个汉字相同即判为沿用原文，要求重写；与短标签、条件说明重合只标记待抽查。重写 3 次仍不合格的跳过，页面显示"暂无简介"。
+- 存储：简介、目标、退出条件存 `ingest_generated_texts`，步骤存 `ingest_generated_steps`（每种语言一行），概述与功能复用 `ingest_overviews`。启动提示词不存，由前端用我们的模板根据目标、步骤、检查命令、退出条件拼出。
+- 模型：Loop 用 Sonnet 5.5；CLI / Agent 用 Haiku 4.5，被照抄检测拦下的用 `--model claude-sonnet-5-5` 重跑。
+
+## 12. 图片转存（Cloudflare R2）
+
+第三方图床（GitHub 头像、cdn.mcp.so 等）在部分网络下很慢或打不开，也可能加防盗链，因此图标转存到自己的存储：
+
+- 存储：Cloudflare R2 桶 `mcp-field-assets`，自定义域名 `https://assets.mcpfield.com`（经 Cloudflare CDN，`Cache-Control: immutable` 一年）。
+- 处理：下载原图（只允许 https、拒绝内网地址、手动跟随重定向并逐跳校验、5MB / 15 秒上限）→ sharp 缩放到 256×256 以内并输出 WebP（SVG 先转成位图，不直接提供 SVG）→ 文件名用内容哈希 `icons/ab/<sha256>.webp`，同样内容只存一份。
+- 数据库：`media_assets` 表只存"原始地址 → 公开地址"和尺寸、状态等元信息，不存图片本身。失败按 1h、4h、16h…… 最长 7 天退避重试；格式不支持记为 skipped，原图 404 记为 gone。
+- 接口：组装列表和详情时把图标、截图换成转存地址，没转存的保留原地址；前端看到图片加载失败时显示首字母色块。
+- 命令：`npm run crawler -- assets`（默认处理图标，`--media screenshot` 处理截图）；每次抓取后运行一次即可增量转存。
+- 存储层是 `AssetStorage` 接口（`R2Storage` / `LocalStorage`），以后换成其他对象存储只需新增实现。
+
+## 13. 后续阶段
+
+1. **补全**（Enricher）：GitHub GraphQL（每次 100 个仓库）、官方 MCP Registry（增量拉取）、npm / PyPI 下载量、远程服务实时探测（initialize + tools/list + prompts/list + resources/list）。
+2. **合并发布**（Publisher）：按身份键合并草稿 → 按字段优先级取值 → upsert 目录表 → 记录 `entity_sources` → 触发网站缓存刷新和 IndexNow 推送。
+3. **生成**：LLM 根据 README 和元数据生成中英日简介与介绍，写入 `entity_texts`（origin = generated / translated，记录模型）。
+4. **Worker 与定时任务**：多进程领取队列、每日增量、每周补全。

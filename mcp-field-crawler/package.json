@@ -1,0 +1,45 @@
+{
+  "name": "mcp-field-crawler",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP Field 数据采集服务：可插拔的多源爬虫，写入与 mcp-field 共用的 PostgreSQL",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "api": "tsx --env-file-if-exists=.env src/api/server.ts",
+    "api:dev": "tsx watch --env-file-if-exists=.env src/api/server.ts",
+    "crawler": "tsx --env-file-if-exists=.env src/cli/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src test",
+    "test": "vitest run",
+    "db:generate": "node --env-file-if-exists=.env ./node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "tsx --env-file-if-exists=.env src/db/migrate.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
+    "@aws-sdk/client-s3": "^3.1149.0",
+    "@hono/node-server": "^2.1.4",
+    "cheerio": "^1.2.0",
+    "drizzle-orm": "^0.45.4",
+    "fast-xml-parser": "^5.11.2",
+    "hono": "^4.13.13",
+    "mysql2": "^3.24.5",
+    "p-limit": "^7.3.3",
+    "pino": "^10.4.0",
+    "quickjs-emscripten": "^0.32.0",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "drizzle-kit": "^0.31.11",
+    "oxlint": "^1.87.0",
+    "pino-pretty": "^13.2.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.149.0"
+  }
+}

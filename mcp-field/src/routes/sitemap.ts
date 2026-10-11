@@ -27,9 +27,9 @@ function urlEntry(locale: Locale, path: string, query = '', lastmod?: string | n
 const urlset = (entries: string[]) =>
   xmlResponse(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${entries.join('')}</urlset>`)
 
-/** 首页、各目录页和有条目的分类页（三种语言） */
+/** 首页、各目录页、有条目的分类页和隐私政策（三种语言） */
 async function pagesSitemap(signal: AbortSignal) {
-  const paths: [string, string][] = [['/', ''], ['/remote-servers', '']]
+  const paths: [string, string][] = [['/', ''], ['/remote-servers', ''], ['/privacy', '']]
   const facets = await Promise.all((Object.keys(ROUTE) as Kind[]).map((kind) => fetchFacets(kind, {}, signal).then((f) => [kind, f] as const)))
   for (const [kind, f] of facets) {
     paths.push([`/${ROUTE[kind]}`, ''])

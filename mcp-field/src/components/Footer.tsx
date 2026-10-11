@@ -1,10 +1,11 @@
 import { motion } from 'motion/react'
 import { DiscordLogo, GithubLogo, Lifebuoy, PlugsConnected, TwitterLogo } from '@phosphor-icons/react'
+import { Link } from 'react-router'
 import { useI18n } from '../i18n/context'
 import { LanguageMenu } from './LanguageMenu'
 
 export function Footer() {
-  const { m } = useI18n()
+  const { m, to } = useI18n()
   return (
     <footer className="border-t border-line">
       <div className="mx-auto max-w-[1248px] px-6 pb-8 pt-14">
@@ -23,11 +24,18 @@ export function Footer() {
             <div key={h}>
               <div className="text-sm font-semibold">{h}</div>
               <ul className="mt-3 flex flex-col gap-3">
-                {items.map((it) => (
-                  <li key={it}>
-                    <a href={it.includes('@') ? `mailto:${it}` : '#'} className="text-sm text-text2 transition-colors hover:text-ink">{it}</a>
-                  </li>
-                ))}
+                {/* [文字, 站内路径] 是已上线的页面；纯文字项是邮箱或尚未上线的栏目 */}
+                {items.map((it) =>
+                  typeof it === 'string' ? (
+                    <li key={it}>
+                      <a href={it.includes('@') ? `mailto:${it}` : '#'} className="text-sm text-text2 transition-colors hover:text-ink">{it}</a>
+                    </li>
+                  ) : (
+                    <li key={it[0]}>
+                      <Link to={to(it[1])} className="text-sm text-text2 transition-colors hover:text-ink">{it[0]}</Link>
+                    </li>
+                  ),
+                )}
               </ul>
             </div>
           ))}

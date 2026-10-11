@@ -174,7 +174,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     // 先只按 id 排序分页，再回表取更新时间：直接带着草稿 JSON 排序上万行会超出 MySQL 的排序缓冲区
     const [rows, [count]] = await Promise.all([
       this.rows<{ slug: string; updated_at: string | null }>(sql`
-        SELECT d.external_id AS slug,
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.slug')) AS slug,
                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.sourceUpdatedAt')), JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.lastCommitAt'))) AS updated_at
         FROM (SELECT d.id FROM ingest_drafts d WHERE ${where} ORDER BY d.external_id LIMIT ${limit} OFFSET ${offset}) page
         JOIN ingest_drafts d ON d.id = page.id`),

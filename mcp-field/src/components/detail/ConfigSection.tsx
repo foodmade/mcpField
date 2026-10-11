@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { FileCode, GithubLogo, Globe, Info, Key, Package, TerminalWindow } from '@phosphor-icons/react'
 import clsx from 'clsx'
+import type { ReactNode } from 'react'
 import { useI18n } from '../../i18n/context'
 import type { ServerDetail } from '../../lib/api/entities'
 import { buildLocalConfig, buildRemoteConfig, CLIENT_META, highlight, installLinks, localSpec, runCommand, type ClientKey, type LocalSpec } from '../../lib/config'
+import { ClaudeCodeIcon, ClaudeIcon, CursorIcon, VSCodeIcon, WindsurfIcon } from '../BrandIcons'
 import { CopyButton } from './CopyButton'
 
 function CodeBlock({ file, code, kind, glow, animKey }: { file: string; code: string; kind: 'json' | 'shell'; glow: string; animKey: string }) {
@@ -100,12 +102,13 @@ function NoInstall({ d }: { d: ServerDetail }) {
   )
 }
 
-const PLATFORM_ICON: Record<ClientKey, [string, string, string]> = {
-  'claude-code': ['>_', '#D97757', '#fff'],
-  'claude-desktop': ['C', '#D97757', '#fff'],
-  cursor: ['C', '#F3F4F6', '#0A0B0D'],
-  vscode: ['V', '#2B7FFF', '#fff'],
-  windsurf: ['W', '#0FB5AE', '#fff'],
+/** 各平台的官方标志；单色标志（Cursor、Windsurf）跟随文字颜色 */
+const PLATFORM_ICON: Record<ClientKey, ReactNode> = {
+  'claude-code': <ClaudeCodeIcon size={22} />,
+  'claude-desktop': <ClaudeIcon size={18} />,
+  cursor: <CursorIcon size={18} className="text-ink" />,
+  vscode: <VSCodeIcon size={18} />,
+  windsurf: <WindsurfIcon size={18} className="text-ink" />,
 }
 const ORDER: ClientKey[] = ['claude-code', 'cursor', 'vscode', 'claude-desktop', 'windsurf']
 
@@ -123,7 +126,6 @@ function RemoteConfig({ configKey, url, transport }: { configKey: string; url: s
           const meta = CLIENT_META[c]
           const code = buildRemoteConfig(configKey, url, c, transport)
           const preview = meta.kind === 'shell' ? code : JSON.stringify(JSON.parse(code))
-          const [label, bg, fg] = PLATFORM_ICON[c]
           return (
             <motion.div
               key={c}
@@ -133,7 +135,7 @@ function RemoteConfig({ configKey, url, transport }: { configKey: string; url: s
               transition={{ delay: i * 0.04 }}
               className={clsx('group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-fg/[0.03]', i > 0 && 'border-t border-fg/[0.06]')}
             >
-              <span className="grid size-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-bold" style={{ background: bg, color: fg }}>{label}</span>
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-fg/[0.06]">{PLATFORM_ICON[c]}</span>
               <span className="w-[120px] shrink-0">
                 <span className="block text-sm font-medium">{meta.label}</span>
                 <span className="block truncate font-mono text-xs text-text3">{meta.file}</span>

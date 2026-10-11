@@ -1,9 +1,10 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { AnimatePresence, motion } from 'motion/react'
-import { CaretDown, Check, Lightning, Terminal } from '@phosphor-icons/react'
+import { CaretDown, Check, Lightning } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { useI18n } from '../../i18n/context'
 import { installLinks } from '../../lib/config'
+import { ClaudeCodeIcon, CursorIcon, VSCodeIcon } from '../BrandIcons'
 import { copyText } from './CopyButton'
 
 export function InstallMenu({ name, url, transport }: { name: string; url: string; transport?: string }) {
@@ -11,6 +12,8 @@ export function InstallMenu({ name, url, transport }: { name: string; url: strin
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const links = installLinks(name, url, transport)
+  // 各平台的官方标志放在中性底色的小方块里，深浅主题下都清楚
+  const mark = 'grid size-6 shrink-0 place-items-center rounded-md bg-fg/[0.06]'
   const item = 'flex h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-text2 outline-none data-[highlighted]:bg-fg/[0.07] data-[highlighted]:text-ink'
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
@@ -36,10 +39,10 @@ export function InstallMenu({ name, url, transport }: { name: string; url: strin
                 className="z-50 w-[244px] rounded-xl border border-fg/[0.12] bg-subtle/95 p-1.5 shadow-[0_20px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl"
               >
                 <DropdownMenu.Item asChild className={item}>
-                  <a href={links.cursor}><span className="grid size-6 place-items-center rounded-md bg-[#F3F4F6] text-xs font-bold text-bg">C</span>{m.detail.installIn('Cursor')}</a>
+                  <a href={links.cursor}><span className={mark}><CursorIcon className="text-ink" /></span>{m.detail.installIn('Cursor')}</a>
                 </DropdownMenu.Item>
                 <DropdownMenu.Item asChild className={item}>
-                  <a href={links.vscode}><span className="grid size-6 place-items-center rounded-md bg-[#2B7FFF] text-xs font-bold text-white">V</span>{m.detail.installIn('VS Code')}</a>
+                  <a href={links.vscode}><span className={mark}><VSCodeIcon /></span>{m.detail.installIn('VS Code')}</a>
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   className={item}
@@ -50,7 +53,7 @@ export function InstallMenu({ name, url, transport }: { name: string; url: strin
                     setTimeout(() => setCopied(false), 1600)
                   }}
                 >
-                  <span className="grid size-6 place-items-center rounded-md bg-[#D97757] text-white"><Terminal size={13} /></span>
+                  <span className={mark}><ClaudeCodeIcon size={18} /></span>
                   <span className="flex-1">{copied ? m.detail.copied : m.detail.copyCli}</span>
                   {copied && <Check size={14} className="text-accent" />}
                 </DropdownMenu.Item>

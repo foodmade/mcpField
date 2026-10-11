@@ -8,6 +8,8 @@ export default [
   route('robots.txt', 'routes/robots.ts'),
   route('sitemap.xml', 'routes/sitemap-index.ts'),
   route('sitemaps/:file', 'routes/sitemap.ts'),
+  // 登录页是独立页面，不在站点外壳（导航、页脚）里
+  route(':lang?/login', 'pages/Login.tsx'),
   route(':lang?', 'routes/site.tsx', [
     index('pages/Home.tsx'),
     route('servers', 'pages/Servers.tsx'),
@@ -23,6 +25,7 @@ export default [
     route('loops/:slug', 'pages/LoopDetail.tsx'),
     route('agents', 'pages/Agents.tsx'),
     route('agents/:slug', 'pages/AgentDetail.tsx'),
+    route('privacy', 'pages/Privacy.tsx'),
     route('*', 'routes/not-found.tsx'),
   ]),
 ] satisfies RouteConfig

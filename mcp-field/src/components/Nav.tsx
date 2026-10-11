@@ -1,13 +1,15 @@
 import { motion, useMotionValueEvent, useScroll, useSpring } from 'motion/react'
-import { Megaphone, MagnifyingGlass, Moon, PlugsConnected, Sun } from '@phosphor-icons/react'
+import { Megaphone, MagnifyingGlass, Moon, Sun } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import clsx from 'clsx'
 import { useI18n } from '../i18n/context'
 import { stripLocale } from '../i18n/locales'
 import { setTheme, useTheme } from '../lib/theme'
+import { AccountMenu } from './AccountMenu'
 import { LanguageMenu } from './LanguageMenu'
 import { LocaleBanner } from './LocaleBanner'
+import { Logo } from './Logo'
 import { SearchDialog, useCmdK } from './SearchDialog'
 
 /** 顶部导航：没有 to 的栏目尚未上线 */
@@ -49,7 +51,7 @@ export function Nav() {
   useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 8))
   useCmdK(useCallback(() => setOpen((o) => !o), []))
   const { rest } = stripLocale(useLocation().pathname)
-  const active = rest.startsWith('/remote-servers') ? 'remote' : rest.startsWith('/clients') ? 'clients' : rest.startsWith('/loops') ? 'loops' : rest.startsWith('/cli') ? 'cli' : rest.startsWith('/skills') ? 'skills' : rest.startsWith('/agents') ? 'agents' : rest.startsWith('/servers') ? 'servers' : 'discover'
+  const active = rest.startsWith('/remote-servers') ? 'remote' : rest.startsWith('/clients') ? 'clients' : rest.startsWith('/loops') ? 'loops' : rest.startsWith('/cli') ? 'cli' : rest.startsWith('/skills') ? 'skills' : rest.startsWith('/agents') ? 'agents' : rest.startsWith('/servers') ? 'servers' : rest === '/' ? 'discover' : null
   const ref = useRef<HTMLElement>(null)
   useEffect(() => {
     const el = ref.current
@@ -64,12 +66,7 @@ export function Nav() {
       <LocaleBanner />
       <div className="mx-auto max-w-[1248px] px-6">
         <div className="flex h-[68px] items-center justify-between gap-4 lg:gap-10">
-          <Link to={to('/')} className="flex shrink-0 items-center gap-2.5 lg:w-[340px]">
-            <motion.span whileHover={{ rotate: -12, scale: 1.06 }} className="grid size-[30px] place-items-center rounded-lg bg-gradient-to-br from-accent to-blue text-accent-ink">
-              <PlugsConnected size={18} weight="bold" />
-            </motion.span>
-            <span className="text-lg font-semibold tracking-tight">MCP Field</span>
-          </Link>
+          <Logo className="lg:w-[340px]" />
           <button
             onClick={() => setOpen(true)}
             className="hidden h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border border-fg/10 bg-fg/[0.04] px-3.5 text-left text-sm text-text3 transition-colors hover:border-fg/20 hover:bg-fg/[0.06] md:flex"
@@ -83,7 +80,7 @@ export function Nav() {
             <a href="#" className="hidden h-[34px] items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm transition-colors hover:bg-fg/[0.06] lg:flex"><Megaphone size={15} />{m.nav.ad}</a>
             <LanguageMenu />
             <ThemeToggle label={m.nav.theme} />
-            <motion.a href="#" whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }} className="ml-1 flex h-8 items-center whitespace-nowrap rounded-lg bg-ink px-3.5 text-sm font-semibold text-bg">{m.nav.login}</motion.a>
+            <AccountMenu />
           </div>
         </div>
         <nav className="-mb-px flex gap-9 overflow-x-auto [scrollbar-width:none]" onMouseLeave={() => setHover(null)}>

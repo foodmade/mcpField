@@ -18,6 +18,19 @@ npm run lint
 |---|---|---|
 | `PORT` | `3000`（`npm run dev` 固定 5288） | 前端服务端口 |
 | `API_ORIGIN` | `http://127.0.0.1:3100` | API 地址：服务端 loader 直接访问；浏览器的 `/api/*` 由前端服务反向代理到这里 |
+| `VITE_SUPABASE_URL` | — | Supabase 项目地址（登录用），构建时打包进前端，写在 `.env`（见 `.env.example`） |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | — | Supabase 的 Publishable key（可公开） |
+
+## 登录（Supabase Auth）
+
+登录页 `/login`（`src/pages/Login.tsx`）支持 GitHub、Google 和邮箱验证码，浏览器直接调用 Supabase Auth，会话存在 localStorage。
+页面 HTML 会被 CDN 缓存，登录状态只在浏览器端读取（`src/lib/auth.ts` 的 `useSession`）。Supabase 后台需要配置：
+
+- Authentication → URL Configuration：Site URL 填 `https://mcpfield.com`，Redirect URLs 加 `https://mcpfield.com/**` 和 `http://localhost:5288/**`
+- Authentication → Sign In / Providers：启用 GitHub、Google，填各自的 Client ID / Secret；两边的回调地址都是 `https://<项目>.supabase.co/auth/v1/callback`
+- Email：OTP 长度 6 位、有效期 600 秒（与 `OTP_LENGTH`、`OTP_MINUTES` 一致）；Magic Link 和 Confirm signup 两个邮件模板都换成 [`supabase/email-otp.html`](supabase/email-otp.html)（显示验证码，按用户语言切换中英日）；正式环境配置自定义 SMTP（Supabase 自带的发信只能发给项目成员，每小时只能发几封）
+
+背景"光之田"是 `src/components/login/field.glsl`，与设计稿共用同一份着色器。
 
 ## 结构
 

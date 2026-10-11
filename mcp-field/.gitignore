@@ -26,3 +26,6 @@ dist-ssr
 # React Router
 .react-router/
 build
+
+# 本地环境变量（Supabase 地址和 Publishable key）
+.env

@@ -16,7 +16,7 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       '@phosphor-icons/react', '@radix-ui/react-accordion', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', 'clsx', 'motion/react',
-      'react-markdown', 'rehype-raw', 'rehype-sanitize', 'remark-gfm',
+      'react-markdown', 'rehype-raw', 'rehype-sanitize', 'remark-gfm', '@supabase/supabase-js',
     ],
   },
 })

@@ -15,7 +15,7 @@ export function Footer() {
               <span className="text-[17px] font-semibold tracking-tight">MCP Field</span>
             </div>
             <p className="mt-3.5 text-sm text-text2">{m.footer.tagline}</p>
-            <button className="mt-3.5 flex h-[34px] items-center gap-1.5 rounded-lg border border-line bg-white/[0.04] px-3 text-sm transition-colors hover:border-white/20">
+            <button className="mt-3.5 flex h-[34px] items-center gap-1.5 rounded-lg border border-line bg-fg/[0.04] px-3 text-sm transition-colors hover:border-fg/20">
               <Lifebuoy size={15} className="text-text2" />{m.footer.support}
             </button>
           </div>

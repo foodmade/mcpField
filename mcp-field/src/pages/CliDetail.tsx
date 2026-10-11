@@ -22,8 +22,8 @@ function Cmd({ cmd, className }: { cmd: string; className?: string }) {
   const [prog, ...rest] = cmd.split(' ')
   return (
     <code className={clsx('whitespace-pre font-mono', className)}>
-      <span className="text-[#7FD9B5]">{prog}</span>
-      {rest.map((w, i) => <span key={i} className={w.startsWith('-') ? 'text-[#9FC6FF]' : 'text-ink'}>{' ' + w}</span>)}
+      <span className="text-code">{prog}</span>
+      {rest.map((w, i) => <span key={i} className={w.startsWith('-') ? 'text-sky' : 'text-ink'}>{' ' + w}</span>)}
     </code>
   )
 }
@@ -64,15 +64,15 @@ function InstallSection({ c, glow }: { c: Detail; glow: string }) {
       {c.installs.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-1.5" role="tablist">
           {c.installs.map((i, idx) => (
-            <button key={i.command} role="tab" aria-selected={method === idx} onClick={() => setMethod(idx)} className={clsx('relative h-8 whitespace-nowrap rounded-lg border px-3 text-sm transition-colors', method === idx ? 'border-white/25 font-medium text-ink' : 'border-white/[0.06] text-text2 hover:text-ink')}>
-              {method === idx && <motion.span layoutId="install-pill" className="absolute inset-0 rounded-[7px] bg-white/[0.09]" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
+            <button key={i.command} role="tab" aria-selected={method === idx} onClick={() => setMethod(idx)} className={clsx('relative h-8 whitespace-nowrap rounded-lg border px-3 text-sm transition-colors', method === idx ? 'border-fg/25 font-medium text-ink' : 'border-fg/[0.06] text-text2 hover:text-ink')}>
+              {method === idx && <motion.span layoutId="install-pill" className="absolute inset-0 rounded-[7px] bg-fg/[0.09]" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
               <span className="relative">{label(i)}</span>
             </button>
           ))}
         </div>
       )}
-      <div className="flex items-center gap-3 rounded-[14px] border border-white/10 py-3.5 pl-[18px] pr-3" style={{ background: `radial-gradient(80% 250% at 100% 0%, ${glow}1F, transparent 60%), #0D0F12` }}>
-        <span className="font-mono text-sm text-white/30">$</span>
+      <div className="flex items-center gap-3 rounded-[14px] border border-fg/10 py-3.5 pl-[18px] pr-3" style={{ background: `radial-gradient(80% 250% at 100% 0%, ${glow}1F, transparent 60%), var(--color-code-bg)` }}>
+        <span className="font-mono text-sm text-fg/30">$</span>
         <motion.div key={install.command} initial={enter ? { opacity: 0, x: 6 } : false} animate={{ opacity: 1, x: 0 }} className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
           <Cmd cmd={install.command} className="text-sm" />
         </motion.div>
@@ -81,7 +81,7 @@ function InstallSection({ c, glow }: { c: Detail; glow: string }) {
       {c.command && (
         <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-text3">
           <Info size={14} />{m.cli.verifyBefore}
-          <code className="rounded-[5px] bg-white/[0.07] px-1.5 py-px font-mono text-ink">{c.command} --version</code>
+          <code className="rounded-[5px] bg-fg/[0.07] px-1.5 py-px font-mono text-ink">{c.command} --version</code>
           {m.cli.verifyAfter}
         </p>
       )}
@@ -99,8 +99,8 @@ function ExamplesSection({ c }: { c: Detail }) {
       <RevealGroup className="flex flex-col gap-3" stagger={0.05}>
         {c.examples.map((cmd, i) => (
           <RevealItem key={cmd}>
-            <div className="flex items-center gap-4 rounded-[14px] border border-white/[0.08] bg-surface py-3.5 pl-[18px] pr-3.5 transition-colors hover:border-white/15">
-              <span className="grid size-7 shrink-0 place-items-center rounded-full border border-white/[0.12] bg-white/[0.06] tabular-nums text-sm font-semibold">{i + 1}</span>
+            <div className="flex items-center gap-4 rounded-[14px] border border-fg/[0.08] bg-surface py-3.5 pl-[18px] pr-3.5 transition-colors hover:border-fg/15">
+              <span className="grid size-7 shrink-0 place-items-center rounded-full border border-fg/[0.12] bg-fg/[0.06] tabular-nums text-sm font-semibold">{i + 1}</span>
               <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"><Cmd cmd={cmd} className="text-sm" /></div>
               <CopyButton text={cmd} />
             </div>
@@ -147,12 +147,12 @@ function Page({ c, related }: { c: Detail; related: CliItem[] }) {
         listTitle={m.dirs.cli.title}
         tile={
           <span className="relative block">
-            <EntityIcon name={c.name} src={c.iconUrl} color={cat.color} size={72} className="!rounded-[18px] border border-white/15" />
-            <span className="absolute -bottom-1.5 -right-1.5 grid size-7 place-items-center rounded-lg border border-white/20 bg-bg text-white"><Terminal size={15} /></span>
+            <EntityIcon name={c.name} src={c.iconUrl} color={cat.color} size={72} className="!rounded-[18px] border border-fg/15" />
+            <span className="absolute -bottom-1.5 -right-1.5 grid size-7 place-items-center rounded-lg border border-fg/20 bg-bg text-ink"><Terminal size={15} /></span>
           </span>
         }
         badges={c.agentReady ? <Badge tone="gray" icon={Robot}>{m.cli.agentReady}</Badge> : undefined}
-        meta={c.command && <span className="flex items-center gap-1 font-mono text-[#7FD9B5]"><Code size={14} />{c.command}</span>}
+        meta={c.command && <span className="flex items-center gap-1 font-mono text-code"><Code size={14} />{c.command}</span>}
         actions={
           <>
             <DefaultActions d={c} />

@@ -12,9 +12,9 @@ export function FaqList() {
       {items.map(([q, a], i) => (
         <Accordion.Item key={i} value={String(i)} className="group border-t border-line last:border-b">
           <Accordion.Header>
-            <Accordion.Trigger className="flex w-full items-center justify-between gap-6 py-5 text-left text-[17px] font-medium transition-colors hover:text-white data-[state=open]:font-semibold">
+            <Accordion.Trigger className="flex w-full items-center justify-between gap-6 py-5 text-left text-[17px] font-medium transition-colors hover:text-ink data-[state=open]:font-semibold">
               {q}
-              <span className="grid size-7 shrink-0 place-items-center rounded-full border border-white/10 text-text2 transition-all duration-300 group-data-[state=open]:rotate-45 group-data-[state=open]:border-accent/40 group-data-[state=open]:text-accent">
+              <span className="grid size-7 shrink-0 place-items-center rounded-full border border-fg/10 text-text2 transition-all duration-300 group-data-[state=open]:rotate-45 group-data-[state=open]:border-accent/40 group-data-[state=open]:text-accent">
                 <Plus size={14} />
               </span>
             </Accordion.Trigger>

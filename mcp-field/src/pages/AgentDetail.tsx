@@ -20,9 +20,9 @@ function FeaturesSection({ items }: { items: string[] }) {
   return (
     <section>
       <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight"><ListChecks size={22} className="text-accent" />{m.detail.aiOverview.features}</h2>
-      <RevealGroup className="mt-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-surface" stagger={0.04}>
+      <RevealGroup className="mt-4 overflow-hidden rounded-2xl border border-fg/[0.08] bg-surface" stagger={0.04}>
         {items.map((f, i) => (
-          <RevealItem key={i} className="flex gap-3.5 border-white/[0.06] px-5 py-4 [&:not(:first-child)]:border-t">
+          <RevealItem key={i} className="flex gap-3.5 border-fg/[0.06] px-5 py-4 [&:not(:first-child)]:border-t">
             <span className="mt-px grid size-6 shrink-0 place-items-center rounded-full border border-accent/25 bg-accent/10"><Check size={12} weight="bold" className="text-accent" /></span>
             <span className="text-sm leading-relaxed text-text2">{f}</span>
           </RevealItem>
@@ -45,7 +45,7 @@ function UseCasesSection({ items }: { items: string[] }) {
         {items.map((u, i) => {
           const [I, color] = CASE_ICONS[i % CASE_ICONS.length]!
           return (
-            <RevealItem key={i} className="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-surface p-[18px] transition-colors hover:border-white/15">
+            <RevealItem key={i} className="flex flex-col gap-3 rounded-2xl border border-fg/[0.08] bg-surface p-[18px] transition-colors hover:border-fg/15">
               <span className="grid size-8 place-items-center rounded-[9px] border" style={{ color, borderColor: `${color}40`, background: `${color}1F` }}><I size={16} /></span>
               <p className="text-sm leading-relaxed text-text2">{u}</p>
             </RevealItem>

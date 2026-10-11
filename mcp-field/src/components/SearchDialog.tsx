@@ -90,14 +90,14 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             </Dialog.Overlay>
             <Dialog.Content asChild aria-describedby={undefined} onKeyDown={onKey}>
               <motion.div
-                className="fixed left-1/2 top-[14vh] z-50 w-[min(640px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/10 bg-[#121418]/95 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl"
+                className="fixed left-1/2 top-[14vh] z-50 w-[min(640px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-2xl border border-fg/10 bg-surface/95 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl"
                 initial={{ opacity: 0, scale: 0.94, y: -12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: -8 }}
                 transition={{ type: 'spring', stiffness: 420, damping: 32 }}
               >
                 <Dialog.Title className="sr-only">{m.search.title}</Dialog.Title>
-                <div className="flex items-center gap-3 border-b border-white/[0.08] px-5">
+                <div className="flex items-center gap-3 border-b border-fg/[0.08] px-5">
                   <MagnifyingGlass size={18} className="text-text3" />
                   <input
                     autoFocus
@@ -109,7 +109,7 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                     placeholder={m.search.placeholder}
                     className="h-14 flex-1 bg-transparent text-[15px] outline-none placeholder:text-text3"
                   />
-                  <kbd className="rounded-[5px] border border-white/10 px-1.5 py-0.5 font-mono text-xs text-text3">ESC</kbd>
+                  <kbd className="rounded-[5px] border border-fg/10 px-1.5 py-0.5 font-mono text-xs text-text3">ESC</kbd>
                 </div>
                 <div className="max-h-[min(440px,60vh)] overflow-y-auto p-2">
                   {!q && <div className="px-3 pb-1 pt-2 text-xs text-text3">{m.search.popular}</div>}
@@ -129,13 +129,13 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                               onClick={() => change(false)}
                               className="relative flex items-center gap-3 rounded-lg px-3 py-2.5"
                             >
-                              {active === me && <motion.span layoutId="search-hl" className="absolute inset-0 rounded-lg bg-white/[0.07]" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
+                              {active === me && <motion.span layoutId="search-hl" className="absolute inset-0 rounded-lg bg-fg/[0.07]" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
                               <EntityIcon name={r.item.name} src={r.item.iconUrl} color={r.color} size={32} className="relative" />
                               <span className="relative min-w-0 flex-1">
                                 <span className="block truncate text-sm">{r.item.name}</span>
                                 {r.item.tagline && <span className="block truncate text-xs text-text3">{r.item.tagline}</span>}
                               </span>
-                              <span className="relative rounded border border-white/10 px-1.5  text-xs text-text2">{r.type}</span>
+                              <span className="relative rounded border border-fg/10 px-1.5  text-xs text-text2">{r.type}</span>
                             </MotionLink>
                           )
                         })}
@@ -150,7 +150,7 @@ export function SearchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   )}
                 </div>
                 {q && results.length > 0 && (
-                  <Link to={to(`/servers?q=${encodeURIComponent(q)}`)} onClick={() => change(false)} className="group flex items-center justify-between border-t border-white/[0.08] px-5 py-3 text-sm text-text2 hover:text-ink">
+                  <Link to={to(`/servers?q=${encodeURIComponent(q)}`)} onClick={() => change(false)} className="group flex items-center justify-between border-t border-fg/[0.08] px-5 py-3 text-sm text-text2 hover:text-ink">
                     {m.search.all(q)}
                     <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
                   </Link>

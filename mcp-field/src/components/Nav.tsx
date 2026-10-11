@@ -1,10 +1,11 @@
 import { motion, useMotionValueEvent, useScroll, useSpring } from 'motion/react'
-import { Megaphone, MagnifyingGlass, Moon, PlugsConnected } from '@phosphor-icons/react'
+import { Megaphone, MagnifyingGlass, Moon, PlugsConnected, Sun } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import clsx from 'clsx'
 import { useI18n } from '../i18n/context'
 import { stripLocale } from '../i18n/locales'
+import { setTheme, useTheme } from '../lib/theme'
 import { LanguageMenu } from './LanguageMenu'
 import { LocaleBanner } from './LocaleBanner'
 import { SearchDialog, useCmdK } from './SearchDialog'
@@ -21,6 +22,22 @@ const NAV_TABS = [
   { key: 'agents', to: '/agents' },
   { key: 'feed' },
 ] as const
+
+/** 明暗主题切换：深色时显示太阳（点了切到明亮），明亮时显示月亮 */
+function ThemeToggle({ label }: { label: string }) {
+  const theme = useTheme()
+  return (
+    <motion.button
+      aria-label={label}
+      title={label}
+      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+      whileTap={{ rotate: -30 }}
+      className="grid size-[34px] place-items-center rounded-lg text-text2 transition-colors hover:bg-fg/[0.06] hover:text-ink"
+    >
+      {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
+    </motion.button>
+  )
+}
 
 export function Nav() {
   const { m, to } = useI18n()
@@ -55,17 +72,17 @@ export function Nav() {
           </Link>
           <button
             onClick={() => setOpen(true)}
-            className="hidden h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border border-white/10 bg-white/[0.04] px-3.5 text-left text-sm text-text3 transition-colors hover:border-white/20 hover:bg-white/[0.06] md:flex"
+            className="hidden h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border border-fg/10 bg-fg/[0.04] px-3.5 text-left text-sm text-text3 transition-colors hover:border-fg/20 hover:bg-fg/[0.06] md:flex"
           >
             <MagnifyingGlass size={17} className="shrink-0" />
             <span className="flex-1 truncate">{m.nav.search}</span>
-            <kbd className="rounded-[5px] border border-white/10 bg-white/[0.07] px-1.5 py-0.5 font-mono text-xs text-text2">⌘K</kbd>
+            <kbd className="rounded-[5px] border border-fg/10 bg-fg/[0.07] px-1.5 py-0.5 font-mono text-xs text-text2">⌘K</kbd>
           </button>
           <div className="flex shrink-0 items-center justify-end gap-1.5 lg:w-[340px]">
-            <button onClick={() => setOpen(true)} aria-label={m.nav.searchAria} className="grid size-9 place-items-center rounded-lg text-text2 hover:bg-white/[0.06] md:hidden"><MagnifyingGlass size={18} /></button>
-            <a href="#" className="hidden h-[34px] items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm transition-colors hover:bg-white/[0.06] lg:flex"><Megaphone size={15} />{m.nav.ad}</a>
+            <button onClick={() => setOpen(true)} aria-label={m.nav.searchAria} className="grid size-9 place-items-center rounded-lg text-text2 hover:bg-fg/[0.06] md:hidden"><MagnifyingGlass size={18} /></button>
+            <a href="#" className="hidden h-[34px] items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm transition-colors hover:bg-fg/[0.06] lg:flex"><Megaphone size={15} />{m.nav.ad}</a>
             <LanguageMenu />
-            <motion.button aria-label={m.nav.theme} whileTap={{ rotate: -30 }} className="grid size-[34px] place-items-center rounded-lg text-text2 transition-colors hover:bg-white/[0.06] hover:text-ink"><Moon size={17} /></motion.button>
+            <ThemeToggle label={m.nav.theme} />
             <motion.a href="#" whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }} className="ml-1 flex h-8 items-center whitespace-nowrap rounded-lg bg-ink px-3.5 text-sm font-semibold text-bg">{m.nav.login}</motion.a>
           </div>
         </div>
@@ -84,7 +101,7 @@ export function Nav() {
                 {label}
                 {isActive && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-ink" />}
                 {hover === t.key && !isActive && (
-                  <motion.span layoutId="nav-hover" className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-white/30" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />
+                  <motion.span layoutId="nav-hover" className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-fg/30" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />
                 )}
               </Link>
             )

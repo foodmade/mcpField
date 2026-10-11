@@ -91,7 +91,7 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
     <>
       <Seo title={seoTitle} description={seoDesc} path={path} query={directorySearch({ ...p, q: '' }, { keepSort: false })} noindex={!!p.q} jsonLd={jsonLd} />
       <section
-        className="border-b border-white/[0.04]"
+        className="border-b border-fg/[0.04]"
         style={{ background: 'radial-gradient(60% 220% at 20% 0%, #2B7FFF1F, transparent 60%), radial-gradient(40% 200% at 85% 0%, #3DDC9714, transparent 60%)' }}
       >
         <div className="mx-auto flex max-w-[1248px] flex-wrap items-center justify-between gap-6 px-6 pb-6 pt-7">
@@ -128,7 +128,7 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
               <div className="flex gap-0.5 rounded-[9px] bg-subtle p-[3px]">
                 {([['grid', SquaresFour, m.dir.grid], ['list', List, m.dir.list]] as const).map(([k, I, label]) => (
                   <button key={k} onClick={() => setLayout(k)} aria-label={label} aria-pressed={layout === k} className={clsx('relative grid size-[30px] place-items-center rounded-[7px]', layout === k ? 'text-ink' : 'text-text3 hover:text-ink')}>
-                    {layout === k && <motion.span layoutId="layout-pill" className="absolute inset-0 rounded-[7px] bg-white/10" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
+                    {layout === k && <motion.span layoutId="layout-pill" className="absolute inset-0 rounded-[7px] bg-fg/10" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
                     <I size={15} className="relative" />
                   </button>
                 ))}

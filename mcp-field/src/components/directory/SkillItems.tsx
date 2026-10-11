@@ -10,7 +10,7 @@ import { Tagline } from './ServerItems'
 
 function Official() {
   const { m } = useI18n()
-  return <span className="flex shrink-0 items-center gap-1 rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-text2"><CheckCircle size={12} />{m.dir.official}</span>
+  return <span className="flex shrink-0 items-center gap-1 rounded-full border border-fg/15 px-2 py-0.5 text-[11px] text-text2"><CheckCircle size={12} />{m.dir.official}</span>
 }
 
 const Installs = ({ n }: { n: number | null }) =>

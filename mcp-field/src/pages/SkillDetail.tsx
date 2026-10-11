@@ -47,15 +47,15 @@ function InstallSection({ s, cmd, glow }: { s: Detail; cmd: string; glow: string
     <section>
       <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight"><DownloadSimple size={22} className="text-accent" />{m.skill.install(s.name)}</h2>
       <p className="mb-4 mt-1.5 text-sm text-text2">{m.skill.installSub}</p>
-      <div className="flex items-center gap-3 rounded-[14px] border border-white/10 py-3.5 pl-[18px] pr-3" style={{ background: `radial-gradient(80% 250% at 100% 0%, ${glow}1F, transparent 60%), #0D0F12` }}>
-        <span className="font-mono text-sm text-white/30">$</span>
+      <div className="flex items-center gap-3 rounded-[14px] border border-fg/10 py-3.5 pl-[18px] pr-3" style={{ background: `radial-gradient(80% 250% at 100% 0%, ${glow}1F, transparent 60%), var(--color-code-bg)` }}>
+        <span className="font-mono text-sm text-fg/30">$</span>
         <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre font-mono text-sm text-ink [scrollbar-width:none]">{cmd}</code>
         <CopyButton text={cmd} />
       </div>
       {s.skillSlug && (
         <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-text3">
           <Info size={14} />{m.skill.verifyBefore}
-          <code className="rounded-[5px] bg-white/[0.07] px-1.5 py-px font-mono text-ink">/{s.skillSlug}</code>
+          <code className="rounded-[5px] bg-fg/[0.07] px-1.5 py-px font-mono text-ink">/{s.skillSlug}</code>
           {m.skill.verifyAfter}
         </p>
       )}
@@ -64,9 +64,9 @@ function InstallSection({ s, cmd, glow }: { s: Detail; cmd: string; glow: string
 }
 
 const AUDIT_STYLE: Record<string, { icon: typeof CheckCircle; cls: string }> = {
-  pass: { icon: CheckCircle, cls: 'border-accent/25 bg-accent/10 text-[#9FF0CB]' },
-  warn: { icon: Warning, cls: 'border-[#F2C94C]/25 bg-[#F2C94C]/10 text-[#F2C94C]' },
-  fail: { icon: Prohibit, cls: 'border-[#E5484D]/30 bg-[#E5484D]/10 text-[#FCA5A5]' },
+  pass: { icon: CheckCircle, cls: 'border-accent/25 bg-accent/10 text-mint' },
+  warn: { icon: Warning, cls: 'border-[#F2C94C]/25 bg-[#F2C94C]/10 text-gold' },
+  fail: { icon: Prohibit, cls: 'border-[#E5484D]/30 bg-[#E5484D]/10 text-rose' },
 }
 
 /** 第三方安全审计结果 */
@@ -79,10 +79,10 @@ function AuditsSection({ s }: { s: Detail }) {
       <p className="mb-4 mt-1.5 text-sm text-text2">{m.skill.auditsSub}</p>
       <RevealGroup className="grid gap-3 sm:grid-cols-3" stagger={0.05}>
         {s.audits.map((a) => {
-          const style = AUDIT_STYLE[a.result] ?? { icon: Info, cls: 'border-white/15 bg-white/[0.05] text-text2' }
+          const style = AUDIT_STYLE[a.result] ?? { icon: Info, cls: 'border-fg/15 bg-fg/[0.05] text-text2' }
           return (
             <RevealItem key={a.auditor}>
-              <div className="flex h-full flex-col gap-2 rounded-[14px] border border-white/[0.08] bg-surface px-4 py-3.5">
+              <div className="flex h-full flex-col gap-2 rounded-[14px] border border-fg/[0.08] bg-surface px-4 py-3.5">
                 <span className="text-sm font-medium">{a.auditor}</span>
                 <span className={clsx('flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium', style.cls)}>
                   <style.icon size={12} />{m.skill.auditResult[a.result as keyof typeof m.skill.auditResult] ?? a.result}

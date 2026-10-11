@@ -34,7 +34,7 @@ function Heading({ title, sub, right }: { title: string; sub: string; right?: Re
 }
 
 const RowSkeleton = ({ n }: { n: number }) => (
-  <>{Array.from({ length: n }, (_, i) => <div key={i} className="my-1 h-[54px] animate-pulse rounded-xl bg-white/[0.03]" />)}</>
+  <>{Array.from({ length: n }, (_, i) => <div key={i} className="my-1 h-[54px] animate-pulse rounded-xl bg-fg/[0.03]" />)}</>
 )
 
 /** 热门项目：默认的"最热门"由首页 loader 取回，切换到其他排序时再在浏览器里请求 */
@@ -53,14 +53,14 @@ function HotProjects({ initial }: { initial: ServerItem[] }) {
           <div className="flex shrink-0 gap-0.5 rounded-lg bg-subtle p-[3px]">
             {TABS.map((t) => (
               <button key={t} onClick={() => setTab(t)} className={clsx('relative whitespace-nowrap rounded-md px-3 py-1 text-sm transition-colors', tab === t ? 'font-medium text-ink' : 'text-text2 hover:text-ink')}>
-                {tab === t && <motion.span layoutId="hot-seg" className="absolute inset-0 rounded-md bg-white/10" transition={{ type: 'spring', stiffness: 420, damping: 32 }} />}
+                {tab === t && <motion.span layoutId="hot-seg" className="absolute inset-0 rounded-md bg-fg/10" transition={{ type: 'spring', stiffness: 420, damping: 32 }} />}
                 <span className="relative">{m.rank.tabs[t]}</span>
               </button>
             ))}
           </div>
         }
       />
-      <div className="rounded-2xl border border-white/[0.08] px-2.5 py-1.5" style={panel('#2B7FFF')} onMouseLeave={() => setHover(null)}>
+      <div className="rounded-2xl border border-fg/[0.08] px-2.5 py-1.5" style={panel('#2B7FFF')} onMouseLeave={() => setHover(null)}>
         {rows.length === 0 && list.loading ? <RowSkeleton n={6} /> : (
           <LayoutGroup id="hot">
             {rows.map((r, idx) => {
@@ -74,7 +74,7 @@ function HotProjects({ initial }: { initial: ServerItem[] }) {
                   onMouseEnter={() => setHover(r.slug)}
                   className="relative flex items-center gap-4 rounded-xl px-3 py-3"
                 >
-                  {hover === r.slug && <motion.span layoutId="hot-hl" className="absolute inset-0 rounded-xl bg-white/[0.05]" transition={spring} />}
+                  {hover === r.slug && <motion.span layoutId="hot-hl" className="absolute inset-0 rounded-xl bg-fg/[0.05]" transition={spring} />}
                   <span className={clsx('relative w-6 tabular-nums text-sm font-medium', idx < 3 ? 'text-accent' : 'text-text3')}>{String(idx + 1).padStart(2, '0')}</span>
                   <EntityIcon name={r.name} src={r.iconUrl} color={cat.color} size={36} className="relative" />
                   <div className="relative min-w-0 flex-1">
@@ -100,12 +100,12 @@ function SkillRanking({ rows }: { rows: SkillItem[] }) {
   return (
     <div>
       <Heading title={m.rank.skill} sub={m.rank.skillSub} />
-      <div className="rounded-2xl border border-white/[0.08] px-2.5 py-1.5" style={panel('#9B6CE0')} onMouseLeave={() => setHover(null)}>
+      <div className="rounded-2xl border border-fg/[0.08] px-2.5 py-1.5" style={panel('#9B6CE0')} onMouseLeave={() => setHover(null)}>
         {rows.map((s, idx) => {
           const cat = categoryOf('skill', s.category?.slug)
           return (
             <Link key={s.slug} to={to(`/skills/${s.slug}`)} onMouseEnter={() => setHover(s.slug)} className="group relative flex items-center gap-3.5 rounded-xl px-3 py-[11px]">
-              {hover === s.slug && <motion.span layoutId="skill-hl" className="absolute inset-0 rounded-xl bg-white/[0.05]" transition={spring} />}
+              {hover === s.slug && <motion.span layoutId="skill-hl" className="absolute inset-0 rounded-xl bg-fg/[0.05]" transition={spring} />}
               <span className={clsx('relative w-5 tabular-nums text-sm font-medium', idx < 3 ? 'text-accent' : 'text-text3')}>{String(idx + 1).padStart(2, '0')}</span>
               <span
                 className="relative grid size-8 place-items-center rounded-[9px] border transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110"

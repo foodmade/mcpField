@@ -9,7 +9,7 @@ import { Tagline } from './ServerItems'
 
 function LoopIcon({ l }: { l: LoopItem }) {
   const cat = categoryOf('loop', l.category?.slug)
-  return <span className="grid size-10 shrink-0 place-items-center rounded-[10px] border border-white/10 bg-white/[0.06]" style={{ color: cat.color }}><cat.icon size={20} /></span>
+  return <span className="grid size-10 shrink-0 place-items-center rounded-[10px] border border-fg/10 bg-fg/[0.06]" style={{ color: cat.color }}><cat.icon size={20} /></span>
 }
 
 /** Loop 卡片：分类图标、名称、简介，底部是触发方式与最大轮数 */

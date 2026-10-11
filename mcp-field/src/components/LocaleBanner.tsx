@@ -46,7 +46,7 @@ export function LocaleBanner() {
           <div className="mx-auto flex max-w-[1248px] items-center gap-3 px-6 py-2 text-sm">
             <Translate size={15} className="shrink-0 text-accent" />
             <span className="flex-1 truncate text-ink/90">{t.text}</span>
-            <Link to={switchTo(target)} className="group flex shrink-0 items-center gap-1 font-medium text-[#9FF0CB] hover:text-white">
+            <Link to={switchTo(target)} className="group flex shrink-0 items-center gap-1 font-medium text-mint hover:text-ink">
               {t.switch}
               <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
             </Link>
@@ -55,7 +55,7 @@ export function LocaleBanner() {
               onClick={() => {
                 setDismissed(`${locale}->${target}`)
               }}
-              className="grid size-6 shrink-0 place-items-center rounded-md text-text2 hover:bg-white/10 hover:text-ink"
+              className="grid size-6 shrink-0 place-items-center rounded-md text-text2 hover:bg-fg/10 hover:text-ink"
             >
               <X size={13} />
             </button>

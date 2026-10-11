@@ -18,8 +18,8 @@ export function SectionNav({ active, toolCount, commentCount, onJump }: { active
             className={clsx('relative flex shrink-0 items-center gap-1.5 py-3 text-sm transition-colors', active === id ? 'font-semibold text-ink' : 'text-text2 hover:text-ink')}
           >
             {id === 'comments' ? m.comments.title : m.detail.sections[id]}
-            {id === 'comments' && commentCount > 0 && <span className="rounded-full bg-white/10 px-1.5 tabular-nums text-xs text-text2">{commentCount}</span>}
-            {id === 'tools' && toolCount > 0 && <span className="rounded-full bg-white/10 px-1.5 tabular-nums text-xs text-text2">{toolCount}</span>}
+            {id === 'comments' && commentCount > 0 && <span className="rounded-full bg-fg/10 px-1.5 tabular-nums text-xs text-text2">{commentCount}</span>}
+            {id === 'tools' && toolCount > 0 && <span className="rounded-full bg-fg/10 px-1.5 tabular-nums text-xs text-text2">{toolCount}</span>}
             {active === id && <motion.span layoutId="detail-tab" className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-accent" transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
           </button>
         ))}

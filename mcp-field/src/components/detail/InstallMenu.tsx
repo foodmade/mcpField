@@ -11,7 +11,7 @@ export function InstallMenu({ name, url, transport }: { name: string; url: strin
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const links = installLinks(name, url, transport)
-  const item = 'flex h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-text2 outline-none data-[highlighted]:bg-white/[0.07] data-[highlighted]:text-ink'
+  const item = 'flex h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-text2 outline-none data-[highlighted]:bg-fg/[0.07] data-[highlighted]:text-ink'
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenu.Trigger asChild>
@@ -33,7 +33,7 @@ export function InstallMenu({ name, url, transport }: { name: string; url: strin
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 34 }}
-                className="z-50 w-[244px] rounded-xl border border-white/[0.12] bg-[#181B20]/95 p-1.5 shadow-[0_20px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+                className="z-50 w-[244px] rounded-xl border border-fg/[0.12] bg-subtle/95 p-1.5 shadow-[0_20px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl"
               >
                 <DropdownMenu.Item asChild className={item}>
                   <a href={links.cursor}><span className="grid size-6 place-items-center rounded-md bg-[#F3F4F6] text-xs font-bold text-bg">C</span>{m.detail.installIn('Cursor')}</a>

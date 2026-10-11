@@ -56,15 +56,15 @@ function SlideConfig({ code }: { code: string | null | undefined }) {
   // 语法着色结果要稳定，否则每次重新渲染都会让打字机从头开始
   const lines = useMemo(() => (code ? colorTokens(code) : null), [code])
   return (
-    <div className="h-[190px] overflow-hidden rounded-[10px] border border-white/10 bg-black/35 px-3.5 py-3">
+    <div className="h-[190px] overflow-hidden rounded-[10px] border border-fg/10 bg-black/35 px-3.5 py-3">
       {lines ? (
         <CodeTypewriter lines={lines} className="h-full overflow-auto font-mono text-[13px] leading-[1.6] [scrollbar-width:none]" />
       ) : code === undefined ? (
         <div className="flex animate-pulse flex-col gap-2.5 pt-1" aria-hidden>
-          {[40, 62, 54, 70, 48].map((w, k) => <div key={k} className="h-3 rounded bg-white/[0.07]" style={{ width: `${w}%` }} />)}
+          {[40, 62, 54, 70, 48].map((w, k) => <div key={k} className="h-3 rounded bg-fg/[0.07]" style={{ width: `${w}%` }} />)}
         </div>
       ) : (
-        <p className="text-sm text-white/45">{m.detail.noInstall}</p>
+        <p className="text-sm text-fg/45">{m.detail.noInstall}</p>
       )}
     </div>
   )
@@ -110,7 +110,7 @@ export function Hero({ slides }: { slides: ServerItem[] }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25, ease }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-medium text-[#9FF0CB]"
+              className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-medium text-mint"
             >
               <span className="relative flex size-1.5">
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-70" />
@@ -120,7 +120,7 @@ export function Hero({ slides }: { slides: ServerItem[] }) {
             </motion.div>
           </AnimatePresence>
           <SplitText key={locale} text={m.hero.title} className="mt-5 text-4xl font-bold leading-[1.15] tracking-[-0.02em] md:text-[52px]" delay={0.1} />
-          <motion.p initial={enter ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={{ delay: 0.7, duration: 0.8 }} className="mt-5 text-base text-white/70">
+          <motion.p initial={enter ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={{ delay: 0.7, duration: 0.8 }} className="mt-5 text-base text-fg/70">
             {m.hero.sub}
           </motion.p>
           <motion.div className="mt-6 flex flex-wrap gap-2.5" initial={enter ? 'h' : false} animate="s" variants={{ h: {}, s: { transition: { staggerChildren: 0.06, delayChildren: 0.85 } } }}>
@@ -134,7 +134,7 @@ export function Hero({ slides }: { slides: ServerItem[] }) {
                   setDir(k > i ? 1 : -1)
                   setI(k)
                 }}
-                className="rounded-xl border border-white/15 shadow-[0_8px_18px_rgba(0,0,0,0.35)]"
+                className="rounded-xl border border-fg/15 shadow-[0_8px_18px_rgba(0,0,0,0.35)]"
               >
                 <EntityIcon name={t.name} src={t.iconUrl} color={categoryOf('server', t.category?.slug).color} size={48} className="!rounded-xl" />
               </motion.button>
@@ -150,8 +150,8 @@ export function Hero({ slides }: { slides: ServerItem[] }) {
             <div className={`${glass} overflow-hidden p-[22px]`} style={{ background: 'radial-gradient(120% 100% at 100% 0%, #3DDC9733, transparent 60%), rgba(255,255,255,0.06)' }}>
               {!s || !cat ? (
                 <div className="flex animate-pulse flex-col gap-4" aria-hidden>
-                  <div className="flex h-[45px] items-center gap-3"><div className="size-11 rounded-[11px] bg-white/10" /><div className="h-5 w-40 rounded bg-white/10" /></div>
-                  <div className="h-[2lh] text-sm leading-relaxed"><div className="h-4 w-full rounded bg-white/[0.07]" /></div>
+                  <div className="flex h-[45px] items-center gap-3"><div className="size-11 rounded-[11px] bg-fg/10" /><div className="h-5 w-40 rounded bg-fg/10" /></div>
+                  <div className="h-[2lh] text-sm leading-relaxed"><div className="h-4 w-full rounded bg-fg/[0.07]" /></div>
                   <div className="h-[190px] rounded-[10px] bg-black/25" />
                   <div className="h-[34px]" />
                 </div>
@@ -172,14 +172,14 @@ export function Hero({ slides }: { slides: ServerItem[] }) {
                     <EntityIcon name={s.name} src={s.iconUrl} color={cat.color} size={44} className="!rounded-[11px]" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 text-[19px] font-semibold"><span className="truncate">{s.name}</span>{s.verified && <CheckCircle weight="bold" className="shrink-0 text-accent" size={16} />}</div>
-                      <div className="truncate text-xs text-white/55">{[developerOf(s), tr(cat.name)].filter(Boolean).join(' · ')}</div>
+                      <div className="truncate text-xs text-fg/55">{[developerOf(s), tr(cat.name)].filter(Boolean).join(' · ')}</div>
                     </div>
-                    <span className="shrink-0 rounded-md bg-white/10 px-2 py-0.5 text-xs text-white/80">{m.hero.pick}</span>
+                    <span className="shrink-0 rounded-md bg-fg/10 px-2 py-0.5 text-xs text-fg/80">{m.hero.pick}</span>
                   </div>
-                  <p className="line-clamp-2 h-[2lh] text-sm leading-relaxed text-white/70">{s.tagline}</p>
+                  <p className="line-clamp-2 h-[2lh] text-sm leading-relaxed text-fg/70">{s.tagline}</p>
                   <SlideConfig code={configs.get(s.slug)} />
                   <div className="flex items-center justify-between">
-                    <div className="flex gap-3.5 text-xs text-white/55">
+                    <div className="flex gap-3.5 text-xs text-fg/55">
                       {s.stars !== null && <span className="flex items-center gap-1"><Star size={14} /><CountUp value={s.stars} /></span>}
                       {s.toolsCount > 0 && <span className="flex items-center gap-1"><Wrench size={14} />{m.hero.tools(s.toolsCount)}</span>}
                     </div>
@@ -203,7 +203,7 @@ export function Hero({ slides }: { slides: ServerItem[] }) {
                     setDir(k > i ? 1 : -1)
                     setI(k)
                   }}
-                  className="relative h-1 overflow-hidden rounded-full bg-white/20 transition-[width] duration-500"
+                  className="relative h-1 overflow-hidden rounded-full bg-fg/20 transition-[width] duration-500"
                   style={{ width: k === i ? 40 : 8 }}
                   aria-label={m.hero.slide(k + 1)}
                 >
@@ -220,7 +220,7 @@ export function Hero({ slides }: { slides: ServerItem[] }) {
               ))}
             </div>
             <RoundBtn label={m.hero.prev} onClick={() => go(-1)}><CaretLeft size={14} /></RoundBtn>
-            <span className="w-11 text-center tabular-nums text-sm text-white/80">{i + 1} / {slides.length}</span>
+            <span className="w-11 text-center tabular-nums text-sm text-fg/80">{i + 1} / {slides.length}</span>
             <RoundBtn label={m.hero.next} onClick={() => go(1)}><CaretRight size={14} /></RoundBtn>
             <RoundBtn label={paused ? m.hero.play : m.hero.pause} onClick={() => setPaused((p) => !p)}>{paused ? <Play size={14} /> : <Pause size={14} />}</RoundBtn>
           </div>

@@ -14,7 +14,7 @@ function pages(cur: number, total: number): (number | '…')[] {
   return sorted.flatMap((p, i) => (i > 0 && p - sorted[i - 1] > 1 ? ['…' as const, p] : [p]))
 }
 
-const btn = 'flex h-[34px] items-center justify-center gap-1 rounded-[9px] border border-white/10 text-sm transition-colors'
+const btn = 'flex h-[34px] items-center justify-center gap-1 rounded-[9px] border border-fg/10 text-sm transition-colors'
 
 /** 分页用真实链接（?page=N），爬虫可以逐页抓取；onNavigate 用于翻页后滚回列表顶部 */
 export function Pagination({ page, total, to, onNavigate }: { page: number; total: number; to: (p: number) => To; onNavigate?: () => void }) {
@@ -24,7 +24,7 @@ export function Pagination({ page, total, to, onNavigate }: { page: number; tota
     disabled ? (
       <span aria-disabled className={clsx(btn, 'px-3 text-text2 opacity-35')}>{children}</span>
     ) : (
-      <Link to={to(p)} preventScrollReset onClick={onNavigate} aria-label={label} rel={p < page ? 'prev' : 'next'} className={clsx(btn, 'px-3 text-text2 hover:border-white/25 hover:text-ink')}>{children}</Link>
+      <Link to={to(p)} preventScrollReset onClick={onNavigate} aria-label={label} rel={p < page ? 'prev' : 'next'} className={clsx(btn, 'px-3 text-text2 hover:border-fg/25 hover:text-ink')}>{children}</Link>
     )
   return (
     <nav aria-label={m.dir.pageNav} className="flex items-center gap-1.5">
@@ -36,7 +36,7 @@ export function Pagination({ page, total, to, onNavigate }: { page: number; tota
           p === '…' ? (
             <span key={`e${i}`} className="px-1 text-text3">…</span>
           ) : (
-            <Link key={p} to={to(p)} preventScrollReset onClick={onNavigate} aria-current={p === page ? 'page' : undefined} className={clsx(btn, 'relative w-[34px] tabular-nums', p === page ? 'border-transparent font-semibold text-accent-ink' : 'text-text2 hover:border-white/25 hover:text-ink')}>
+            <Link key={p} to={to(p)} preventScrollReset onClick={onNavigate} aria-current={p === page ? 'page' : undefined} className={clsx(btn, 'relative w-[34px] tabular-nums', p === page ? 'border-transparent font-semibold text-accent-ink' : 'text-text2 hover:border-fg/25 hover:text-ink')}>
               {p === page && <motion.span layoutId="page-pill" className="absolute inset-0 rounded-[9px] bg-accent" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
               <span className="relative">{p}</span>
             </Link>

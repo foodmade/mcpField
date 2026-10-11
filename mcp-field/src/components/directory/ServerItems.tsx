@@ -13,8 +13,8 @@ function Badges({ s }: { s: ServerItem }) {
   return (
     <>
       {s.verified && <CheckCircle size={14} className="shrink-0 text-accent" aria-label={m.dir.verified} />}
-      {s.featured && <Sparkle size={14} weight="fill" className="shrink-0 text-[#F2C94C]" aria-label={m.dir.featured} />}
-      {s.isRemote && <CloudArrowUp size={14} className="shrink-0 text-[#9FC6FF]" aria-label={m.detail.kind.remote} />}
+      {s.featured && <Sparkle size={14} weight="fill" className="shrink-0 text-gold" aria-label={m.dir.featured} />}
+      {s.isRemote && <CloudArrowUp size={14} className="shrink-0 text-sky" aria-label={m.detail.kind.remote} />}
     </>
   )
 }
@@ -23,7 +23,7 @@ export function Stars({ n }: { n: number | null }) {
   if (n === null) return null
   return (
     <span className="flex items-center gap-1 tabular-nums text-xs text-text2">
-      <Star size={13} weight="fill" className="text-[#F2C94C]" />{compactNumber(n)}
+      <Star size={13} weight="fill" className="text-gold" />{compactNumber(n)}
     </span>
   )
 }

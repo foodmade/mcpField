@@ -1,15 +1,88 @@
 @import 'tailwindcss';
 
+/*
+ * 主题：<html data-theme="dark|light">，由 root 里的内联脚本在首次绘制前设置（跟随系统，可手动切换）。
+ * 局部元素也可以写 data-theme="dark" 强制深色（首页首屏横幅）。没有 data-theme 时按深色处理。
+ */
+:root,
+[data-theme='dark'] {
+  --mf-bg: #0a0b0d;
+  --mf-surface: #121418;
+  --mf-subtle: #181b20;
+  --mf-ink: #f3f4f6;
+  --mf-text2: #a9aeb6;
+  --mf-text3: #7d838c;
+  --mf-line: #23272e;
+  --mf-accent: #3ddc97;
+  --mf-accent-ink: #06110d;
+  /* 叠加层的基色：深色主题下是白色半透明（bg-fg/[0.04]），明亮主题下是黑色半透明 */
+  --mf-fg: #ffffff;
+  /* 首页推荐区等整块的条带底色 */
+  --mf-band: #0d0f12;
+  /* 代码块底色 */
+  --mf-code-bg: #0d0f12;
+  /* 彩色标识文字：深色背景用亮色，明亮背景用深色，保证对比度 */
+  --mf-mint: #9ff0cb;
+  --mf-sky: #9fc6ff;
+  --mf-gold: #f2c94c;
+  --mf-amber: #f2c98a;
+  --mf-violet: #c4b5fd;
+  --mf-rose: #fca5a5;
+  --mf-code: #7fd9b5;
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --mf-bg: #fafaf8;
+  --mf-surface: #ffffff;
+  --mf-subtle: #f1f1ee;
+  --mf-ink: #121212;
+  --mf-text2: #55554f;
+  --mf-text3: #74746d;
+  --mf-line: #e4e4df;
+  --mf-accent: #0e7a5c;
+  --mf-accent-ink: #ffffff;
+  --mf-fg: #0b0d10;
+  --mf-band: #f3f3f0;
+  --mf-code-bg: #f6f6f3;
+  --mf-mint: #0e7a5c;
+  --mf-sky: #1d5fc4;
+  --mf-gold: #a16207;
+  --mf-amber: #b45309;
+  --mf-violet: #6d28d9;
+  --mf-rose: #b91c1c;
+  --mf-code: #0e7a5c;
+  color-scheme: light;
+}
+
+/* 强制主题的区块要重新取文字颜色：继承来的 color 是外层按另一种主题算好的值 */
+[data-theme] {
+  color: var(--mf-ink);
+}
+
+@theme inline {
+  --color-bg: var(--mf-bg);
+  --color-surface: var(--mf-surface);
+  --color-subtle: var(--mf-subtle);
+  --color-ink: var(--mf-ink);
+  --color-text2: var(--mf-text2);
+  --color-text3: var(--mf-text3);
+  --color-line: var(--mf-line);
+  --color-accent: var(--mf-accent);
+  --color-accent-ink: var(--mf-accent-ink);
+  --color-fg: var(--mf-fg);
+  --color-band: var(--mf-band);
+  --color-code-bg: var(--mf-code-bg);
+  --color-mint: var(--mf-mint);
+  --color-sky: var(--mf-sky);
+  --color-gold: var(--mf-gold);
+  --color-amber: var(--mf-amber);
+  --color-violet: var(--mf-violet);
+  --color-rose: var(--mf-rose);
+  --color-code: var(--mf-code);
+}
+
 @theme {
-  --color-bg: #0a0b0d;
-  --color-surface: #121418;
-  --color-subtle: #181b20;
-  --color-ink: #f3f4f6;
-  --color-text2: #a9aeb6;
-  --color-text3: #7d838c;
-  --color-line: #23272e;
-  --color-accent: #3ddc97;
-  --color-accent-ink: #06110d;
   --color-blue: #2b7fff;
 
   /* 英文用 Inter；中日文用系统字体（苹方 / 微软雅黑等），本机装有 Noto 时也会用到 */
@@ -30,7 +103,6 @@
 }
 
 html {
-  color-scheme: dark;
   background: var(--color-bg);
 }
 
@@ -101,10 +173,10 @@ body {
   @apply text-text3;
 }
 .md :not(pre) > code {
-  @apply rounded-md border border-white/[0.08] bg-white/[0.07] px-1.5 py-0.5 font-mono text-[0.86em] text-ink;
+  @apply rounded-md border border-fg/[0.08] bg-fg/[0.07] px-1.5 py-0.5 font-mono text-[0.86em] text-ink;
 }
 .md pre {
-  @apply overflow-x-auto rounded-xl border border-white/[0.08] bg-[#0d0f12] p-4 font-mono text-[13px] leading-[1.7] text-ink;
+  @apply overflow-x-auto rounded-xl border border-fg/[0.08] bg-code-bg p-4 font-mono text-[13px] leading-[1.7] text-ink;
 }
 .md blockquote {
   @apply border-l-2 border-accent/50 pl-4 text-text3;
@@ -117,10 +189,10 @@ body {
   border-collapse: collapse;
 }
 .md :is(th, td) {
-  @apply border border-white/[0.08] px-3 py-2 text-left;
+  @apply border border-fg/[0.08] px-3 py-2 text-left;
 }
 .md th {
-  @apply bg-white/[0.04] font-semibold text-ink;
+  @apply bg-fg/[0.04] font-semibold text-ink;
 }
 .md img {
   display: inline-block;
@@ -132,12 +204,12 @@ body {
   text-align: center;
 }
 .md input[type='checkbox'] {
-  @apply mr-1.5 accent-[#3DDC97];
+  @apply mr-1.5 accent-accent;
 }
 
 /* GitHub 提示块：> [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION] */
 .md blockquote.md-alert {
-  @apply rounded-r-lg border-l-[3px] bg-white/[0.03] py-2.5 pr-4 text-text2;
+  @apply rounded-r-lg border-l-[3px] bg-fg/[0.03] py-2.5 pr-4 text-text2;
 }
 .md .md-alert-title {
   @apply mb-1 text-sm font-semibold;
@@ -171,4 +243,20 @@ body {
 }
 .md .md-alert-caution .md-alert-title {
   color: #fca5a5;
+}
+
+[data-theme='light'] .md .md-alert-note .md-alert-title {
+  color: #1d5fc4;
+}
+[data-theme='light'] .md .md-alert-tip .md-alert-title {
+  color: #0e7a5c;
+}
+[data-theme='light'] .md .md-alert-important .md-alert-title {
+  color: #6d28d9;
+}
+[data-theme='light'] .md .md-alert-warning .md-alert-title {
+  color: #a16207;
+}
+[data-theme='light'] .md .md-alert-caution .md-alert-title {
+  color: #b91c1c;
 }

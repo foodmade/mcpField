@@ -79,11 +79,11 @@ export function DetailSeo({ kind, d, section }: { kind: Kind; d: BaseItem & Deta
 
 export const Badge = ({ tone, icon: I, children }: { tone: 'green' | 'gold' | 'blue' | 'violet' | 'gray'; icon: Icon; children: ReactNode }) => {
   const cls = {
-    green: 'border-accent/25 bg-accent/10 text-[#9FF0CB]',
-    gold: 'border-[#F2C94C]/25 bg-[#F2C94C]/10 text-[#F2C94C]',
-    blue: 'border-[#2B7FFF]/30 bg-[#2B7FFF]/10 text-[#9FC6FF]',
-    violet: 'border-[#A78BFA]/30 bg-[#A78BFA]/10 text-[#C4B5FD]',
-    gray: 'border-white/15 bg-white/[0.05] text-text2',
+    green: 'border-accent/25 bg-accent/10 text-mint',
+    gold: 'border-[#F2C94C]/25 bg-[#F2C94C]/10 text-gold',
+    blue: 'border-[#2B7FFF]/30 bg-[#2B7FFF]/10 text-sky',
+    violet: 'border-[#A78BFA]/30 bg-[#A78BFA]/10 text-violet',
+    gray: 'border-fg/15 bg-fg/[0.05] text-text2',
   }[tone]
   return (
     <span className={clsx('flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium', cls)}>
@@ -96,7 +96,7 @@ export const Badge = ({ tone, icon: I, children }: { tone: 'green' | 'gold' | 'b
 /** 头部右侧的外链按钮 */
 export function LinkButton({ href, icon: I, label }: { href: string; icon: Icon; label: string }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="group flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-white/[0.12] bg-white/[0.04] px-3 text-sm transition-colors hover:border-white/25 hover:bg-white/[0.07]">
+    <a href={href} target="_blank" rel="noreferrer" className="group flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-fg/[0.12] bg-fg/[0.04] px-3 text-sm transition-colors hover:border-fg/25 hover:bg-fg/[0.07]">
       <I size={15} className="text-text2" />{label}
       <ArrowUpRight size={12} className="text-text3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
     </a>
@@ -158,13 +158,13 @@ export function EntityHeader({
             <CaretRight size={12} className="shrink-0" />
             <span className="truncate text-ink">{d.name}</span>
           </nav>
-          <a href="#" className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.12] px-3 text-sm text-text2 transition-colors hover:border-white/25 hover:text-ink">
+          <a href="#" className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-fg/[0.12] px-3 text-sm text-text2 transition-colors hover:border-fg/25 hover:text-ink">
             <ChatCenteredText size={14} />{m.detail.feedback}
           </a>
         </div>
         <div className="mt-7 flex flex-wrap items-center gap-5">
           <motion.div initial={enter ? { opacity: 0, scale: 0.6, rotate: -12 } : false} animate={{ opacity: 1, scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
-            {tile ?? <EntityIcon name={d.name} src={d.iconUrl} color={cat.color} size={72} className="!rounded-[18px] border border-white/15 shadow-[0_12px_32px_rgba(255,255,255,0.08)]" />}
+            {tile ?? <EntityIcon name={d.name} src={d.iconUrl} color={cat.color} size={72} className="!rounded-[18px] border border-fg/15 shadow-[0_12px_32px_rgba(255,255,255,0.08)]" />}
           </motion.div>
           <motion.div className="min-w-0 flex-1" initial={enter ? { opacity: 0, y: 12 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.05 }}>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -175,7 +175,7 @@ export function EntityHeader({
               {badges}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-2 text-sm text-text2">
-              {sub && <><span>@{sub}</span><span className="h-3.5 w-px bg-white/[0.12]" /></>}
+              {sub && <><span>@{sub}</span><span className="h-3.5 w-px bg-fg/[0.12]" /></>}
               <Link to={to(`/${ROUTE[kind]}?category=${cat.slug}`)} className="flex items-center gap-1 hover:text-ink"><cat.icon size={14} style={{ color: cat.color }} />{tr(cat.name)}</Link>
               <Stars n={d.stars} />
               {meta}
@@ -207,7 +207,7 @@ export function AboutSection({ d, summaryOnly }: { d: BaseItem & DetailBase; sum
       )}
       {d.tags.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
-          {d.tags.map((t) => <span key={t} className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-xs text-text2">#{t}</span>)}
+          {d.tags.map((t) => <span key={t} className="rounded-lg border border-fg/[0.08] bg-fg/[0.04] px-2.5 py-1 text-xs text-text2">#{t}</span>)}
         </div>
       )}
     </section>
@@ -286,10 +286,10 @@ export function InfoSection({ kind, d, rows }: { kind: Kind; d: BaseItem; rows: 
     <section>
       <h2 className="mb-3 text-sm font-semibold tracking-wide text-text2">{m.detail.info}</h2>
       {visible.length > 0 && (
-        <dl className="rounded-2xl border border-white/[0.08] bg-surface px-[18px] py-1">
+        <dl className="rounded-2xl border border-fg/[0.08] bg-surface px-[18px] py-1">
           {visible.map(({ icon: I, label, value }, i) => (
-            <div key={label} className={clsx('flex items-center gap-3 py-3', i > 0 && 'border-t border-white/[0.06]')}>
-              <span className="grid size-[30px] shrink-0 place-items-center rounded-lg bg-white/[0.04] text-text2"><I size={15} /></span>
+            <div key={label} className={clsx('flex items-center gap-3 py-3', i > 0 && 'border-t border-fg/[0.06]')}>
+              <span className="grid size-[30px] shrink-0 place-items-center rounded-lg bg-fg/[0.04] text-text2"><I size={15} /></span>
               <dt className="shrink-0 text-sm text-text3">{label}</dt>
               <dd className="min-w-0 flex-1 truncate text-right text-sm font-medium tabular-nums">{value}</dd>
             </div>
@@ -297,13 +297,13 @@ export function InfoSection({ kind, d, rows }: { kind: Kind; d: BaseItem; rows: 
         </dl>
       )}
       <div className="mt-3 flex gap-2">
-        <button onClick={() => { copyText(location.href); setShared(true); setTimeout(() => setShared(false), 1600) }} className={clsx(btn, shared ? 'border-accent/40 text-accent' : 'border-white/10 text-text2 hover:text-ink')}>
+        <button onClick={() => { copyText(location.href); setShared(true); setTimeout(() => setShared(false), 1600) }} className={clsx(btn, shared ? 'border-accent/40 text-accent' : 'border-fg/10 text-text2 hover:text-ink')}>
           <ShareNetwork size={14} />{shared ? m.detail.shared : m.detail.share}
         </button>
-        <button onClick={toggleSave} aria-pressed={saved} className={clsx(btn, saved ? 'border-[#F2C94C]/40 text-[#F2C94C]' : 'border-white/10 text-text2 hover:text-ink')}>
+        <button onClick={toggleSave} aria-pressed={saved} className={clsx(btn, saved ? 'border-[#F2C94C]/40 text-gold' : 'border-fg/10 text-text2 hover:text-ink')}>
           <BookmarkSimple size={14} weight={saved ? 'fill' : 'regular'} />{saved ? m.detail.bookmarked : m.detail.bookmark}
         </button>
-        <a href={report} target="_blank" rel="noreferrer" className={clsx(btn, 'border-white/10 text-text2 hover:text-ink')}><WarningCircle size={14} />{m.detail.report}</a>
+        <a href={report} target="_blank" rel="noreferrer" className={clsx(btn, 'border-fg/10 text-text2 hover:text-ink')}><WarningCircle size={14} />{m.detail.report}</a>
       </div>
     </section>
   )

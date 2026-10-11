@@ -20,7 +20,7 @@ function InlineMd({ text }: { text: string }) {
     <>
       {text.split(/(`[^`]+`)/).map((part, i) =>
         part.startsWith('`') && part.endsWith('`') && part.length > 2 ? (
-          <code key={i} className="mx-0.5 rounded-[5px] border border-white/[0.08] bg-white/[0.07] px-1.5 py-px font-mono text-[13px] text-ink">{part.slice(1, -1)}</code>
+          <code key={i} className="mx-0.5 rounded-[5px] border border-fg/[0.08] bg-fg/[0.07] px-1.5 py-px font-mono text-[13px] text-ink">{part.slice(1, -1)}</code>
         ) : (
           <Fragment key={i}>{part}</Fragment>
         ),
@@ -54,7 +54,7 @@ function ReactionBar({ id, counts, onReply }: { id: string; counts: Partial<Reac
             whileTap={{ scale: 0.9 }}
             onClick={() => toggle(k)}
             aria-pressed={on}
-            className={clsx('flex h-[26px] items-center gap-1 rounded-full border px-2 text-xs transition-colors', on ? 'border-accent/40 bg-accent/10 text-[#9FF0CB]' : 'border-white/[0.1] bg-white/[0.04] text-text2 hover:border-white/20')}
+            className={clsx('flex h-[26px] items-center gap-1 rounded-full border px-2 text-xs transition-colors', on ? 'border-accent/40 bg-accent/10 text-mint' : 'border-fg/[0.1] bg-fg/[0.04] text-text2 hover:border-fg/20')}
           >
             <I size={13} weight="fill" style={{ color }} />
             <AnimatePresence mode="popLayout" initial={false}>
@@ -63,14 +63,14 @@ function ReactionBar({ id, counts, onReply }: { id: string; counts: Partial<Reac
           </motion.button>
         )
       })}
-      <button onClick={() => setPicker((v) => !v)} aria-label={m.comments.react} className="grid size-[26px] place-items-center rounded-full border border-white/[0.1] text-text3 transition-colors hover:text-ink">
+      <button onClick={() => setPicker((v) => !v)} aria-label={m.comments.react} className="grid size-[26px] place-items-center rounded-full border border-fg/[0.1] text-text3 transition-colors hover:text-ink">
         <Smiley size={13} />
       </button>
       <AnimatePresence>
         {picker && (
-          <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute bottom-8 left-0 z-20 flex gap-1 rounded-full border border-white/[0.12] bg-[#181B20] p-1 shadow-xl">
+          <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute bottom-8 left-0 z-20 flex gap-1 rounded-full border border-fg/[0.12] bg-subtle p-1 shadow-xl">
             {REACTIONS.map(([k, I, color]) => (
-              <motion.button key={k} whileHover={{ scale: 1.2, y: -2 }} onClick={() => toggle(k)} className={clsx('grid size-7 place-items-center rounded-full', mine.includes(k) && 'bg-white/10')}>
+              <motion.button key={k} whileHover={{ scale: 1.2, y: -2 }} onClick={() => toggle(k)} className={clsx('grid size-7 place-items-center rounded-full', mine.includes(k) && 'bg-fg/10')}>
                 <I size={15} weight="fill" style={{ color }} />
               </motion.button>
             ))}
@@ -87,12 +87,12 @@ function ReactionBar({ id, counts, onReply }: { id: string; counts: Partial<Reac
 function CommentItem({ c, target, nested, onReply }: { c: Comment; target: string; nested?: boolean; onReply: (author: string) => void }) {
   const { m, tr } = useI18n()
   return (
-    <div className={clsx('flex gap-3', nested ? 'pt-4' : 'border-b border-white/[0.06] py-[18px]')}>
+    <div className={clsx('flex gap-3', nested ? 'pt-4' : 'border-b border-fg/[0.06] py-[18px]')}>
       <span className={clsx('grid shrink-0 place-items-center rounded-full font-bold text-white', nested ? 'size-7 text-xs' : 'size-[34px] text-sm')} style={{ background: c.color }}>{c.author[0].toUpperCase()}</span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">{c.author}</span>
-          {c.maintainer && <span className="rounded-[5px] border border-accent/30 bg-accent/10 px-1.5 text-xs text-[#9FF0CB]">{m.comments.maintainer}</span>}
+          {c.maintainer && <span className="rounded-[5px] border border-accent/30 bg-accent/10 px-1.5 text-xs text-mint">{m.comments.maintainer}</span>}
           <span className="text-xs text-text3">{m.comments.ago(c.days)}</span>
         </div>
         <p className="mt-1.5 text-sm leading-relaxed text-text2"><InlineMd text={tr(c.body)} /></p>
@@ -126,13 +126,13 @@ export function Comments({ target }: { target: CommentTarget }) {
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
           <ChatsCircle size={22} className="text-accent" />{t.title}
-          <span className="rounded-full bg-white/10 px-2 py-0.5 tabular-nums text-xs font-normal text-text2">{count}</span>
+          <span className="rounded-full bg-fg/10 px-2 py-0.5 tabular-nums text-xs font-normal text-text2">{count}</span>
         </h2>
         <span className="text-sm text-text3">{t.newest}</span>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-white/10 bg-surface focus-within:border-white/25">
-        <div className="flex gap-5 border-b border-white/[0.06] px-3.5">
+      <div className="overflow-hidden rounded-[14px] border border-fg/10 bg-surface focus-within:border-fg/25">
+        <div className="flex gap-5 border-b border-fg/[0.06] px-3.5">
           {(['edit', 'preview'] as const).map((k) => (
             <button key={k} onClick={() => setTab(k)} className={clsx('relative py-2.5 text-sm', tab === k ? 'font-medium text-ink' : 'text-text3 hover:text-ink')}>
               {k === 'edit' ? t.edit : t.preview}
@@ -145,7 +145,7 @@ export function Comments({ target }: { target: CommentTarget }) {
         ) : (
           <div className="min-h-[88px] whitespace-pre-wrap px-4 py-3.5 text-sm text-text2">{text.trim() ? <InlineMd text={text} /> : <span className="text-text3">{t.nothing}</span>}</div>
         )}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] bg-white/[0.015] py-2.5 pl-4 pr-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-fg/[0.06] bg-fg/[0.015] py-2.5 pl-4 pr-3">
           <span className="flex items-center gap-1.5 text-xs text-text3"><FileText size={14} />{hint ? t.loginHint : t.markdown}</span>
           <motion.button whileTap={{ scale: 0.96 }} onClick={() => setHint(true)} className="flex h-[34px] items-center gap-1.5 whitespace-nowrap rounded-[9px] bg-ink px-3.5 text-sm font-semibold text-bg">
             <GithubLogo size={15} weight="fill" />{t.login}
@@ -156,7 +156,7 @@ export function Comments({ target }: { target: CommentTarget }) {
       {comments.length ? (
         <div>{comments.map((c) => <CommentItem key={c.id} c={c} target={target} onReply={reply} />)}</div>
       ) : (
-        <p className="rounded-[14px] border border-dashed border-white/15 px-6 py-10 text-center text-sm text-text3">{t.empty}</p>
+        <p className="rounded-[14px] border border-dashed border-fg/15 px-6 py-10 text-center text-sm text-text3">{t.empty}</p>
       )}
     </div>
   )

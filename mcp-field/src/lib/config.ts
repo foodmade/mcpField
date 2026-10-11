@@ -64,33 +64,33 @@ export function highlight(code: string, kind: 'json' | 'shell'): Tok[][] {
     if (kind === 'shell') {
       line.split(/(\s+)/).forEach((w, i) => {
         if (!w) return
-        out.push({ text: w, cls: /^\s+$/.test(w) ? '' : i === 0 ? 'text-[#7FD9B5]' : w.startsWith('-') ? 'text-[#9FC6FF]' : w.startsWith('http') ? 'text-[#F2C98A]' : 'text-ink/90' })
+        out.push({ text: w, cls: /^\s+$/.test(w) ? '' : i === 0 ? 'text-code' : w.startsWith('-') ? 'text-sky' : w.startsWith('http') ? 'text-amber' : 'text-ink/90' })
       })
       return out
     }
     const re = /("(?:[^"\\]|\\.)*")(\s*:)?|([{}[\],:])|(\s+)|([^\s"{}[\],:]+)/g
     let m: RegExpExecArray | null
     while ((m = re.exec(line))) {
-      if (m[1] && m[2]) out.push({ text: m[1], cls: 'text-[#9FC6FF]' }, { text: m[2], cls: 'text-white/55' })
-      else if (m[1]) out.push({ text: m[1], cls: 'text-[#F2C98A]' })
-      else if (m[3]) out.push({ text: m[3], cls: 'text-white/55' })
+      if (m[1] && m[2]) out.push({ text: m[1], cls: 'text-sky' }, { text: m[2], cls: 'text-fg/55' })
+      else if (m[1]) out.push({ text: m[1], cls: 'text-amber' })
+      else if (m[3]) out.push({ text: m[3], cls: 'text-fg/55' })
       else if (m[4]) out.push({ text: m[4], cls: '' })
-      else out.push({ text: m[5], cls: 'text-[#7FD9B5]' })
+      else out.push({ text: m[5], cls: 'text-code' })
     }
     return out
   })
 }
 
-/** 语法色（与 highlight 的 class 对应），供首屏打字机效果使用 */
+/** 语法色（与 highlight 的 class 对应，随主题变化），供首屏打字机效果使用 */
 const TOKEN_COLOR: Record<string, string> = {
-  'text-[#9FC6FF]': '#9FC6FF',
-  'text-[#F2C98A]': '#F2C98A',
-  'text-[#7FD9B5]': '#7FD9B5',
-  'text-white/55': '#FFFFFF8C',
-  'text-ink/90': '#F3F4F6E6',
-  '': '#F3F4F6',
+  'text-sky': 'var(--mf-sky)',
+  'text-amber': 'var(--mf-amber)',
+  'text-code': 'var(--mf-code)',
+  'text-fg/55': 'color-mix(in oklab, var(--mf-fg) 55%, transparent)',
+  'text-ink/90': 'color-mix(in oklab, var(--mf-ink) 90%, transparent)',
+  '': 'var(--mf-ink)',
 }
 
 export function colorTokens(code: string, kind: 'json' | 'shell' = 'json'): [string, string][][] {
-  return highlight(code, kind).map((line) => line.map((t) => [t.text, TOKEN_COLOR[t.cls] ?? '#F3F4F6'] as [string, string]))
+  return highlight(code, kind).map((line) => line.map((t) => [t.text, TOKEN_COLOR[t.cls] ?? 'var(--mf-ink)'] as [string, string]))
 }

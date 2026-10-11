@@ -22,7 +22,7 @@ export function CopyButton({ text, className }: { text: string; className?: stri
         setDone(true)
         setTimeout(() => setDone(false), 1600)
       }}
-      className={clsx('flex h-7 items-center gap-1.5 rounded-[7px] border border-white/10 bg-white/[0.06] px-2.5 text-xs transition-colors hover:border-white/25', done ? 'text-accent' : 'text-text2 hover:text-ink', className)}
+      className={clsx('flex h-7 items-center gap-1.5 rounded-[7px] border border-fg/10 bg-fg/[0.06] px-2.5 text-xs transition-colors hover:border-fg/25', done ? 'text-accent' : 'text-text2 hover:text-ink', className)}
     >
       <AnimatePresence mode="wait" initial={false}>
         <motion.span key={String(done)} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}>

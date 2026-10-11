@@ -52,7 +52,7 @@ function Toggle({ value, onChange }: { value: 'translated' | 'original'; onChang
     <div className="flex gap-0.5 rounded-[9px] bg-subtle p-[3px]" role="tablist">
       {(['translated', 'original'] as const).map((k) => (
         <button key={k} role="tab" aria-selected={value === k} onClick={() => onChange(k)} className={clsx('relative h-7 rounded-[7px] px-3 text-xs', value === k ? 'font-medium text-ink' : 'text-text3 hover:text-ink')}>
-          {value === k && <motion.span layoutId="readme-tab" className="absolute inset-0 rounded-[7px] bg-white/10" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
+          {value === k && <motion.span layoutId="readme-tab" className="absolute inset-0 rounded-[7px] bg-fg/10" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
           <span className="relative">{m.detail.readmeTabs[k]}</span>
         </button>
       ))}
@@ -81,7 +81,7 @@ export function MarkdownReadme({ content, repository, translation }: { content: 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
         <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
           {englishOnly ? m.detail.readmeOriginal : m.detail.readme}
-          {(englishOnly || (translation && view === 'original')) && <span className="rounded-md border border-white/10 px-1.5 py-0.5 text-[11px] font-medium text-text3">{m.detail.englishBadge}</span>}
+          {(englishOnly || (translation && view === 'original')) && <span className="rounded-md border border-fg/10 px-1.5 py-0.5 text-[11px] font-medium text-text3">{m.detail.englishBadge}</span>}
         </h2>
         {translation ? (
           <Toggle value={view} onChange={setView} />
@@ -93,7 +93,7 @@ export function MarkdownReadme({ content, repository, translation }: { content: 
       {showTranslated && (
         <div className="mb-5 flex flex-col gap-1.5 text-xs leading-relaxed text-text3">
           <p className="flex items-start gap-1.5"><Sparkle size={12} className="mt-0.5 shrink-0" />{t.note}</p>
-          {translation.outdated && <p className="flex items-start gap-1.5 text-[#F2C94C]"><WarningCircle size={12} className="mt-0.5 shrink-0" />{t.outdated}</p>}
+          {translation.outdated && <p className="flex items-start gap-1.5 text-gold"><WarningCircle size={12} className="mt-0.5 shrink-0" />{t.outdated}</p>}
         </div>
       )}
       {englishOnly && t.englishHint && <p className="mb-5 text-xs leading-relaxed text-text3">{t.englishHint}</p>}
@@ -106,7 +106,7 @@ export function MarkdownReadme({ content, repository, translation }: { content: 
         </div>
         {!expanded && (
           <div className="absolute inset-x-0 bottom-0 flex h-40 items-end justify-center bg-gradient-to-t from-bg via-bg/90 to-transparent pb-2">
-            <button onClick={() => setExpanded(true)} className="flex h-9 items-center gap-1.5 rounded-full border border-white/15 bg-surface px-4 text-sm text-text2 hover:border-white/30 hover:text-ink">
+            <button onClick={() => setExpanded(true)} className="flex h-9 items-center gap-1.5 rounded-full border border-fg/15 bg-surface px-4 text-sm text-text2 hover:border-fg/30 hover:text-ink">
               {t.expand}<CaretDown size={13} />
             </button>
           </div>

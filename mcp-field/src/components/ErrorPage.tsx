@@ -26,7 +26,7 @@ export function ErrorPage({ notFound, backHref = '/' }: { notFound?: NotFoundTex
     return (
       <Centered>
         <Seo title={`${t.title} · MCP Field`} path={path} noindex />
-        <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }} className="grid size-16 place-items-center rounded-[18px] border border-white/10 bg-white/[0.04] text-text2"><MagnifyingGlass size={28} /></motion.div>
+        <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }} className="grid size-16 place-items-center rounded-[18px] border border-fg/10 bg-fg/[0.04] text-text2"><MagnifyingGlass size={28} /></motion.div>
         <h1 className="text-xl font-semibold">{t.title}</h1>
         <p className="text-sm text-text2">{t.hint}</p>
         <Link to={to(backHref)} className="mt-2 flex h-10 items-center gap-1.5 rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink"><ArrowLeft size={14} />{t.back}</Link>

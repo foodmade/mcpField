@@ -20,7 +20,7 @@ export function Tile({ label, bg, fg = '#fff', size = 40, className }: { label: 
 
 export function Chip({ children, mono, className }: { children: ReactNode; mono?: boolean; className?: string }) {
   return (
-    <span className={clsx('whitespace-nowrap rounded-md border border-white/[0.08] bg-white/[0.06] px-2 py-0.5 text-[11px] tracking-[0.02em] text-text2', mono && 'tabular-nums', className)}>
+    <span className={clsx('whitespace-nowrap rounded-md border border-fg/[0.08] bg-fg/[0.06] px-2 py-0.5 text-[11px] tracking-[0.02em] text-text2', mono && 'tabular-nums', className)}>
       {children}
     </span>
   )
@@ -66,7 +66,7 @@ export function ShimmerButton({ children, icon, className }: { children: ReactNo
       >
         <motion.span
           aria-hidden
-          className="absolute inset-y-0 -left-1/2 w-1/2 skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/60 to-transparent"
+          className="absolute inset-y-0 -left-1/2 w-1/2 skew-x-[-20deg] bg-gradient-to-r from-transparent via-fg/60 to-transparent"
           animate={{ x: ['0%', '400%'] }}
           transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 1.6, ease: 'easeInOut' }}
         />
@@ -85,7 +85,7 @@ export function RoundBtn({ children, onClick, label }: { children: ReactNode; on
       onClick={onClick}
       whileHover={{ scale: 1.08, backgroundColor: 'rgba(255,255,255,0.14)' }}
       whileTap={{ scale: 0.92 }}
-      className="grid size-[34px] place-items-center rounded-full border border-white/15 bg-white/[0.06] text-white/90"
+      className="grid size-[34px] place-items-center rounded-full border border-fg/15 bg-fg/[0.06] text-fg/90"
     >
       {children}
     </motion.button>

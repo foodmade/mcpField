@@ -14,7 +14,7 @@ function Badges({ c }: { c: ClientItem }) {
   return (
     <>
       {c.verified && <CheckCircle size={14} className="shrink-0 text-accent" aria-label={m.dir.verified} />}
-      {c.featured && <Sparkle size={14} weight="fill" className="shrink-0 text-[#F2C94C]" aria-label={m.dir.featured} />}
+      {c.featured && <Sparkle size={14} weight="fill" className="shrink-0 text-gold" aria-label={m.dir.featured} />}
     </>
   )
 }

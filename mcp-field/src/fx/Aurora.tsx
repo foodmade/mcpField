@@ -28,8 +28,10 @@ export function AuroraBanner({ children, className }: { children: ReactNode; cla
 
   return (
     <div
+      // 首屏横幅在两种主题下都保持深色沉浸风格
+      data-theme="dark"
       onPointerMove={onMove}
-      className={clsx('relative isolate overflow-hidden rounded-[22px] border border-white/[0.08]', className)}
+      className={clsx('relative isolate overflow-hidden rounded-[22px] border border-fg/[0.08]', className)}
       style={{
         background:
           'radial-gradient(90% 130% at 78% 35%, #2B7FFF33, transparent 60%), radial-gradient(90% 110% at 15% 100%, #3DDC9729, transparent 60%), linear-gradient(200deg, #0B1730 0%, #0A1620 55%, #07211C 100%)',

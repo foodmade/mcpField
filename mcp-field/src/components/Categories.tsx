@@ -9,19 +9,8 @@ import { Container, SectionHeader } from './ui'
 
 const MotionLink = motion.create(Link)
 
-/** 首页展示的服务分类及底色 */
-const HOME_CATEGORIES = [
-  { slug: 'dev-tools', bg: '#22324F' },
-  { slug: 'ai-agents', bg: '#2A2D36' },
-  { slug: 'cloud', bg: '#0E3340' },
-  { slug: 'memory', bg: '#123524' },
-  { slug: 'media', bg: '#3A2A1C' },
-  { slug: 'database', bg: '#1E2A3F' },
-  { slug: 'browser', bg: '#16353A' },
-  { slug: 'search', bg: '#2E2240' },
-  { slug: 'communication', bg: '#3A1F2A' },
-  { slug: 'finance', bg: '#2F3218' },
-]
+/** 首页展示的服务分类（卡片底色由分类色在卡片底色上着色，两种主题通用） */
+const HOME_CATEGORIES = ['dev-tools', 'ai-agents', 'cloud', 'memory', 'media', 'database', 'browser', 'search', 'communication', 'finance']
 
 export function Categories({ facets }: { facets: Facets }) {
   const { m, tr, to } = useI18n()
@@ -30,7 +19,7 @@ export function Categories({ facets }: { facets: Facets }) {
     <Container className="pt-16">
       <SectionHeader title={m.categories.title} link={m.categories.all} href="/servers" />
       <RevealGroup className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5" stagger={0.04}>
-        {HOME_CATEGORIES.map(({ slug, bg }) => {
+        {HOME_CATEGORIES.map((slug) => {
           const c = categoryOf('server', slug)
           return (
             <RevealItem key={slug}>
@@ -39,8 +28,8 @@ export function Categories({ facets }: { facets: Facets }) {
                 initial="rest"
                 whileHover="hover"
                 animate="rest"
-                className="relative flex h-16 items-center gap-2.5 overflow-hidden rounded-xl border border-white/[0.06] px-3 sm:gap-3 sm:px-4"
-                style={{ background: `linear-gradient(200deg, ${bg}, #121418)` }}
+                className="relative flex h-16 items-center gap-2.5 overflow-hidden rounded-xl border border-fg/[0.06] px-3 sm:gap-3 sm:px-4"
+                style={{ background: `linear-gradient(200deg, color-mix(in oklab, ${c.color} 22%, var(--color-surface)), var(--color-surface))` }}
               >
                 <motion.div aria-hidden className="absolute inset-0" variants={{ rest: { opacity: 0 }, hover: { opacity: 1 } }} style={{ background: `radial-gradient(120% 140% at 0% 50%, ${c.color}33, transparent 60%)` }} />
                 <motion.div

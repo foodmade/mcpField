@@ -37,7 +37,7 @@ function CopyCommand({ cmd }: { cmd: string }) {
     setTimeout(() => setCopied(false), 1600)
   }
   return (
-    <button onClick={copy} aria-label={m.featured.copy} className="relative z-20 flex w-full items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-black/35 px-2.5 py-[7px] text-left transition-colors hover:border-white/20">
+    <button onClick={copy} aria-label={m.featured.copy} className="relative z-20 flex w-full items-center justify-between gap-2 rounded-lg border border-fg/[0.08] bg-fg/[0.04] px-2.5 py-[7px] text-left transition-colors hover:border-fg/20">
       <span className="truncate font-mono text-xs text-text2">{cmd}</span>
       <AnimatePresence mode="wait" initial={false}>
         <motion.span key={String(copied)} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className={copied ? 'flex items-center gap-1 text-xs text-accent' : 'text-text3'}>
@@ -84,8 +84,8 @@ export function Featured({ data }: { data: FeaturedData }) {
   ] as const
   return (
     <section
-      className="border-y border-white/[0.06]"
-      style={{ background: 'radial-gradient(140% 40% at 50% 0%, #2B7FFF14, transparent 60%), #0D0F12' }}
+      className="border-y border-fg/[0.06]"
+      style={{ background: 'radial-gradient(140% 40% at 50% 0%, #2B7FFF14, transparent 60%), var(--color-band)' }}
     >
       <div className="mx-auto flex max-w-[1248px] flex-col gap-16 px-6 py-20">
         {GROUPS.map(({ key, href, body }) => {

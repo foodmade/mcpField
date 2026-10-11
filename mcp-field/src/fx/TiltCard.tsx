@@ -43,6 +43,6 @@ export function TiltCard({ children, className, max = 8 }: { children: ReactNode
 }
 
 export const glass = clsx(
-  'rounded-[18px] border border-white/15 bg-white/[0.06] backdrop-blur-xl',
+  'rounded-[18px] border border-fg/15 bg-fg/[0.06] backdrop-blur-xl',
   'shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)]',
 )

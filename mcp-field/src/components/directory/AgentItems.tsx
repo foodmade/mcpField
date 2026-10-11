@@ -15,7 +15,7 @@ function Badges({ a }: { a: AgentItem }) {
   return (
     <>
       {a.verified && <CheckCircle size={14} className="shrink-0 text-accent" aria-label={m.dir.verified} />}
-      {a.featured && <Sparkle size={14} weight="fill" className="shrink-0 text-[#F2C94C]" aria-label={m.dir.featured} />}
+      {a.featured && <Sparkle size={14} weight="fill" className="shrink-0 text-gold" aria-label={m.dir.featured} />}
     </>
   )
 }
@@ -28,7 +28,7 @@ export function AgentTypeTag({ type, className }: { type: string | null; classNa
     <span
       className={clsx(
         'shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px]',
-        type === 'template' ? 'border-[#A78BFA]/30 bg-[#A78BFA]/10 text-[#C4B5FD]' : 'border-white/15 text-text2',
+        type === 'template' ? 'border-[#A78BFA]/30 bg-[#A78BFA]/10 text-violet' : 'border-fg/15 text-text2',
         className,
       )}
     >

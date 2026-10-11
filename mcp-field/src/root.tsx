@@ -10,6 +10,7 @@ import './index.css'
 import { ErrorPage } from './components/ErrorPage'
 import { SiteShell } from './components/SiteShell'
 import { LOCALE_META, stripLocale } from './i18n/locales'
+import { THEME_SCRIPT } from './lib/theme'
 
 /** 预加载拉丁字符的两个可变字体，避免首屏先用系统字体渲染、字体到达后再整体位移（CLS） */
 export const links: LinksFunction = () => [
@@ -21,11 +22,13 @@ export const links: LinksFunction = () => [
 export function Layout({ children }: { children: ReactNode }) {
   const { locale } = stripLocale(useLocation().pathname)
   return (
-    <html lang={LOCALE_META[locale].htmlLang}>
+    // data-theme 由下面的内联脚本在水合前设置，服务端渲染的 HTML 里没有，所以忽略这处差异
+    <html lang={LOCALE_META[locale].htmlLang} suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#0A0B0D" />
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="preconnect" href="https://assets.mcpfield.com" crossOrigin="" />
         <Meta />

@@ -13,7 +13,7 @@ export function SortMenu({ value, onChange }: { value: SortKey; onChange: (s: So
   const label = m.dir.sorts[value]
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
-      <DropdownMenu.Trigger className="flex h-9 min-w-[148px] items-center gap-2 rounded-[9px] border border-white/10 bg-white/[0.04] px-3 text-sm outline-none transition-colors hover:border-white/20 data-[state=open]:border-white/30">
+      <DropdownMenu.Trigger className="flex h-9 min-w-[148px] items-center gap-2 rounded-[9px] border border-fg/10 bg-fg/[0.04] px-3 text-sm outline-none transition-colors hover:border-fg/20 data-[state=open]:border-fg/30">
         <SortDescending size={15} className="text-text2" />
         <span className="flex-1 whitespace-nowrap text-left">{label}</span>
         <CaretDown size={12} className={`text-text2 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
@@ -27,7 +27,7 @@ export function SortMenu({ value, onChange }: { value: SortKey; onChange: (s: So
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.98 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 34 }}
-                className="z-50 min-w-[188px] origin-top-right rounded-xl border border-white/[0.12] bg-[#181B20]/95 p-1.5 shadow-[0_20px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+                className="z-50 min-w-[188px] origin-top-right rounded-xl border border-fg/[0.12] bg-subtle/95 p-1.5 shadow-[0_20px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl"
               >
                 {SORT_KEYS.map((key) => {
                   const I = ICON[key]
@@ -36,7 +36,7 @@ export function SortMenu({ value, onChange }: { value: SortKey; onChange: (s: So
                     <DropdownMenu.Item
                       key={key}
                       onSelect={() => onChange(key)}
-                      className={`flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm outline-none data-[highlighted]:bg-white/[0.07] ${on ? 'text-ink' : 'text-text2'}`}
+                      className={`flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm outline-none data-[highlighted]:bg-fg/[0.07] ${on ? 'text-ink' : 'text-text2'}`}
                     >
                       <I size={15} className={on ? 'text-accent' : ''} />
                       <span className="flex-1 whitespace-nowrap">{m.dir.sorts[key]}</span>

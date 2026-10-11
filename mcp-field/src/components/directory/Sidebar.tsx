@@ -28,13 +28,13 @@ function Item({ active, icon, label, count, to, accent }: { active: boolean; ico
       to={to}
       preventScrollReset
       aria-current={active ? 'page' : undefined}
-      className={clsx('group relative flex h-[38px] w-full items-center gap-2.5 rounded-[9px] px-2.5 text-left text-sm transition-colors', active ? 'font-semibold text-ink' : 'text-text2 hover:bg-white/[0.04] hover:text-ink')}
+      className={clsx('group relative flex h-[38px] w-full items-center gap-2.5 rounded-[9px] px-2.5 text-left text-sm transition-colors', active ? 'font-semibold text-ink' : 'text-text2 hover:bg-fg/[0.04] hover:text-ink')}
     >
       {active && (
         <motion.span
           layoutId="dir-active"
           className="absolute inset-0 rounded-[9px] border border-accent/20"
-          style={{ background: 'linear-gradient(90deg, rgba(61,220,151,0.15), rgba(255,255,255,0.04))' }}
+          style={{ background: 'linear-gradient(90deg, color-mix(in oklab, var(--color-accent) 15%, transparent), color-mix(in oklab, var(--color-fg) 4%, transparent))' }}
           transition={{ type: 'spring', stiffness: 420, damping: 34 }}
         />
       )}
@@ -54,7 +54,7 @@ function TypeItem({ active, icon, label, count, to, accent }: { active: boolean;
       aria-pressed={active}
       className={clsx(
         'group flex h-[38px] w-full items-center gap-2.5 rounded-[9px] border px-2.5 text-left text-sm transition-colors',
-        active ? 'border-white/15 bg-white/[0.06] font-semibold text-ink' : 'border-transparent text-text2 hover:bg-white/[0.04] hover:text-ink',
+        active ? 'border-fg/15 bg-fg/[0.06] font-semibold text-ink' : 'border-transparent text-text2 hover:bg-fg/[0.04] hover:text-ink',
       )}
     >
       <span className="transition-transform duration-300 group-hover:scale-110" style={{ color: accent }}>{icon}</span>
@@ -95,7 +95,7 @@ function SearchBox({ q, onQuery, placeholder }: { q: string; onQuery: (v: string
         e.preventDefault()
         submit(text.trim())
       }}
-      className="flex h-[38px] items-center gap-2 rounded-[10px] border border-white/10 bg-white/[0.04] px-3 transition-colors focus-within:border-accent/50 focus-within:bg-white/[0.06]"
+      className="flex h-[38px] items-center gap-2 rounded-[10px] border border-fg/10 bg-fg/[0.04] px-3 transition-colors focus-within:border-accent/50 focus-within:bg-fg/[0.06]"
     >
       <MagnifyingGlass size={15} className="shrink-0 text-text3" />
       <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} aria-label={placeholder} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-text3 [&::-webkit-search-cancel-button]:hidden" />
@@ -148,7 +148,7 @@ export function Sidebar({ categories: allCategories, searchPh, views, types, cou
         {search}
         <div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1 [scrollbar-width:none]">
           {chips.map((c) => (
-            <Link key={c.key} to={c.to} preventScrollReset className={clsx('shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm transition-colors', c.active ? 'border-accent/40 bg-accent/15 font-medium text-[#9FF0CB]' : 'border-white/10 text-text2')}>
+            <Link key={c.key} to={c.to} preventScrollReset className={clsx('shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm transition-colors', c.active ? 'border-accent/40 bg-accent/15 font-medium text-mint' : 'border-fg/10 text-text2')}>
               {c.label}
             </Link>
           ))}

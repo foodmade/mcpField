@@ -13,13 +13,13 @@ export function EmptyState({ kind, label, onPrimary, text: e }: { kind: 'search'
     <motion.div
       initial={enter ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
-      className="flex min-h-[380px] flex-col items-center justify-center gap-3.5 rounded-2xl border border-white/[0.08] px-6 text-center"
+      className="flex min-h-[380px] flex-col items-center justify-center gap-3.5 rounded-2xl border border-fg/[0.08] px-6 text-center"
       style={{ background: 'radial-gradient(80% 90% at 50% 30%, #2B7FFF1F, transparent 60%), var(--color-surface)' }}
     >
       <motion.div
         animate={{ y: [0, -6, 0] }}
         transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="grid size-16 place-items-center rounded-[18px] border border-white/[0.12] bg-white/[0.04] text-text2"
+        className="grid size-16 place-items-center rounded-[18px] border border-fg/[0.12] bg-fg/[0.04] text-text2"
       >
         <Icon size={28} />
       </motion.div>

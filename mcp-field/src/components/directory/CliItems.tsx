@@ -15,7 +15,7 @@ function CliIcon({ c, size = 44 }: { c: CliItem; size?: number }) {
   return (
     <span className="relative shrink-0">
       <EntityIcon name={c.name} src={c.iconUrl} color={cat.color} size={size} />
-      <span className="absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-[5px] border border-white/20 bg-bg text-white"><Terminal size={11} /></span>
+      <span className="absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-[5px] border border-fg/20 bg-bg text-ink"><Terminal size={11} /></span>
     </span>
   )
 }
@@ -29,7 +29,7 @@ export function CliCard({ c }: { c: CliItem }) {
       <Link to={to(`/cli/${c.slug}`)} className="absolute inset-0 z-10 rounded-[inherit]" aria-label={c.name} />
       <div className="mb-1.5 flex items-start justify-between">
         <CliIcon c={c} />
-        {c.official && <span className="flex items-center gap-1 rounded-full border border-white/15 px-2 py-0.5 text-xs text-text2"><CheckCircle size={12} />{m.cli.official}</span>}
+        {c.official && <span className="flex items-center gap-1 rounded-full border border-fg/15 px-2 py-0.5 text-xs text-text2"><CheckCircle size={12} />{m.cli.official}</span>}
       </div>
       <div className="text-[15px] font-semibold">{c.name}</div>
       <Tagline text={c.tagline} className="line-clamp-2 text-[13px] leading-[1.6]" />

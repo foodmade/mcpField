@@ -5,7 +5,7 @@ import type { ApiOverview } from '../../lib/api/entities'
 function ItemList({ title, icon: I, items }: { title: string; icon: Icon; items: string[] }) {
   if (items.length === 0) return null
   return (
-    <section className="rounded-2xl border border-white/[0.08] bg-surface p-4">
+    <section className="rounded-2xl border border-fg/[0.08] bg-surface p-4">
       <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink"><I size={15} className="text-accent" />{title}</h3>
       <ul className="flex flex-col gap-2">
         {items.map((item, i) => (

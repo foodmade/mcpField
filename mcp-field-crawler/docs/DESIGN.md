@@ -227,7 +227,7 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
 - 翻译记忆库里人工修改过的译文（origin = manual）不会被自动翻译覆盖。
 - 介绍按输入指纹判断是否需要重新生成：README、简介等没变就跳过。
 - 介绍只使用 README 中写明的事实，用自己的话写；与 README 连续 15 个词以上相同视为照抄，自动重写。
-- 介绍按热度选模型：星数 ≥ 1000 用 Claude Sonnet 5.5，其余用 Claude Haiku 4.5。
+- 介绍统一用 Claude Haiku 5.5 生成三语，不按星数分档；需要时可用 `OVERVIEW_PREMIUM_MODEL` / `--premium-model` 给热门项目单独指定模型。
 - README 整篇翻译（`readme` 命令，中文、日文）：
   - 围栏代码块替换成占位符 `⟦CODE n⟧` 不发给模型，翻完原样放回；HTML 注释去掉。
   - 按标题切分成不超过 4,000 字符的片段，章节过长再按段落切；表格不会被切开。
@@ -235,7 +235,7 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
   - 只有代码、徽章、链接的片段不翻译；已经是目标语言的片段（本来就用中文写的 README）沿用原文。
   - 逐段校验：占位符个数、链接和图片地址（页内锚点除外）必须一个不少，必须真的译成目标语言，日文不能混入中文；行内代码、标题数、表格行数、长度比例不一致标记为待抽查。
   - 所有正文片段都有译文后，拼回整篇并还原代码块，存入 `ingest_readme_translations`，记录翻译时的原文指纹（原文更新后接口返回 outdated）和原项目许可证。
-  - 模型：项目星数 ≥ 1000 用 Sonnet 5.5，其余用 Haiku 4.5；`--licensed-only` 可只翻译有明确开源许可证的 README。
+  - 模型：统一用 Haiku 5.5，不按星数分档（可用 `README_PREMIUM_MODEL` / `--premium-model` 单独指定）；`--licensed-only` 可只翻译有明确开源许可证的 README。
 
 ### 自己撰写的内容（Loop / CLI / Agent）
 
@@ -246,7 +246,7 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
 - 输出：三语的一句话简介、概述、主要功能、适用场景；Loop 另有目标、退出条件和步骤（步骤通过下标引用事实里的命令，三种语言一一对应）。
 - 校验：与源站说明连续 6 个英文词或 12 个汉字相同即判为沿用原文，要求重写；与短标签、条件说明重合只标记待抽查。重写 3 次仍不合格的跳过，页面显示"暂无简介"。
 - 存储：简介、目标、退出条件存 `ingest_generated_texts`，步骤存 `ingest_generated_steps`（每种语言一行），概述与功能复用 `ingest_overviews`。启动提示词不存，由前端用我们的模板根据目标、步骤、检查命令、退出条件拼出。
-- 模型：Loop 用 Sonnet 5.5；CLI / Agent 用 Haiku 4.5，被照抄检测拦下的用 `--model claude-sonnet-5-5` 重跑。
+- 模型：Loop 用 Sonnet 5.5；CLI / Agent 用 Haiku 5.5，被照抄检测拦下的用 `--model claude-sonnet-5-5` 重跑。
 
 ## 12. 图片转存（Cloudflare R2）
 

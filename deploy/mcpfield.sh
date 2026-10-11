@@ -21,9 +21,12 @@ MCP Field 运维命令（服务器：${SERVER}:${REMOTE}）
 
   deploy [web|api] [--skip-checks]   发布：本地类型检查 → 构建前端 → 同步代码 → 安装依赖 → 数据库迁移 → 平滑重启
   status                             服务、站点、数据库、内存状态
-  logs [web|api|nginx|data] [-f]     查看日志（默认 web，-f 持续跟踪；nginx 是 bytor-website 容器的访问日志）
+  logs [web|api|nginx|data|<采集命令>] [-f]   查看日志（默认 web，-f 持续跟踪；nginx 是 bytor-website 容器的访问日志；
+                                     采集命令的日志例如：mcpfield logs overview -f）
   restart [web|api]                  重启服务（默认全部）
   data [step...]                     在服务器后台立即跑一次数据更新（默认全部步骤，例如：mcpfield data translate overview）
+  run <采集命令> [参数]              在服务器后台运行任意采集命令，可带参数（例如：mcpfield run overview --kind server --limit 20）
+  stop <采集命令>                    停止后台运行中的采集命令（例如：mcpfield stop readme）
   nginx                              更新站点的 Nginx 配置（deploy/nginx/）或证书后执行：校验通过才重新加载，失败自动撤回
   backup                             备份服务器数据库，下载到本地 backups/
   db                                 打开服务器上的 MySQL 命令行
@@ -106,15 +109,18 @@ cmd_logs() {
   local which=web follow=''
   for a in "$@"; do
     case "$a" in
-      web|api|nginx|data) which="$a" ;;
       -f) follow=1 ;;
-      *) die "未知参数：$a" ;;
+      *) which="$a" ;;
     esac
   done
   case "$which" in
     web|api) if [[ -n $follow ]]; then ssh -t "${SERVER}" "pm2 logs mcpfield-$which"; else remote "pm2 logs mcpfield-$which --nostream --lines 100"; fi ;;
     nginx) if [[ -n $follow ]]; then ssh -t "${SERVER}" "docker logs -f --tail 50 bytor-website"; else remote "docker logs --tail 100 bytor-website 2>&1"; fi ;;
-    data) if [[ -n $follow ]]; then ssh -t "${SERVER}" "tail -f ${REMOTE}/mcp-field-crawler/logs/daily.log"; else remote "tail -n 100 ${REMOTE}/mcp-field-crawler/logs/daily.log"; fi ;;
+    *)
+      # data 是每日任务的日志，其余是 mcpfield run 启动的采集命令日志
+      local file="${REMOTE}/mcp-field-crawler/logs/run-${which}.log"
+      [[ $which == data ]] && file="${REMOTE}/mcp-field-crawler/logs/daily.log"
+      if [[ -n $follow ]]; then ssh -t "${SERVER}" "tail -f $file"; else remote "tail -n 100 $file"; fi ;;
   esac
 }
 
@@ -152,6 +158,23 @@ fi
 EOF
 }
 
+# 后台运行采集命令：断开 SSH 后继续跑；同名命令同时只允许一个；命令本身是增量的，中断后重跑会跳过已完成的部分
+cmd_run() {
+  [[ $# -gt 0 ]] || die "用法：mcpfield run <采集命令> [参数]，例如：mcpfield run overview --kind server --limit 20"
+  local name="$1" args
+  args=$(printf '%q ' "$@")
+  remote "cd ${REMOTE}/mcp-field-crawler && mkdir -p logs && if pgrep -f 'cli/index.ts ${name}( |$)' >/dev/null; then echo '${name} 已经在运行'; exit 1; fi
+    echo \"[\$(date '+%F %T')] 开始 crawler ${*}\" >> logs/run-${name}.log
+    nohup npm run --silent crawler -- ${args} >> logs/run-${name}.log 2>&1 < /dev/null &"
+  ok "已在服务器后台运行：crawler ${*}；查看进度：mcpfield logs ${name} -f；停止：mcpfield stop ${name}"
+}
+
+cmd_stop() {
+  [[ $# -eq 1 ]] || die "用法：mcpfield stop <采集命令>，例如：mcpfield stop readme"
+  # 发 SIGINT：采集命令收到后会等进行中的请求完成、保存结果再退出
+  remote "pkill -INT -f 'cli/index.ts $1( |\$)' && echo '已通知 $1 停止（等进行中的请求完成、保存结果后退出）' || echo '$1 没有在运行'"
+}
+
 cmd_backup() {
   local name
   name="mcp_field-$(date +%Y%m%d-%H%M%S).sql.gz"
@@ -172,6 +195,8 @@ case "${1:-help}" in
   logs) shift; cmd_logs "$@" ;;
   restart) shift; cmd_restart "$@" ;;
   data) shift; cmd_data "$@" ;;
+  run) shift; cmd_run "$@" ;;
+  stop) shift; cmd_stop "$@" ;;
   nginx) cmd_nginx ;;
   backup) cmd_backup ;;
   db) cmd_db ;;

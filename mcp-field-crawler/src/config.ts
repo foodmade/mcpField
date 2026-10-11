@@ -14,15 +14,16 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
   ANTHROPIC_API_KEY: optionalString,
   ANTHROPIC_BASE_URL: optionalString,
-  TRANSLATE_MODEL: z.string().trim().default('claude-haiku-4-5-20251001'),
-  OVERVIEW_MODEL: z.string().trim().default('claude-haiku-4-5-20251001'),
-  /** 热门项目用的模型 */
-  OVERVIEW_PREMIUM_MODEL: z.string().trim().default('claude-sonnet-5-5'),
-  README_MODEL: z.string().trim().default('claude-haiku-4-5-20251001'),
-  README_PREMIUM_MODEL: z.string().trim().default('claude-sonnet-5-5'),
+  TRANSLATE_MODEL: z.string().trim().default('claude-haiku-5-5'),
+  OVERVIEW_MODEL: z.string().trim().default('claude-haiku-5-5'),
+  /** 热门项目单独用的模型；不设置时不分档，所有条目都用 OVERVIEW_MODEL */
+  OVERVIEW_PREMIUM_MODEL: optionalString,
+  README_MODEL: z.string().trim().default('claude-haiku-5-5'),
+  /** 同上：不设置时所有 README 都用 README_MODEL */
+  README_PREMIUM_MODEL: optionalString,
   /** Loop 内容要写步骤，用更强的模型；CLI / Agent 用快速模型 */
   DESCRIBE_LOOP_MODEL: z.string().trim().default('claude-sonnet-5-5'),
-  DESCRIBE_MODEL: z.string().trim().default('claude-haiku-4-5-20251001'),
+  DESCRIBE_MODEL: z.string().trim().default('claude-haiku-5-5'),
   R2_ACCOUNT_ID: optionalString,
   R2_BUCKET: optionalString,
   R2_PUBLIC_BASE_URL: optionalString,
@@ -39,9 +40,9 @@ export interface AppConfig {
   anthropic: { apiKey?: string; baseURL?: string }
   translateModel: string
   overviewModel: string
-  overviewPremiumModel: string
+  overviewPremiumModel: string | undefined
   readmeModel: string
-  readmePremiumModel: string
+  readmePremiumModel: string | undefined
   describeLoopModel: string
   describeModel: string
   /** 五项都配置了才启用 R2 */

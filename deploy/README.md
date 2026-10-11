@@ -29,6 +29,8 @@ mcpfield status            # 服务、站点、数据库、内存
 mcpfield logs api -f       # 日志：web / api / nginx / data
 mcpfield restart           # 重启
 mcpfield data              # 立即在后台更新数据；也可以只跑某几步：mcpfield data overview readme
+mcpfield run overview --kind server --limit 20   # 后台运行任意采集命令（可带参数），日志：mcpfield logs overview -f
+mcpfield stop overview     # 停止后台运行的采集命令；命令是增量的，重新 run 会从断点继续
 mcpfield nginx             # 修改 deploy/nginx/ 或更换证书后重新加载（校验失败自动撤回）
 mcpfield backup            # 备份数据库到本机 backups/
 mcpfield db / ssh          # 数据库命令行 / 登录服务器

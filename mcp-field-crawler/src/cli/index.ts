@@ -59,7 +59,7 @@ translate 选项：
   --kind <a,b>            要翻译的类型，默认全部
   --field <a,b>           要翻译的字段，默认 tagline,description
   --limit <n>             最多翻译 n 段原文（试跑用）
-  --model <id>            模型，默认 TRANSLATE_MODEL（claude-haiku-4-5-20251001）
+  --model <id>            模型，默认 TRANSLATE_MODEL（claude-haiku-5-5）
   --batch <n>             每次请求的条数，默认 40
   --concurrency <n>       并发请求数，默认 4
   --stale                 重翻旧版提示词的结果
@@ -70,9 +70,9 @@ overview 选项：
   --kind <a,b>            要生成的类型，默认全部
   --limit <n>             最多生成 n 条（试跑用）
   --min-stars <n>         只给星数不低于 n 的条目生成
-  --model <id>            普通条目的模型，默认 OVERVIEW_MODEL（claude-haiku-4-5-20251001）
-  --premium-model <id>    热门条目的模型，默认 OVERVIEW_PREMIUM_MODEL（claude-sonnet-5-5）
-  --premium-min-stars <n> 星数达到 n 算热门，默认 1000
+  --model <id>            普通条目的模型，默认 OVERVIEW_MODEL（claude-haiku-5-5）
+  --premium-model <id>    热门条目单独用的模型，默认 OVERVIEW_PREMIUM_MODEL；都不设置时不分档，全部用 --model
+  --premium-min-stars <n> 设置了热门模型时，星数达到 n 算热门，默认 1000
   --batch <n>             每次请求的条数，默认 3
   --concurrency <n>       并发请求数，默认 4
   --stale / --force       重新生成旧版提示词的结果 / 全部重新生成
@@ -83,7 +83,7 @@ readme 选项：
   --limit <n>             最多翻译 n 篇（试跑用）
   --min-stars <n>         只翻译星数不低于 n 的条目
   --licensed-only         只翻译有明确开源许可证的 README
-  --model / --premium-model / --premium-min-stars   同 overview，默认 Haiku 4.5 / Sonnet 5.5 / 1000
+  --model / --premium-model / --premium-min-stars   同 overview，默认 Haiku 5.5 / 不分档 / 1000
   --concurrency <n>       并发请求数，默认 6
   --stale / --force       重翻旧版提示词的片段 / 全部重翻（人工译文保留）
 
@@ -249,10 +249,13 @@ async function overview() {
     const claude = { apiKey: config.anthropic.apiKey, baseURL: config.anthropic.baseURL }
     const { inputs, skipped } = await collectOverviewInputs(db, kinds, values['min-stars'] ? Number(values['min-stars']) : 0)
     logger.info({ inputs: inputs.length, skipped }, 'README 不足或星数不够的条目已跳过')
+    const model = values.model ?? config.overviewModel
+    const premiumModel = values['premium-model'] ?? config.overviewPremiumModel
     const runner = new OverviewRunner(
       {
-        standard: new ClaudeOverviewWriter({ ...claude, model: values.model ?? config.overviewModel }),
-        premium: new ClaudeOverviewWriter({ ...claude, model: values['premium-model'] ?? config.overviewPremiumModel }),
+        standard: new ClaudeOverviewWriter({ ...claude, model }),
+        // 只有单独设置了热门模型（且与普通模型不同）时才按星数分档
+        premium: premiumModel && premiumModel !== model ? new ClaudeOverviewWriter({ ...claude, model: premiumModel }) : undefined,
         premiumMinStars: values['premium-min-stars'] ? Number(values['premium-min-stars']) : 1000,
       },
       new OverviewStore(db),
@@ -294,10 +297,12 @@ async function readme() {
       licensedOnly: values['licensed-only'],
     })
     logger.info({ targets: targets.length, skipped }, '没有 README 或不符合条件的条目已跳过')
+    const model = values.model ?? config.readmeModel
+    const premiumModel = values['premium-model'] ?? config.readmePremiumModel
     const runner = new ReadmeTranslateRunner(
       {
-        standard: new ClaudeReadmeTranslator({ ...claude, model: values.model ?? config.readmeModel }),
-        premium: new ClaudeReadmeTranslator({ ...claude, model: values['premium-model'] ?? config.readmePremiumModel }),
+        standard: new ClaudeReadmeTranslator({ ...claude, model }),
+        premium: premiumModel && premiumModel !== model ? new ClaudeReadmeTranslator({ ...claude, model: premiumModel }) : undefined,
         premiumMinStars: values['premium-min-stars'] ? Number(values['premium-min-stars']) : 1000,
       },
       new TranslationMemory(db),

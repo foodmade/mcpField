@@ -1,0 +1,174 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0a0b0d;
+  --color-surface: #121418;
+  --color-subtle: #181b20;
+  --color-ink: #f3f4f6;
+  --color-text2: #a9aeb6;
+  --color-text3: #7d838c;
+  --color-line: #23272e;
+  --color-accent: #3ddc97;
+  --color-accent-ink: #06110d;
+  --color-blue: #2b7fff;
+
+  /* 英文用 Inter；中日文用系统字体（苹方 / 微软雅黑等），本机装有 Noto 时也会用到 */
+  --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+
+  --animate-accordion-down: accordion-down 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-accordion-up: accordion-up 240ms cubic-bezier(0.22, 1, 0.36, 1);
+
+  @keyframes accordion-down {
+    from { height: 0; opacity: 0; }
+    to { height: var(--radix-accordion-content-height); opacity: 1; }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); opacity: 1; }
+    to { height: 0; opacity: 0; }
+  }
+}
+
+html {
+  color-scheme: dark;
+  background: var(--color-bg);
+}
+
+body {
+  @apply bg-bg font-sans text-ink antialiased;
+  font-feature-settings: 'cv11', 'ss03';
+  text-rendering: optimizeLegibility;
+}
+
+/* 日文页面优先使用日文字形 */
+:lang(ja) body,
+[lang='ja'] {
+  font-family: 'Inter Variable', -apple-system, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'Noto Sans JP', ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+}
+
+/* 第三方 README（Markdown / HTML）排版 */
+.md {
+  @apply text-[15px] leading-[1.8] text-text2;
+  overflow-wrap: anywhere;
+}
+.md > * + * {
+  margin-top: 0.9em;
+}
+.md :is(.md-h1, .md-h2, .md-h3, .md-h4, .md-h5, .md-h6) {
+  @apply font-bold tracking-tight text-ink;
+  margin-top: 1.6em;
+  line-height: 1.35;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md .md-h1 {
+  @apply text-[22px];
+}
+.md .md-h2 {
+  @apply border-b border-line pb-2 text-[19px];
+}
+.md .md-h3 {
+  @apply text-[17px];
+}
+.md :is(.md-h4, .md-h5, .md-h6) {
+  @apply text-[15px];
+}
+.md a {
+  @apply text-accent underline decoration-accent/40 underline-offset-4 hover:decoration-accent;
+}
+.md strong {
+  @apply font-semibold text-ink;
+}
+.md :is(ul, ol) {
+  padding-left: 1.4em;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md li + li,
+.md li > :is(ul, ol) {
+  margin-top: 0.35em;
+}
+.md li::marker {
+  @apply text-text3;
+}
+.md :not(pre) > code {
+  @apply rounded-md border border-white/[0.08] bg-white/[0.07] px-1.5 py-0.5 font-mono text-[0.86em] text-ink;
+}
+.md pre {
+  @apply overflow-x-auto rounded-xl border border-white/[0.08] bg-[#0d0f12] p-4 font-mono text-[13px] leading-[1.7] text-ink;
+}
+.md blockquote {
+  @apply border-l-2 border-accent/50 pl-4 text-text3;
+}
+.md hr {
+  @apply border-line;
+}
+.md table {
+  @apply block w-full overflow-x-auto text-sm;
+  border-collapse: collapse;
+}
+.md :is(th, td) {
+  @apply border border-white/[0.08] px-3 py-2 text-left;
+}
+.md th {
+  @apply bg-white/[0.04] font-semibold text-ink;
+}
+.md img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+.md :is(p, div)[align='center'] {
+  text-align: center;
+}
+.md input[type='checkbox'] {
+  @apply mr-1.5 accent-[#3DDC97];
+}
+
+/* GitHub 提示块：> [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION] */
+.md blockquote.md-alert {
+  @apply rounded-r-lg border-l-[3px] bg-white/[0.03] py-2.5 pr-4 text-text2;
+}
+.md .md-alert-title {
+  @apply mb-1 text-sm font-semibold;
+}
+.md .md-alert-note {
+  border-color: #4f8cff;
+}
+.md .md-alert-note .md-alert-title {
+  color: #7aa8ff;
+}
+.md .md-alert-tip {
+  border-color: #3ddc97;
+}
+.md .md-alert-tip .md-alert-title {
+  color: #6fe7b3;
+}
+.md .md-alert-important {
+  border-color: #a371f7;
+}
+.md .md-alert-important .md-alert-title {
+  color: #c4a3ff;
+}
+.md .md-alert-warning {
+  border-color: #f2c94c;
+}
+.md .md-alert-warning .md-alert-title {
+  color: #f2c94c;
+}
+.md .md-alert-caution {
+  border-color: #f87171;
+}
+.md .md-alert-caution .md-alert-title {
+  color: #fca5a5;
+}

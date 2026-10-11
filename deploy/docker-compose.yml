@@ -1,0 +1,32 @@
+# mcpfield 自己的 MySQL：与服务器上其他服务完全隔离，只监听本机 3307，限制内存
+# 密码放在仓库根目录的 .mysql.env（只存在服务器上，不进 git）
+name: mcpfield
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mcpfield-mysql
+    restart: unless-stopped
+    env_file: ../.mysql.env
+    environment:
+      MYSQL_DATABASE: mcp_field
+      MYSQL_USER: mcpfield
+    command:
+      - --innodb-buffer-pool-size=128M
+      - --performance-schema=OFF
+      - --max-connections=50
+      - --skip-name-resolve
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - 127.0.0.1:3307:3306
+    volumes:
+      - mysql_data:/var/lib/mysql
+    mem_limit: 512m
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent']
+      interval: 10s
+      retries: 10
+
+volumes:
+  mysql_data:

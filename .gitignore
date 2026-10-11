@@ -1,0 +1,4 @@
+.DS_Store
+# 服务器上的数据库密码、本地数据库备份
+.mysql.env
+backups/

@@ -39,8 +39,4 @@ npm run lint
 
 ## 部署
 
-1. 与 API 部署在同一台机器：先启动 API，再 `npm ci && npm run build && npm start`（建议用 pm2 或 systemd 守护）。
-2. 域名经 Cloudflare 代理。Cloudflare 默认不缓存 HTML，需要加一条 Cache Rule：对 `mcpfield.com` 的页面请求"遵循源站缓存头"。
-   页面 HTML 的缓存头是 `public, max-age=0, s-maxage=600, stale-while-revalidate=86400`；404 只缓存 60 秒，5xx 不缓存。
-   `/api/*`、`*.data`（站内跳转的数据请求）不要缓存。
-3. 上线后在 Google Search Console 和 Bing Webmaster Tools 提交 `https://mcpfield.com/sitemap.xml`。
+线上部署方式、服务器目录和 `mcpfield` 运维命令见仓库根目录的 [`deploy/README.md`](../deploy/README.md)。

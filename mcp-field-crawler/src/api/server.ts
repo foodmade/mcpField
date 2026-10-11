@@ -49,8 +49,8 @@ const app = createApp({
   },
 })
 
-const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
-  logger.info(`API 已启动：http://localhost:${info.port}/api/health`)
+const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
+  logger.info(`API 已启动：http://${config.host}:${info.port}/api/health`)
 })
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

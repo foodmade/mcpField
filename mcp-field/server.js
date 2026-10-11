@@ -8,11 +8,19 @@ import { createProxyMiddleware } from 'http-proxy-middleware'
  */
 const DEVELOPMENT = process.env.NODE_ENV === 'development'
 const PORT = Number.parseInt(process.env.PORT || '3000', 10)
+// 监听地址，可用逗号分隔多个。生产环境只监听本机和 Docker 网桥（供容器里的 Nginx 转发），不对公网开放
+const HOSTS = (process.env.HOST || '0.0.0.0').split(',').map((h) => h.trim()).filter(Boolean)
 const API_ORIGIN = process.env.API_ORIGIN || 'http://127.0.0.1:3100'
 
 const app = express()
 app.disable('x-powered-by')
 app.use(compression())
+// www.mcpfield.com → mcpfield.com，避免同一内容出现在两个域名下
+app.use((req, res, next) => {
+  const host = req.headers.host ?? ''
+  if (host.startsWith('www.')) return res.redirect(301, `https://${host.slice(4)}${req.originalUrl}`)
+  next()
+})
 app.use(createProxyMiddleware({ target: API_ORIGIN, changeOrigin: true, pathFilter: '/api' }))
 
 if (DEVELOPMENT) {
@@ -34,6 +42,8 @@ if (DEVELOPMENT) {
   app.use(await import('./build/server/index.js').then((mod) => mod.app))
 }
 
-app.listen(PORT, () => {
-  console.log(`MCP Field ${DEVELOPMENT ? '开发' : '生产'}服务已启动：http://localhost:${PORT}（API：${API_ORIGIN}）`)
-})
+for (const host of HOSTS) {
+  app.listen(PORT, host, () => {
+    console.log(`MCP Field ${DEVELOPMENT ? '开发' : '生产'}服务已启动：http://${host}:${PORT}（API：${API_ORIGIN}）`)
+  })
+}

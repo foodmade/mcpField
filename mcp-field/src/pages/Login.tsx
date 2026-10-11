@@ -47,6 +47,11 @@ const PROVIDER_NAME: Record<SocialProvider, string> = { github: 'GitHub', google
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/* 字号和颜色都收得轻一些：标题中等字重、正文 14px，白色用不同透明度分层，避免大白字太刺眼 */
+const TITLE = 'text-balance text-center text-[22px] font-medium tracking-[-0.01em] text-white/90 sm:text-[24px]'
+const BUTTON = 'flex h-12 w-full items-center justify-center gap-2.5 rounded-[14px] text-[15px] font-medium transition-[transform,background-color,box-shadow,opacity] duration-200 enabled:hover:-translate-y-px disabled:cursor-default'
+const PRIMARY = 'bg-white/[0.92] text-[#16181f] shadow-[0_8px_28px_rgba(127,217,255,0.14)] enabled:hover:bg-white enabled:hover:shadow-[0_10px_36px_rgba(127,217,255,0.28)]'
+
 const errorText = (t: T, failure: AuthFailure): string => t.errors[failure]
 
 /** 地平线位置：窄屏时登录内容更长，地平线压低一些 */
@@ -186,7 +191,7 @@ function LoginPage() {
           <AnimatePresence mode="wait" initial={false}>
             {step.kind === 'choose' ? (
               <motion.div key="choose" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                <h1 className="mb-6 text-center text-[26px] font-semibold tracking-tight sm:mb-7 sm:text-[28px]">{t.welcome}</h1>
+                <h1 className={clsx(TITLE, 'mb-7')}>{t.welcome}</h1>
                 <ChooseStep t={t} busy={busy} error={error} status={busy === 'callback' ? t.completing : null} hoverProps={hoverProps} onSocial={social} onEmail={sendCode} onInvalidEmail={() => setError(t.errors.invalidEmail)} />
               </motion.div>
             ) : (
@@ -220,7 +225,7 @@ function ErrorLine({ text }: { text: string | null }) {
   return (
     <AnimatePresence>
       {text && (
-        <motion.p role="alert" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-center text-[13px] leading-[1.6] text-[#fca5a5]">
+        <motion.p role="alert" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-balance text-center text-[13px] leading-[1.7] text-[#f2b0b0]">
           {text}
         </motion.p>
       )}
@@ -239,14 +244,12 @@ function ProviderButton({ provider, primary, busy, label, hoverProps, onClick }:
       disabled={busy !== null}
       {...hoverProps}
       className={clsx(
-        'flex h-[52px] w-full items-center justify-center gap-2.5 rounded-xl text-base font-semibold transition-[transform,background-color,box-shadow,opacity] duration-200 enabled:hover:-translate-y-0.5 disabled:cursor-default',
-        primary
-          ? 'bg-[#F2F4F8] text-[#0A0B0D] shadow-[0_8px_32px_rgba(127,217,255,0.2)] enabled:hover:shadow-[0_10px_40px_rgba(127,217,255,0.4)]'
-          : 'border border-white/20 bg-white/[0.06] text-[#F2F4F8] backdrop-blur-md enabled:hover:bg-white/[0.1]',
+        BUTTON,
+        primary ? PRIMARY : 'border border-white/[0.14] bg-white/[0.05] text-white/85 backdrop-blur-md enabled:hover:bg-white/[0.09]',
         busy !== null && !mine && 'opacity-40',
       )}
     >
-      {mine ? <CircleNotch size={20} className="animate-spin" /> : <Icon size={20} weight={primary ? 'fill' : 'bold'} />}
+      {mine ? <CircleNotch size={18} className="animate-spin" /> : <Icon size={18} weight={primary ? 'fill' : 'regular'} />}
       {mine ? m.login.redirecting(PROVIDER_NAME[provider]) : label}
     </button>
   )
@@ -265,20 +268,20 @@ function ChooseStep({ t, busy, error, status, hoverProps, onSocial, onEmail, onI
     <div className="flex flex-col gap-3">
       <ProviderButton provider="github" primary busy={busy} label={t.github} hoverProps={hoverProps} onClick={() => onSocial('github')} />
       <ProviderButton provider="google" busy={busy} label={t.google} hoverProps={hoverProps} onClick={() => onSocial('google')} />
-      <div className={clsx('flex items-center gap-3 py-1.5 text-[13px] text-text3 transition-opacity', busy && busy !== 'send' && 'opacity-40')}>
-        <span className="h-px flex-1 bg-white/[0.12]" />
+      <div className={clsx('flex items-center gap-3 py-1.5 text-xs text-white/40 transition-opacity', busy && busy !== 'send' && 'opacity-40')}>
+        <span className="h-px flex-1 bg-white/[0.08]" />
         {t.or}
-        <span className="h-px flex-1 bg-white/[0.12]" />
+        <span className="h-px flex-1 bg-white/[0.08]" />
       </div>
       <form
         onSubmit={submit}
         noValidate
         className={clsx(
-          'flex h-[52px] items-center gap-2.5 rounded-xl border border-white/[0.18] bg-[#0A0D16]/70 pl-4 pr-1.5 backdrop-blur-md transition-[border-color,opacity] focus-within:border-accent/60',
+          'flex h-12 items-center gap-2.5 rounded-[14px] border border-white/[0.12] bg-[#0A0D16]/60 pl-4 pr-1.5 backdrop-blur-md transition-[border-color,opacity] focus-within:border-accent/50',
           busy && busy !== 'send' && 'opacity-40',
         )}
       >
-        <EnvelopeSimple size={18} className="shrink-0 text-text3" />
+        <EnvelopeSimple size={17} className="shrink-0 text-white/40" />
         <input
           type="email"
           name="email"
@@ -289,25 +292,25 @@ function ChooseStep({ t, busy, error, status, hoverProps, onSocial, onEmail, onI
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={busy !== null}
-          className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-text3"
+          className="min-w-0 flex-1 bg-transparent text-[14px] text-white/90 outline-none placeholder:text-white/35"
         />
-        <button type="submit" disabled={busy !== null} {...hoverProps} className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.09] px-3.5 text-sm font-semibold transition-colors enabled:hover:bg-white/[0.15] disabled:cursor-default">
+        <button type="submit" disabled={busy !== null} {...hoverProps} className="flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] bg-white/[0.07] px-3.5 text-[13px] font-medium text-white/85 transition-colors enabled:hover:bg-white/[0.12] disabled:cursor-default">
           {busy === 'send' && <CircleNotch size={14} className="animate-spin" />}
           {busy === 'send' ? t.sending : t.sendCode}
         </button>
       </form>
       {status && (
-        <p role="status" className="flex items-center justify-center gap-2 text-[13px] text-text2">
+        <p role="status" className="flex items-center justify-center gap-2 text-[13px] text-white/60">
           <CircleNotch size={14} className="animate-spin" />
           {status}
         </p>
       )}
       <ErrorLine text={error} />
-      <p className="text-balance pt-1 text-center text-[13px] leading-[1.6] text-text3">
+      <p className="text-balance pt-1.5 text-center text-xs leading-[1.8] text-white/40">
         {t.firstLogin}
         <br />
         {t.agree[0]}
-        <Link to={to('/privacy')} className="underline decoration-white/30 underline-offset-4 transition-colors hover:text-ink">
+        <Link to={to('/privacy')} className="underline decoration-white/20 underline-offset-[3px] transition-colors hover:text-white/70">
           {t.agree[1]}
         </Link>
         {t.agree[2]}
@@ -321,6 +324,8 @@ function CodeStep({ t, email, busy, error, cooldown, hoverProps, onVerify, onRes
   const [focused, setFocused] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const working = busy !== null
+  const sent = t.codeSent(maskEmail(email), OTP_MINUTES)
+  const ready = code.length === OTP_LENGTH && !working
 
   const submit = async (value: string) => {
     if (value.length !== OTP_LENGTH || working) return
@@ -333,7 +338,14 @@ function CodeStep({ t, email, busy, error, cooldown, hoverProps, onVerify, onRes
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-balance text-center text-[15px] leading-[1.6] text-text2">{t.codeSent(maskEmail(email), OTP_MINUTES)}</p>
+      <div className="mb-1.5 flex flex-col gap-2.5">
+        <h1 className={TITLE}>{t.codeTitle}</h1>
+        <p className="text-center text-[14px] leading-[1.7] text-white/55">
+          {sent[0]}
+          <br />
+          {sent[1]}
+        </p>
+      </div>
       <label className="relative grid grid-cols-6 gap-2.5">
         <span className="sr-only">{t.codeLabel}</span>
         {Array.from({ length: OTP_LENGTH }, (_, i) => {
@@ -344,11 +356,11 @@ function CodeStep({ t, email, busy, error, cooldown, hoverProps, onVerify, onRes
               key={i}
               aria-hidden
               className={clsx(
-                'grid h-[60px] place-items-center rounded-[10px] border bg-[#0A0D16]/70 font-mono text-[26px] font-semibold backdrop-blur-md transition-colors',
-                active ? 'border-2 border-accent shadow-[0_0_18px_rgba(61,220,151,0.25)]' : digit ? 'border-white/25' : 'border-white/[0.14]',
+                'grid h-14 place-items-center rounded-[12px] border bg-[#0A0D16]/60 font-mono text-[22px] font-medium text-white/90 backdrop-blur-md transition-[border-color,box-shadow]',
+                active ? 'border-accent/70 shadow-[0_0_16px_rgba(61,220,151,0.18)]' : digit ? 'border-white/20' : 'border-white/[0.1]',
               )}
             >
-              {digit ?? (active && <span className="h-[26px] w-0.5 animate-pulse bg-accent" />)}
+              {digit ?? (active && <span className="h-[22px] w-px animate-pulse bg-accent" />)}
             </span>
           )
         })}
@@ -372,18 +384,19 @@ function CodeStep({ t, email, busy, error, cooldown, hoverProps, onVerify, onRes
       </label>
       <button
         type="button"
-        disabled={code.length !== OTP_LENGTH || working}
+        disabled={!ready}
         onClick={() => void submit(code)}
         {...hoverProps}
-        className="flex h-[52px] w-full items-center justify-center gap-2.5 rounded-xl bg-[#F2F4F8] text-base font-semibold text-[#0A0B0D] transition-[transform,opacity] duration-200 enabled:hover:-translate-y-0.5 disabled:cursor-default disabled:opacity-45"
+        // 没填完时用浅色底，不显示成一块灰色
+        className={clsx(BUTTON, ready || busy === 'verify' || busy === 'email' ? PRIMARY : 'bg-white/[0.07] text-white/40')}
       >
-        {busy === 'verify' && <CircleNotch size={18} className="animate-spin" />}
+        {busy === 'verify' && <CircleNotch size={16} className="animate-spin" />}
         {busy === 'verify' || busy === 'email' ? t.verifying : t.verify}
       </button>
       <ErrorLine text={error} />
       <div className="flex items-center justify-between px-0.5 text-[13px]">
         {cooldown > 0 ? (
-          <span className="text-text3">{t.resendIn(cooldown)}</span>
+          <span className="text-white/40">{t.resendIn(cooldown)}</span>
         ) : (
           <LinkButton onClick={onResend} disabled={working}>
             {t.resend}
@@ -399,7 +412,7 @@ function CodeStep({ t, email, busy, error, cooldown, hoverProps, onVerify, onRes
 
 function LinkButton({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: ReactNode }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className="font-semibold text-text2 underline decoration-white/30 underline-offset-4 transition-colors hover:text-ink disabled:opacity-40">
+    <button type="button" onClick={onClick} disabled={disabled} className="text-white/55 transition-colors hover:text-white/85 disabled:opacity-40">
       {children}
     </button>
   )

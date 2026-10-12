@@ -8,14 +8,15 @@ import { AssetError, download, storageKey, toWebp, type ProcessedImage } from '.
 import type { AssetStorage } from './storage.ts'
 import type { AssetState, AssetStore } from './store.ts'
 
-/** 从草稿里收集要转存的图片地址（去重） */
-export async function collectMediaUrls(db: Db, kinds: readonly EntityKind[], types: readonly MediaType[]): Promise<{ url: string; type: MediaType }[]> {
+/** 从草稿里收集要转存的图片地址（去重）；sourceId 只取该数据源的草稿 */
+export async function collectMediaUrls(db: Db, kinds: readonly EntityKind[], types: readonly MediaType[], sourceId?: string): Promise<{ url: string; type: MediaType }[]> {
   const [rows] = (await db.execute(sql`
     SELECT DISTINCT m.url, m.type
     FROM ingest_drafts d,
          JSON_TABLE(d.draft, '$.media[*]' COLUMNS (type VARCHAR(16) PATH '$.type', url VARCHAR(2048) PATH '$.url')) m
     WHERE d.kind IN (${sql.join(kinds.map((k) => sql`${k}`), sql`, `)})
-      AND m.type IN (${sql.join(types.map((t) => sql`${t}`), sql`, `)})`)) as unknown as [{ url: string; type: MediaType }[]]
+      AND m.type IN (${sql.join(types.map((t) => sql`${t}`), sql`, `)})
+      ${sourceId ? sql`AND d.source_id = ${sourceId}` : sql``}`)) as unknown as [{ url: string; type: MediaType }[]]
   const seen = new Set<string>()
   return rows.filter((r) => r.url && !seen.has(r.url) && seen.add(r.url))
 }

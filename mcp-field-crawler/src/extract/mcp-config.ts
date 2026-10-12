@@ -8,7 +8,7 @@ export interface ParsedMcpConfig {
   proxied: boolean
 }
 
-const SECRET_NAME = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)/i
+export const SECRET_NAME = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)/i
 const PROXY_MARKERS = ['mcprouter']
 const DOCKER_FLAGS_WITH_VALUE = new Set(['-e', '--env', '-v', '--volume', '-p', '--publish', '--name', '--network', '-w', '--workdir', '--mount', '--env-file', '--platform', '-u', '--user'])
 

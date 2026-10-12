@@ -2,7 +2,7 @@
 
 MCP Field 的数据采集服务：可插拔的多源爬虫，数据写入与 mcp-field 共用的 MySQL（`mcp_field` 库）。
 
-设计说明见 [docs/DESIGN.md](docs/DESIGN.md)。
+设计说明见 [docs/DESIGN.md](docs/DESIGN.md)，采集、去重与分类的计划和进展见 [docs/PLAN.md](docs/PLAN.md)。
 
 ## 准备
 
@@ -24,6 +24,7 @@ npm run crawler -- crawl --source mcpso --kind server,skill  # 只抓指定类�
 npm run crawler -- crawl --source mcpso --since 2026-10-01   # 只抓近期更新的
 npm run crawler -- crawl --source mcpso --store file         # 不写数据库，输出到 data/runs
 npm run crawler -- stats                                     # 采集层统计
+npm run crawler -- merge-plan                                # 合并预演：哪些草稿是同一个东西（只读，报告在 data/merge-plan）
 npm run crawler -- remap --source mcpso --kind client        # 改了映射规则后重建草稿（不发网络请求）
 npm run crawler -- translate --kind client                   # 把简介翻译成中英日三语
 npm run crawler -- translate --kind client --recheck         # 按当前规则重新校验已有译文，只重翻不合格的

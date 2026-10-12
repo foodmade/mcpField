@@ -26,7 +26,7 @@
 | 抓取 | 目标 → 原始 HTML（文件存储）+ `ingest_documents` | ✅ 已实现（重试、robots、限速、条件请求） |
 | 解析 | HTML → 源站原生结构 `ingest_records` | ✅ 已实现（mcp.so 内嵌数据沙箱解析） |
 | 映射 | 源记录 → 统一结构的细粒度草稿 `ingest_drafts` + 问题 `ingest_issues` | ✅ 已实现（mcp.so 六种类型） |
-| 补全 | GitHub / 官方 Registry / npm / PyPI / 实时探测 → `ingest_enrichments` | ⏳ 下一阶段 |
+| 补全 | GitHub / npm / PyPI / 实时探测 → `ingest_enrichments` | ⏳ 下一阶段 |
 | 合并发布 | 多来源草稿按身份键合并 → 目录表 | ⏳ 下一阶段 |
 | 生成 | LLM 生成中英日简介、介绍 → `entity_texts` | ⏳ 下一阶段 |
 
@@ -63,12 +63,14 @@ src/
 │   ├── runner.ts           运行器（模板方法）与单目标处理器
 │   ├── store.ts            仓储接口
 │   ├── events.ts / errors.ts / logger.ts
-├── fetch/                  抓取层：HTTP + 装饰器（retry / robots / rate-limit）
+├── fetch/                  抓取层：HTTP + 装饰器（retry / robots / rate-limit）+ 预取（列表接口已带完整数据时）
 ├── discover/sitemap.ts     通用站点地图发现器
 ├── extract/                通用提取：HTML、TanStack 内嵌数据（QuickJS 沙箱）、MCP 配置、工具参数
 ├── store/                  MySQL 仓储、文件仓储、原始文档存储
 ├── db/schema/              表结构：catalog.ts（目录层）、ingest.ts（采集层）
-└── sources/mcpso/          mcp.so 数据源：URL 规则、字段校验、解析、映射、分类映射
+├── merge/                  合并预演：哪些草稿是同一个东西（见第 6 节）
+├── sources/mcpso/          mcp.so 数据源：URL 规则、字段校验、解析、映射、分类映射
+└── sources/mcp-registry/   官方 MCP Registry 数据源：列表发现、server.json 解析与映射（见第 13 节）
 ```
 
 ## 5. 数据库设计
@@ -164,8 +166,19 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
 ## 6. 身份与合并
 
 - 合并键（`core/identity.ts`）按可信度：Skill 键 `owner/repo#skill` > 仓库（含 monorepo 子目录）> 官方 Registry 名称 > npm 包 > PyPI 包 > 远程地址 > 官网。
+- 每条草稿产出**全部**候选键（`identityKeys`），分强键和弱键；`ingest_drafts.identity_key` 只存可信度最高的一个。
+  - 弱键：官网；有 Skill 键时的仓库；官网指向的仓库与仓库字段不一致时的那个仓库。
+  - 不产生键：启动器包（`mcp-remote`、`@smithery/cli`、`nx`、`tsx` 等）、本机 / 内网 / 示例 / 占位地址、平台域名（npm、PyPI、GitHub 首页、各目录站、短链接）。
+  - 官网是 npm / PyPI / 仓库页面时转成对应的键；包名按 npm 规则 / PEP 503 校验和归一化。
+  - 镜像仓库 `mcp-mirror/<owner>_<repo>` 归到 `<owner>/<repo>`。
 - 仓库地址统一小写、去 `.git`、去分支名但保留子目录：`modelcontextprotocol/servers` 下的十几个服务不会被合成一个。
 - Skill 必须用规范键：同一仓库里通常有多个 Skill。
+- 合并规则（`merge/plan.ts`，`npm run crawler -- merge-plan` 只读预演，报告写到 `data/merge-plan/`）：
+  - 只在同一类型内合并；同一强键跨类型出现记为"相关"（发布阶段写 `entity_relations`）。
+  - 强键相同才合并，按可信度依次处理。一个键连接的各组之间有冲突时（仓库不同、Skill 键 / Registry 名称 / npm / PyPI 不同），这个键整体不用于合并，记为"有歧义的键"。仓库根目录与它的子目录不算冲突。
+  - 有条目指向子目录的仓库是 monorepo，它的根目录键不用于合并。
+  - 弱键只提示可能重复，不自动合并。
+  - 合并组的身份键只从本组独有的强键里选；没有时用 `source:来源/类型/ID`，保证同一类型内唯一。
 - 合并时按字段设来源优先级（下一阶段实现），例如：星数 GitHub > mcp.so；安装方式 官方 Registry > npm > README；简介 我们生成 > 上游仓库描述。
 
 ## 7. mcp.so 数据源
@@ -259,9 +272,27 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
 - 命令：`npm run crawler -- assets`（默认处理图标，`--media screenshot` 处理截图）；每次抓取后运行一次即可增量转存。
 - 存储层是 `AssetStorage` 接口（`R2Storage` / `LocalStorage`），以后换成其他对象存储只需新增实现。
 
-## 13. 后续阶段
+## 13. 官方 MCP Registry 数据源
 
-1. **补全**（Enricher）：GitHub GraphQL（每次 100 个仓库）、官方 MCP Registry（增量拉取）、npm / PyPI 下载量、远程服务实时探测（initialize + tools/list + prompts/list + resources/list）。
+数据源 ID `mcp-registry`，只有 MCP 服务一种类型。`npm run crawler -- crawl --source mcp-registry`。
+
+- 接口：`https://registry.modelcontextprotocol.io/v0.1`（v0 仍可用但不再更新），无需鉴权，没有 robots.txt。
+- 发现：`GET /servers?version=latest&limit=100` 按游标翻页；增量用 `updated_since`（对应 `--since`）。每个服务产出一个目标，地址是它的详情接口 `/servers/{name}/versions/latest`，`lastmod` 取 `_meta` 里的 `updatedAt`，没变的直接跳过。
+- 抓取：详情接口实测每次 40–60 秒，列表 100 条只要 2–6 秒，而列表条目就是完整的 `{ server, _meta }`。所以发现器把条目预取给 `PrefetchFetcher`，抓取阶段直接取用，全量只发列表页请求；没预取到的才去请求详情接口。
+- 映射（只取事实）：
+  - 名称取 `title`，没有时取名称最后一段；最后一段是 `mcp`、`site` 这类通用词时用命名空间里的账号或域名主体（`com.acme/mcp` → `acme`）；简介 `description`（≤ 100 字）→ tagline。
+  - 身份：Registry 名称、仓库 + `subfolder`、npm / PyPI 包、第一个不含 `{变量}` 的远程地址、官网。
+  - 安装包（npm / pypi / oci / nuget / mcpb / cargo）、远程端点（有 Authorization 头记为 bearer）、环境变量（只记名字、说明、是否必填；机密变量的默认值不保存）。
+  - 发布者：命名空间是反写的域名（`ai.smithery` → `smithery.ai`）；`io.github.<login>` 是经 GitHub 登录验证的账号。
+  - 图标：多个时优先非深色主题、尺寸最大的；由 `assets --source mcp-registry` 转存到 R2。
+  - 标签：发布者在 `_meta` 里提供的 `tags`、`keywords`。发布者给的 `categories` 留在源记录里，交给分类器。
+  - 没有分类、星数、工具列表；状态为 deleted 的不生成草稿。
+- 名称只有大小写不同的（2026-10 实测 7 对，如 `io.github.SceneView/mcp` 与 `io.github.sceneview/mcp`，都是同一 GitHub 账号重复登记）：库表唯一键不区分大小写，存成一条，后抓到的覆盖先抓到的。
+- 规模（2026-10-12）：见 PLAN.md 阶段 2。
+
+## 14. 后续阶段
+
+1. **补全**（Enricher）：GitHub GraphQL（每次 100 个仓库）、npm / PyPI 下载量、远程服务实时探测（initialize + tools/list + prompts/list + resources/list）。
 2. **合并发布**（Publisher）：按身份键合并草稿 → 按字段优先级取值 → upsert 目录表 → 记录 `entity_sources` → 触发网站缓存刷新和 IndexNow 推送。
 3. **生成**：LLM 根据 README 和元数据生成中英日简介与介绍，写入 `entity_texts`（origin = generated / translated，记录模型）。
 4. **Worker 与定时任务**：多进程领取队列、每日增量、每周补全。

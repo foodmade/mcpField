@@ -27,6 +27,7 @@ import { ClaudeReadmeTranslator } from '../readme/translator.ts'
 import { AssetMirror, collectMediaUrls } from '../assets/mirror.ts'
 import { LocalStorage, R2Storage } from '../assets/storage.ts'
 import { AssetStore } from '../assets/store.ts'
+import { runMergePlan } from '../merge/runner.ts'
 import type { MediaType } from '../core/draft.ts'
 import { join } from 'node:path'
 import type { TextField } from '../core/draft.ts'
@@ -46,6 +47,7 @@ MCP Field 数据采集
   readme                  把 README 整篇翻译成中文、日文（代码块不变，按片段去重、增量翻译）
   assets                  把图标等图片转存到 Cloudflare R2（转成 WebP），数据库只记录链接
   describe                为没有 README 的 Loop / CLI / Agent 撰写我们自己的三语内容
+  merge-plan              合并预演：按身份键算出哪些草稿是同一个东西，只读，报告写到 data/merge-plan
   stats                   查看采集层统计（需要 MySQL）
 
 选项：
@@ -97,6 +99,7 @@ describe 选项：
 assets 选项：
   --kind <a,b>            要处理的类型，默认全部
   --media <icon,screenshot>  图片类型，默认 icon
+  --source <id>           只处理该数据源草稿里的图片，默认全部
   --limit <n>             最多处理 n 张（试跑用）
   --concurrency <n>       并发数，默认 8
   --store <r2|local>      存储位置；默认配置了 R2 就用 R2，否则写到 data/assets
@@ -373,7 +376,7 @@ async function assets() {
 
   const { db, pool } = createDb(config.databaseUrl)
   try {
-    const items = await collectMediaUrls(db, kinds, media)
+    const items = await collectMediaUrls(db, kinds, media, values.source)
     const stats = await new AssetMirror(storage, new AssetStore(db), logger, config.userAgent).run(items, {
       concurrency: values.concurrency ? Number(values.concurrency) : 8,
       limit: values.limit ? Number(values.limit) : undefined,
@@ -382,6 +385,25 @@ async function assets() {
       signal: controller.signal,
     })
     logger.info({ ...stats, uploadedMB: +(stats.uploadedBytes / 1024 / 1024).toFixed(1) }, '图片转存完成')
+  } finally {
+    await pool.end()
+  }
+}
+
+async function mergePlan() {
+  if (!config.databaseUrl) throw new Error('merge-plan 需要 DATABASE_URL')
+  const kinds = parseKinds(values.kind, ENTITY_KINDS)
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const { file, summary, merged, plan } = await runMergePlan(db, kinds, join(config.dataDir, 'merge-plan'))
+    console.log('\n各类型合并结果')
+    console.table(summary.kinds.map(({ bySources, ...rest }) => ({ ...rest, bySources: JSON.stringify(bySources) })))
+    console.log(`\n跨类型相关（同一强键出现在多个类型）：${summary.related}`)
+    console.log('\n最大的合并组')
+    console.table(merged.slice(0, 15).map((g) => ({ kind: g.kind, key: g.key, n: g.members.length, nameMismatch: g.nameMismatch, members: g.members.map((m) => m.externalId).join(', ').slice(0, 100) })))
+    console.log('\n有歧义、未用于合并的键（前 15 个）')
+    console.table(plan.ambiguous.slice(0, 15).map((a) => ({ kind: a.kind, key: a.key, groups: a.groups.length, reason: a.reason.slice(0, 100) })))
+    logger.info({ file }, '合并预演完成，报告已写入')
   } finally {
     await pool.end()
   }
@@ -425,6 +447,8 @@ async function main() {
       return assets()
     case 'describe':
       return describe()
+    case 'merge-plan':
+      return mergePlan()
     case 'stats':
       return stats()
     default:

@@ -7,6 +7,7 @@ import { OverviewStore } from '../overview/store.ts'
 import { ReadmeTranslationStore } from '../readme/store.ts'
 import { AssetStore } from '../assets/store.ts'
 import { DescribeStore } from '../describe/store.ts'
+import { GithubReadmeStore, GithubRepoStore } from '../github/store.ts'
 import { TranslationMemory } from '../translate/memory.ts'
 import { createApp, type ApiDeps } from './app.ts'
 import { loadApiConfig } from './config.ts'
@@ -29,6 +30,8 @@ const localization = {
   readmes: new ReadmeTranslationStore(db),
   assets: new AssetStore(db),
   generated: new DescribeStore(db, overviews),
+  githubReadmes: new GithubReadmeStore(db),
+  githubRepos: new GithubRepoStore(db),
 }
 
 function serviceFor<K extends EntityKind>(kind: K): EntityService<K> {

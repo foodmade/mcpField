@@ -26,7 +26,7 @@
 | 抓取 | 目标 → 原始 HTML（文件存储）+ `ingest_documents` | ✅ 已实现（重试、robots、限速、条件请求） |
 | 解析 | HTML → 源站原生结构 `ingest_records` | ✅ 已实现（mcp.so 内嵌数据沙箱解析） |
 | 映射 | 源记录 → 统一结构的细粒度草稿 `ingest_drafts` + 问题 `ingest_issues` | ✅ 已实现（mcp.so 六种类型） |
-| 补全 | GitHub / npm / PyPI / 实时探测 → `ingest_enrichments` | ⏳ 下一阶段 |
+| 补全 | GitHub / npm / PyPI / 实时探测 → `ingest_enrichments` | 🚧 已实现 GitHub README（见 13 节），其余下一阶段 |
 | 合并发布 | 多来源草稿按身份键合并 → 目录表 | ⏳ 下一阶段 |
 | 生成 | LLM 生成中英日简介、介绍 → `entity_texts` | ⏳ 下一阶段 |
 
@@ -70,7 +70,7 @@ src/
 ├── db/schema/              表结构：catalog.ts（目录层）、ingest.ts（采集层）
 ├── merge/                  合并预演：哪些草稿是同一个东西（见第 6 节）
 ├── sources/mcpso/          mcp.so 数据源：URL 规则、字段校验、解析、映射、分类映射
-└── sources/mcp-registry/   官方 MCP Registry 数据源：列表发现、server.json 解析与映射（见第 13 节）
+└── sources/mcp-registry/   官方 MCP Registry 数据源：列表发现、server.json 解析与映射（见第 14 节）
 ```
 
 ## 5. 数据库设计
@@ -272,7 +272,23 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
 - 命令：`npm run crawler -- assets`（默认处理图标，`--media screenshot` 处理截图）；每次抓取后运行一次即可增量转存。
 - 存储层是 `AssetStorage` 接口（`R2Storage` / `LocalStorage`），以后换成其他对象存储只需新增实现。
 
-## 13. 官方 MCP Registry 数据源
+## 13. GitHub：README、星数、最近提交时间
+
+README 只用 GitHub 上的原文。mcp.so 收录的 README（`item.description`）往往是收录时的旧快照，不少只有一句话，而且 CLI、Skill、Agent 根本没有；它仍按事实映射进草稿，但不再展示、翻译或用来生成介绍。星数和最近提交时间同样以 GitHub 为准。`github` 命令先更新仓库统计，再抓取 README：
+
+- 仓库统计：按仓库去重（`repo:github.com/owner/name`，不含子目录），GraphQL 每批 50 个仓库一次查询（约 1 点额度），取星数、Fork 数、是否归档、默认分支最新提交时间、最近推送时间；每次运行全部更新，存 `ingest_enrichments`（`enricher = github_repo`）。接口的星数、最近更新时间以及按星数 / 热度 / 更新时间排序都优先用它，没抓到的仓库用源站的数值。
+
+- 主体：按仓库目录去重，`repo:github.com/owner/name[/dir]`（monorepo 子目录各算一个；指向文件的地址取所在目录）；Skill 用 `skill:owner/repo#slug`。
+- 仓库：`GET /repos/{owner}/{repo}/readme/{dir}`，GitHub 自动识别 README 文件名。
+- Skill：每个仓库取一次目录树，找 `<slug>/SKILL.md`（同名的有多个时优先 `skills/` 下的）；目录名对不上（`skills/react-best-practices` 里的 `vercel-react-best-practices`）时读元数据里的 `name` 比对；展示时去掉 YAML 元数据。
+- 范围：所有有 GitHub 仓库的条目（`--kind` 可限定类型）。
+- 增量：成功的 7 天后用 ETag 条件请求检查更新（304 不占额度）；不存在、超过 1MB 的 30 天后再试；临时错误按 1h、4h、16h…… 最长 7 天退避，已抓到过的保留原内容。
+- 额度：读取响应头里的剩余额度，快用完时暂停到重置时间；触发限流（403 / 429）按 Retry-After 或重置时间等待后重试。
+- 存储：`ingest_enrichments`（`enricher = github_readme`），`data` 存仓库全名、文件路径、sha、格式（.md 为 markdown，其余为 plain）和正文。
+- 读取：`readme/source.ts` 按条目查 GitHub README，接口详情、README 翻译、AI 介绍共用；接口返回 `readme.baseUrl`（README 所在目录，前端据此解析相对链接）。没抓到的条目没有 README。
+- Loop / CLI / Agent 的介绍由 `describe` 撰写，`overview` 不处理这三类，避免覆盖。
+
+## 14. 官方 MCP Registry 数据源
 
 数据源 ID `mcp-registry`，只有 MCP 服务一种类型。`npm run crawler -- crawl --source mcp-registry`。
 
@@ -290,9 +306,9 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
 - 名称只有大小写不同的（2026-10 实测 7 对，如 `io.github.SceneView/mcp` 与 `io.github.sceneview/mcp`，都是同一 GitHub 账号重复登记）：库表唯一键不区分大小写，存成一条，后抓到的覆盖先抓到的。
 - 规模（2026-10-12）：见 PLAN.md 阶段 2。
 
-## 14. 后续阶段
+## 15. 后续阶段
 
-1. **补全**（Enricher）：GitHub GraphQL（每次 100 个仓库）、npm / PyPI 下载量、远程服务实时探测（initialize + tools/list + prompts/list + resources/list）。
+1. **补全**（Enricher）：GitHub GraphQL（每次 100 个仓库，星数等元数据）、npm / PyPI 下载量、远程服务实时探测（initialize + tools/list + prompts/list + resources/list）。
 2. **合并发布**（Publisher）：按身份键合并草稿 → 按字段优先级取值 → upsert 目录表 → 记录 `entity_sources` → 触发网站缓存刷新和 IndexNow 推送。
 3. **生成**：LLM 根据 README 和元数据生成中英日简介与介绍，写入 `entity_texts`（origin = generated / translated，记录模型）。
 4. **Worker 与定时任务**：多进程领取队列、每日增量、每周补全。

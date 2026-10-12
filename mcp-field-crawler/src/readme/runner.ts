@@ -1,13 +1,11 @@
-import { and, asc, gt, inArray } from 'drizzle-orm'
-import type { EntityDraft } from '../core/draft.ts'
 import type { Logger } from '../core/logger.ts'
 import type { EntityKind } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
-import { ingestDrafts } from '../db/schema/index.ts'
 import { runBatches, type BatchJob } from '../llm/batch.ts'
 import type { TranslationMemory } from '../translate/memory.ts'
 import { prepareReadmeChunks, readmeHash, restoreCode, textLocale, type ReadmeChunk } from './chunk.ts'
 import type { ReadmeLocale } from './prompt.ts'
+import { draftsWithReadme } from './source.ts'
 import { targetKey, type ReadmeTarget, type ReadmeTranslationStore } from './store.ts'
 import type { ReadmeTranslator } from './translator.ts'
 import { validateReadmeChunk } from './validate.ts'
@@ -15,33 +13,19 @@ import { validateReadmeChunk } from './validate.ts'
 /** 明确的开源许可证 */
 const OPEN_LICENSE = /\b(MIT|Apache|GPL|LGPL|AGPL|MPL|BSD|ISC|Unlicense|CC0|EPL|Zlib|0BSD|Artistic)\b/i
 
-/** 分页读取草稿，收集有 README 的条目 */
+/** 分页读取草稿，收集有 GitHub README 的条目 */
 export async function collectReadmeTargets(db: Db, kinds: readonly EntityKind[], options: { minStars?: number; licensedOnly?: boolean } = {}): Promise<{ targets: ReadmeTarget[]; skipped: number }> {
   const targets: ReadmeTarget[] = []
   let skipped = 0
-  let lastId = 0
-  for (;;) {
-    const rows = await db
-      .select({ id: ingestDrafts.id, draft: ingestDrafts.draft })
-      .from(ingestDrafts)
-      .where(and(inArray(ingestDrafts.kind, [...kinds]), gt(ingestDrafts.id, lastId)))
-      .orderBy(asc(ingestDrafts.id))
-      .limit(200)
-    if (rows.length === 0) break
-    for (const row of rows) {
-      const d = row.draft as EntityDraft
-      const readme = d.texts.find((t) => t.field === 'readme')?.content?.trim()
-      const stars = d.metrics.find((m) => m.metric === 'github_stars')?.value ?? null
-      const license = d.license ?? null
-      // 源站偶尔把整个网页当成 README 收录（<!DOCTYPE html>…），这种内容不翻译
-      const htmlPage = !!readme && /^\s*<!doctype html|^\s*<html[\s>]/i.test(readme)
-      if (!readme || htmlPage || (stars ?? 0) < (options.minStars ?? 0) || (options.licensedOnly && !(license && OPEN_LICENSE.test(license)))) {
-        skipped++
-        continue
-      }
-      targets.push({ sourceId: d.sourceId, kind: d.kind, externalId: d.externalId, name: d.name, license, readme, readmeHash: readmeHash(readme), stars })
+  for await (const { draft: d, readme: resolved, stars } of draftsWithReadme(db, kinds)) {
+    const readme = resolved?.content.trim()
+    const license = d.license ?? null
+    // 纯文本格式（.rst 等）的 README 不翻译
+    if (!resolved || !readme || resolved.format !== 'markdown' || (stars ?? 0) < (options.minStars ?? 0) || (options.licensedOnly && !(license && OPEN_LICENSE.test(license)))) {
+      skipped++
+      continue
     }
-    lastId = rows.at(-1)!.id
+    targets.push({ sourceId: d.sourceId, kind: d.kind, externalId: d.externalId, name: d.name, license, readme, readmeHash: readmeHash(readme), stars })
   }
   return { targets, skipped }
 }

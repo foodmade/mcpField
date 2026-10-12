@@ -85,7 +85,8 @@ export interface EntityDetail extends EntityListItem {
   /** 源站原文，便于核对译文 */
   taglineOriginal: string | null
   identityKey: string | null
-  readme: { format: string; content: string } | null
+  /** 从 GitHub 抓取的 README；baseUrl 是 README 所在目录，用来解析相对链接 */
+  readme: { format: string; content: string; baseUrl: string } | null
   authors: AuthorDto[]
   allLinks: { type: string; url: string; label: string | null }[]
   screenshots: string[]

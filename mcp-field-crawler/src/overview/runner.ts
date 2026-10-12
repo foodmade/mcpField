@@ -1,34 +1,21 @@
-import { and, asc, gt, inArray } from 'drizzle-orm'
-import type { EntityDraft } from '../core/draft.ts'
 import type { Logger } from '../core/logger.ts'
 import type { EntityKind } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
-import { ingestDrafts } from '../db/schema/index.ts'
 import { runBatches, type BatchJob, type BatchOptions, type BatchStats } from '../llm/batch.ts'
+import { draftsWithReadme } from '../readme/source.ts'
 import { inputFromDraft } from './prepare.ts'
 import type { OverviewStore } from './store.ts'
 import { overviewKey, type OverviewInput, type OverviewResult, type OverviewWriter } from './types.ts'
 import { validateOverview } from './validate.ts'
 
-/** 分页读取草稿并构造输入；README 不足的条目跳过 */
+/** 分页读取草稿并构造输入（README 用 GitHub 的）；README 不足的条目跳过 */
 export async function collectOverviewInputs(db: Db, kinds: readonly EntityKind[], minStars = 0): Promise<{ inputs: OverviewInput[]; skipped: number }> {
   const inputs: OverviewInput[] = []
   let skipped = 0
-  let lastId = 0
-  for (;;) {
-    const rows = await db
-      .select({ id: ingestDrafts.id, draft: ingestDrafts.draft })
-      .from(ingestDrafts)
-      .where(and(inArray(ingestDrafts.kind, [...kinds]), gt(ingestDrafts.id, lastId)))
-      .orderBy(asc(ingestDrafts.id))
-      .limit(200)
-    if (rows.length === 0) break
-    for (const row of rows) {
-      const input = inputFromDraft(row.draft as EntityDraft)
-      if (!input || (input.stars ?? 0) < minStars) skipped++
-      else inputs.push(input)
-    }
-    lastId = rows.at(-1)!.id
+  for await (const { draft, readme, stars } of draftsWithReadme(db, kinds)) {
+    const input = inputFromDraft(draft, readme?.content ?? '', stars)
+    if (!input || (input.stars ?? 0) < minStars) skipped++
+    else inputs.push(input)
   }
   return { inputs, skipped }
 }

@@ -14,6 +14,11 @@ import { ENTITY_KINDS, isEntityKind, type EntityKind } from '../core/types.ts'
 import { createDb } from '../db/client.ts'
 import { createLogger } from '../infra/logger.ts'
 import { FileStore } from '../store/file-store.ts'
+import { GithubClient } from '../github/client.ts'
+import { GithubReadmeFetcher } from '../github/readme.ts'
+import { GithubRepoFetcher } from '../github/repo.ts'
+import { collectGithubTargets, GithubReadmeRunner, GithubRepoRunner } from '../github/runner.ts'
+import { GithubReadmeStore, GithubRepoStore } from '../github/store.ts'
 import { ClaudeTranslator } from '../translate/claude-translator.ts'
 import { TranslationMemory } from '../translate/memory.ts'
 import { collectSources, TranslateRunner } from '../translate/runner.ts'
@@ -32,6 +37,9 @@ import type { MediaType } from '../core/draft.ts'
 import { join } from 'node:path'
 import type { TextField } from '../core/draft.ts'
 
+/** Loop / CLI / Agent 的介绍由 describe 撰写，overview 不生成，避免覆盖 */
+const OVERVIEW_KINDS = ENTITY_KINDS.filter((k) => !(DESCRIBE_KINDS as readonly EntityKind[]).includes(k))
+
 const HELP = `
 MCP Field 数据采集
 
@@ -42,8 +50,9 @@ MCP Field 数据采集
   discover --source <id>  只发现并登记目标（写入 ingest_targets）
   crawl    --source <id>  发现 → 抓取 → 解析 → 映射，写入采集层
   remap    --source <id>  用当前映射逻辑重建草稿（不发网络请求，需要 MySQL）
+  github                  从 GitHub 更新星数和最近提交时间，并抓取 README（Skill 取 SKILL.md）；README 只用 GitHub 的
   translate               把简介翻译成中英日三语，写入翻译记忆库（需要 MySQL 和 ANTHROPIC_API_KEY）
-  overview                根据 README 生成三语介绍（概述、主要功能、适用场景、MCP 相关）
+  overview                根据 README 生成三语介绍（概述、主要功能、适用场景、MCP 相关）；Loop / CLI / Agent 由 describe 撰写
   readme                  把 README 整篇翻译成中文、日文（代码块不变，按片段去重、增量翻译）
   assets                  把图标等图片转存到 Cloudflare R2（转成 WebP），数据库只记录链接
   describe                为没有 README 的 Loop / CLI / Agent 撰写我们自己的三语内容
@@ -68,8 +77,14 @@ translate 选项：
   --force                 忽略已有结果全部重翻（人工译文保留）
   --recheck               按当前校验规则重新检查已有译文，只重翻不合格的
 
+github 选项：
+  --kind <a,b>            要处理的类型，默认全部（有 GitHub 仓库的条目）
+  --limit <n>             统计、README 各最多处理 n 个仓库（试跑用）
+  --concurrency <n>       README 并发请求数，默认 4（统计用 GraphQL，每批 50 个仓库、并发 2）
+  --force                 README 忽略下次检查时间和 ETag，全部重新请求（统计每次都全部更新）
+
 overview 选项：
-  --kind <a,b>            要生成的类型，默认全部
+  --kind <a,b>            要生成的类型，默认 ${OVERVIEW_KINDS.join(', ')}
   --limit <n>             最多生成 n 条（试跑用）
   --min-stars <n>         只给星数不低于 n 的条目生成
   --model <id>            普通条目的模型，默认 OVERVIEW_MODEL（claude-haiku-5-5）
@@ -200,6 +215,37 @@ async function remap() {
   }
 }
 
+async function github() {
+  if (!config.databaseUrl) throw new Error('github 需要 DATABASE_URL')
+  if (!config.githubToken) logger.warn('没有设置 GITHUB_TOKEN，GitHub 接口每小时只能请求 60 次')
+  const kinds = parseKinds(values.kind, ENTITY_KINDS)
+
+  const controller = new AbortController()
+  process.once('SIGINT', () => {
+    logger.warn('收到中断信号，等待进行中的请求完成后退出……')
+    controller.abort()
+  })
+
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const { readmes, repos } = await collectGithubTargets(db, kinds)
+    const client = new GithubClient({ token: config.githubToken, userAgent: config.userAgent, logger })
+    const limit = values.limit ? Number(values.limit) : undefined
+    const repoStats = await new GithubRepoRunner(new GithubRepoFetcher(client), new GithubRepoStore(db), logger).run(repos, { batchSize: 50, concurrency: 2, limit, signal: controller.signal })
+    logger.info(repoStats, 'GitHub 仓库统计更新完成')
+    if (controller.signal.aborted) return
+    const readmeStats = await new GithubReadmeRunner(new GithubReadmeFetcher(client), new GithubReadmeStore(db), logger).run(readmes, {
+      concurrency: values.concurrency ? Number(values.concurrency) : 4,
+      force: values.force,
+      limit,
+      signal: controller.signal,
+    })
+    logger.info(readmeStats, 'GitHub README 抓取完成')
+  } finally {
+    await pool.end()
+  }
+}
+
 const TEXT_FIELDS: TextField[] = ['tagline', 'description']
 
 async function translate() {
@@ -239,7 +285,7 @@ async function translate() {
 async function overview() {
   if (!config.databaseUrl) throw new Error('overview 需要 DATABASE_URL')
   if (!config.anthropic.apiKey) throw new Error('overview 需要在 .env 中设置 ANTHROPIC_API_KEY')
-  const kinds = parseKinds(values.kind, ENTITY_KINDS)
+  const kinds = parseKinds(values.kind, OVERVIEW_KINDS)
 
   const controller = new AbortController()
   process.once('SIGINT', () => {
@@ -420,6 +466,7 @@ async function stats() {
     }
     await query('目标（按类型、状态）', sql`SELECT source_id, kind, state, COUNT(*) AS n FROM ingest_targets GROUP BY source_id, kind, state ORDER BY source_id, kind, state`)
     await query('源记录与草稿', sql`SELECT r.source_id, r.kind, COUNT(*) AS records, COUNT(d.id) AS drafts, SUM(d.identity_key IS NULL) AS no_identity FROM ingest_records r LEFT JOIN ingest_drafts d ON d.record_id = r.id GROUP BY r.source_id, r.kind`)
+    await query('补全结果', sql`SELECT enricher, status, COUNT(*) AS n FROM ingest_enrichments GROUP BY enricher, status ORDER BY enricher, status`)
     await query('数据质量问题', sql`SELECT code, kind, COUNT(*) AS n FROM ingest_issues GROUP BY code, kind ORDER BY n DESC`)
     await query('最近 5 次运行', sql`SELECT id, source_id, command, status, targets_discovered, docs_fetched, records_parsed, failures, started_at, finished_at FROM ingest_runs ORDER BY id DESC LIMIT 5`)
   } finally {
@@ -437,6 +484,8 @@ async function main() {
       return run(command)
     case 'remap':
       return remap()
+    case 'github':
+      return github()
     case 'translate':
       return translate()
     case 'overview':

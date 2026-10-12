@@ -68,7 +68,7 @@ export async function enabledProviders(): Promise<Record<SocialProvider, boolean
   }
 }
 
-export type AuthFailure = 'invalidEmail' | 'invalidCode' | 'rateLimited' | 'emailBlocked' | 'network' | 'failed'
+export type AuthFailure = 'invalidEmail' | 'undeliverable' | 'invalidCode' | 'rateLimited' | 'emailBlocked' | 'network' | 'failed'
 
 export function failureOf(error: AuthError | null | undefined): AuthFailure {
   if (!error || !error.status) return 'network'
@@ -79,8 +79,9 @@ export function failureOf(error: AuthError | null | undefined): AuthFailure {
     case 'over_email_send_rate_limit':
     case 'over_request_rate_limit':
       return 'rateLimited'
+    // 格式已在页面上检查过；Supabase 的发信服务认为这个地址收不到信（拼写错误、邮箱不存在等）
     case 'email_address_invalid':
-      return 'invalidEmail'
+      return 'undeliverable'
     // 使用 Supabase 自带的发信服务时，只能发给项目成员的邮箱
     case 'email_address_not_authorized':
       return 'emailBlocked'

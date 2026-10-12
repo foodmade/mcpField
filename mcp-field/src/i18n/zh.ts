@@ -395,6 +395,7 @@ export const zh = {
     otherEmail: '换个邮箱',
     errors: {
       invalidEmail: '邮箱格式好像不对，再检查一下',
+      undeliverable: '这个邮箱暂时收不到验证码，检查一下拼写，或者用 GitHub / Google 登录',
       invalidCode: '验证码不对或已经过期，再核对一下，或者重新获取',
       rateLimited: '操作有点频繁，稍等一分钟再试',
       emailBlocked: '暂时没法给这个邮箱发验证码，换个方式登录吧',

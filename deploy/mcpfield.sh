@@ -41,8 +41,12 @@ sync_code() {
     --exclude='.git/' --exclude='node_modules/' --exclude='.DS_Store' --exclude='*.tar.gz' \
     --exclude='/.mysql.env' --exclude='/backups/' \
     --exclude='/mcp-field/.react-router/' --exclude='/mcp-field/dist/' \
+    --exclude='/mcp-field/build/client/assets/' \
     --exclude='/mcp-field-crawler/.env' --exclude='/mcp-field-crawler/data/' --exclude='/mcp-field-crawler/logs/' \
     "${ROOT}/" "${SERVER}:${REMOTE}/"
+  # 带哈希的前端资源只增不删：浏览器和 CDN 里缓存的旧页面还会引用上一版的文件，
+  # 删掉后点链接会加载失败、页面原地刷新。超过 7 天没更新的旧文件在发布前端时清理（见 cmd_deploy）
+  rsync -az --no-owner --no-group "${ROOT}/mcp-field/build/client/assets/" "${SERVER}:${REMOTE}/mcp-field/build/client/assets/"
 }
 
 cmd_deploy() {
@@ -83,6 +87,8 @@ install() {
 install mcp-field --omit=dev
 install mcp-field-crawler ''
 (cd mcp-field-crawler && npm run --silent db:migrate)
+# 本次构建的文件刚同步过、修改时间是现在；7 天前的只会是旧版本留下的
+[[ "$ONLY" == *mcpfield-api* ]] || find mcp-field/build/client/assets -type f -mtime +7 -delete
 pm2 startOrReload deploy/ecosystem.config.cjs --update-env $ONLY >/dev/null
 pm2 save >/dev/null
 for i in $(seq 1 30); do

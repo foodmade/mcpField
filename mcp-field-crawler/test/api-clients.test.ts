@@ -81,9 +81,15 @@ const readmes = {
   },
 }
 
+/** 内存版 GitHub README：只抓到了 zed 的 */
+const githubReadmeOf = (content: string) => ({
+  find: async (keys: string[]) => new Map(keys.filter((k) => k === 'repo:github.com/acme/zed').map((k) => [k, { repository: 'Acme/Zed', path: 'README.md', sha: 's', format: 'markdown' as const, content }])),
+})
+const githubReadmes = githubReadmeOf('# readme')
+
 function setup() {
   const repo = new FakeRepository([row('zed', 100, 'ide'), row('cline', 50, 'agent'), row('misc', 1, null)])
-  const app = createApp({ entities: { client: new EntityService('client', repo, PRESENTERS.client, { translations, overviews, readmes }) }, logger: silent })
+  const app = createApp({ entities: { client: new EntityService('client', repo, PRESENTERS.client, { translations, overviews, readmes, githubReadmes }) }, logger: silent })
   return { app, repo }
 }
 
@@ -197,8 +203,34 @@ describe('README 译文', () => {
     const { app } = setup()
     const zh = (await (await app.request('/api/clients/zed?locale=zh')).json()) as { data: { readmeTranslation: unknown; readme: unknown } }
     expect(zh.data.readmeTranslation).toEqual({ locale: 'zh', content: '# 说明', outdated: false, status: 'ok', models: ['fake'], license: 'MIT', translatedAt: '2026-10-10T00:00:00.000Z' })
-    expect(zh.data.readme).toEqual({ format: 'markdown', content: '# readme' })
+    expect(zh.data.readme).toEqual({ format: 'markdown', content: '# readme', baseUrl: 'https://github.com/Acme/Zed/blob/HEAD/' })
     const en = (await (await app.request('/api/clients/zed?locale=en')).json()) as { data: { readmeTranslation: unknown } }
     expect(en.data.readmeTranslation).toBeNull()
+  })
+
+  it('只用 GitHub 的 README：没抓到时即使草稿里有源站收录的也不返回', async () => {
+    const { app } = setup()
+    const cline = (await (await app.request('/api/clients/cline?locale=zh')).json()) as { data: { readme: unknown; readmeTranslation: unknown } }
+    expect(cline.data.readme).toBeNull()
+    expect(cline.data.readmeTranslation).toBeNull()
+  })
+
+  it('星数、最近提交时间用 GitHub 的；没抓到的保留源站的', async () => {
+    const githubRepos = {
+      find: async (keys: string[]) =>
+        new Map(keys.filter((k) => k === 'repo:github.com/acme/zed').map((k) => [k, { repository: 'Acme/Zed', stars: 999, forks: 1, archived: false, lastCommitAt: '2026-10-11T00:00:00Z', pushedAt: null }])),
+    }
+    const app = createApp({ entities: { client: new EntityService('client', new FakeRepository([row('zed', 10, 'ide'), row('cline', 50, 'agent')]), PRESENTERS.client, { githubRepos }) }, logger: silent })
+    const list = (await (await app.request('/api/clients')).json()) as { data: { slug: string; stars: number; lastCommitAt: string | null }[] }
+    expect(list.data.find((c) => c.slug === 'zed')).toMatchObject({ stars: 999, lastCommitAt: '2026-10-11T00:00:00Z' })
+    expect(list.data.find((c) => c.slug === 'cline')).toMatchObject({ stars: 50 })
+    const zed = (await (await app.request('/api/clients/zed')).json()) as { data: { stars: number } }
+    expect(zed.data.stars).toBe(999)
+  })
+
+  it('GitHub README 更新后，译文标记为过期', async () => {
+    const app = createApp({ entities: { client: new EntityService('client', new FakeRepository([row('zed', 10, 'ide')]), PRESENTERS.client, { readmes, githubReadmes: githubReadmeOf('# readme v2') }) }, logger: silent })
+    const zh = (await (await app.request('/api/clients/zed?locale=zh')).json()) as { data: { readmeTranslation: { outdated: boolean } } }
+    expect(zh.data.readmeTranslation.outdated).toBe(true)
   })
 })

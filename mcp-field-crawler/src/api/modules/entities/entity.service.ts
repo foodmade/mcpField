@@ -2,8 +2,12 @@ import type { AuthorDraft, EntityDraftOf, LinkType, TextField } from '../../../c
 import type { EntityKind, Locale } from '../../../core/types.ts'
 import type { AssetReader } from '../../../assets/store.ts'
 import type { GeneratedReader } from '../../../describe/store.ts'
+import { readmeSubject, type GithubReadme } from '../../../github/readme.ts'
+import { repoRef } from '../../../github/repo.ts'
+import type { GithubReadmeReader, GithubRepoReader } from '../../../github/store.ts'
 import type { OverviewReader } from '../../../overview/store.ts'
 import { readmeHash } from '../../../readme/chunk.ts'
+import { resolveReadme } from '../../../readme/source.ts'
 import type { ReadmeTranslationReader } from '../../../readme/store.ts'
 import { sourceHash } from '../../../translate/key.ts'
 import type { TranslationReader } from '../../../translate/memory.ts'
@@ -32,6 +36,10 @@ export interface Localization {
   assets?: AssetReader
   /** 我们自己撰写的内容（Loop / CLI / Agent 的简介、Loop 的目标与步骤） */
   generated?: GeneratedReader
+  /** 从 GitHub 抓取的 README（不用源站收录的） */
+  githubReadmes?: GithubReadmeReader
+  /** GitHub 仓库统计：星数、最近提交时间优先用它，没抓到时用源站的 */
+  githubRepos?: GithubRepoReader
 }
 
 /**
@@ -49,7 +57,7 @@ export class EntityService<K extends EntityKind> {
   async list(query: ListQuery): Promise<{ data: EntityListItem[]; meta: PageMeta & { locale: Locale } }> {
     const { rows, total } = await this.repository.list(query)
     const items = rows.map((row) => this.toListItem(row.draft))
-    await Promise.all([this.localize(items, query.locale), this.mirrorIcons(items)])
+    await Promise.all([this.localize(items, query.locale), this.mirrorIcons(items), this.applyRepoStats(items, rows.map((row) => row.draft))])
     await this.fillGenerated(items, query.locale)
     return { data: items, meta: { ...pageMeta(query, total), locale: query.locale } }
   }
@@ -57,8 +65,8 @@ export class EntityService<K extends EntityKind> {
   async get(slug: string, locale: Locale = 'en'): Promise<EntityDetail | null> {
     const row = await this.repository.findBySlug(slug)
     if (!row) return null
-    const detail = this.toDetail(row)
-    await Promise.all([this.localize([detail], locale), this.mirrorIcons([detail], detail)])
+    const detail = this.toDetail(row, await this.githubReadme(row.draft))
+    await Promise.all([this.localize([detail], locale), this.mirrorIcons([detail], detail), this.applyRepoStats([detail], [row.draft])])
     await this.fillGenerated([detail], locale)
 
     const ref = { sourceId: row.draft.sourceId, kind: this.kind, externalId: row.draft.externalId }
@@ -117,6 +125,27 @@ export class EntityService<K extends EntityKind> {
   async sitemap(page: number, pageSize: number) {
     const { rows, total } = await this.repository.sitemap((page - 1) * pageSize, pageSize)
     return { data: rows, meta: pageMeta({ page, pageSize }, total) }
+  }
+
+  private async githubReadme(d: EntityDraftOf<K>): Promise<GithubReadme | undefined> {
+    const subject = readmeSubject(d)
+    const reader = this.localization.githubReadmes
+    if (!subject || !reader) return undefined
+    return (await reader.find([subject.key])).get(subject.key)
+  }
+
+  /** 星数、最近提交时间换成 GitHub 的数据；没抓到的保留源站的 */
+  private async applyRepoStats(items: EntityListItem[], drafts: AnyDraft[]): Promise<void> {
+    const reader = this.localization.githubRepos
+    if (!reader) return
+    const refs = drafts.map(repoRef)
+    const found = await reader.find(refs.flatMap((r) => (r ? [r.key] : [])))
+    items.forEach((item, i) => {
+      const stats = found.get(refs[i]?.key ?? '')
+      if (!stats) return
+      item.stars = stats.stars
+      item.lastCommitAt = stats.lastCommitAt ?? item.lastCommitAt
+    })
   }
 
   /** 源站没有简介的条目（Loop / CLI / Agent）用我们自己撰写的简介 */
@@ -186,15 +215,15 @@ export class EntityService<K extends EntityKind> {
     }
   }
 
-  private toDetail({ draft: d, fetchedAt, mappedAt }: EntityRow<K>): EntityDetail {
-    const readme = text(d, 'readme')
+  private toDetail({ draft: d, fetchedAt, mappedAt }: EntityRow<K>, github?: GithubReadme): EntityDetail {
+    const readme = resolveReadme(github)
     return {
       ...this.toListItem(d),
       overview: null,
       readmeTranslation: null,
       taglineOriginal: taglineOf(d),
       identityKey: d.identityKey,
-      readme: readme ? { format: readme.format, content: readme.content } : null,
+      readme: readme ? { format: readme.format, content: readme.content, baseUrl: readme.baseUrl } : null,
       authors: d.authors.map(toAuthor),
       allLinks: d.links.map((l) => ({ type: l.type, url: l.url, label: l.label ?? null })),
       screenshots: d.media.filter((m) => m.type === 'screenshot').map((m) => m.url),

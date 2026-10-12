@@ -14,13 +14,15 @@ import { rehypeGithubAlerts } from './githubAlerts'
 /**
  * README 里的相对路径（./docs/a.png、assets/logo.svg）指向仓库内文件：
  * 图片转成 raw 地址，链接转成仓库页面地址；HEAD 会跳到默认分支。
+ * base 是 README 所在目录（https://github.com/o/r/blob/HEAD/dir/）：相对路径按它解析，以 / 开头的按仓库根目录解析。
  */
-function resolveUrl(url: string, key: string, repository: string | null): string {
+function resolveUrl(url: string, key: string, base: string): string {
   const safe = defaultUrlTransform(url)
-  if (!safe || !repository || /^([a-z][a-z0-9+.-]*:|#|\/\/)/i.test(safe)) return safe
-  const base = `${repository.replace(/\/+$/, '')}/${key === 'src' ? 'raw' : 'blob'}/HEAD/`
+  if (!safe || /^([a-z][a-z0-9+.-]*:|#|\/\/)/i.test(safe)) return safe
+  const [repo, dir = ''] = base.split('/blob/HEAD/')
+  const root = `${repo}/${key === 'src' ? 'raw' : 'blob'}/HEAD/`
   try {
-    return new URL(safe.replace(/^\.\//, '').replace(/^\//, ''), base).toString()
+    return new URL(safe.startsWith('/') ? safe.slice(1) : safe.replace(/^\.\//, ''), safe.startsWith('/') ? root : root + dir).toString()
   } catch {
     return safe
   }
@@ -65,7 +67,7 @@ function Toggle({ value, onChange }: { value: 'translated' | 'original'; onChang
  * HTML 先经过 rehype-sanitize 白名单过滤（去掉 script、事件属性、iframe 等）。
  * 有 AI 译文时默认显示译文并可切换原文；中日文页面没有译文时标明"英文原文"并默认折叠。
  */
-export function MarkdownReadme({ content, repository, translation }: { content: string; repository: string | null; translation?: ApiReadmeTranslation | null }) {
+export function MarkdownReadme({ content, format, base, translation }: { content: string; format: string; base: string; translation?: ApiReadmeTranslation | null }) {
   const { m, locale } = useI18n()
   const [view, setView] = useState<'translated' | 'original'>('translated')
   const showTranslated = !!translation && view === 'translated'
@@ -100,9 +102,14 @@ export function MarkdownReadme({ content, repository, translation }: { content: 
 
       <div className={clsx('relative', !expanded && 'max-h-[520px] overflow-hidden')}>
         <div className="md">
-          <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} urlTransform={(url, key) => resolveUrl(url, key, repository)} components={components}>
-            {showTranslated ? translation.content : content}
-          </Markdown>
+          {showTranslated || format === 'markdown' ? (
+            <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} urlTransform={(url, key) => resolveUrl(url, key, base)} components={components}>
+              {showTranslated ? translation.content : content}
+            </Markdown>
+          ) : (
+            // .rst、.txt 等不是 Markdown 的 README 原样显示
+            <pre className="whitespace-pre-wrap break-words">{content}</pre>
+          )}
         </div>
         {!expanded && (
           <div className="absolute inset-x-0 bottom-0 flex h-40 items-end justify-center bg-gradient-to-t from-bg via-bg/90 to-transparent pb-2">

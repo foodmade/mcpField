@@ -395,6 +395,7 @@ export const ja: Messages = {
     otherEmail: '別のメールアドレスにする',
     errors: {
       invalidEmail: 'メールアドレスの形式をもう一度確認してください',
+      undeliverable: 'このアドレスにはコードを送れませんでした。綴りを確認するか、GitHub / Google でログインしてください',
       invalidCode: 'コードが違うか、有効期限が切れています。確認するか、新しいコードを取得してください',
       rateLimited: '少し時間をおいてから、もう一度お試しください',
       emailBlocked: '現在このアドレスにはコードを送れません。別の方法でログインしてください',

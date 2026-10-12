@@ -47,6 +47,11 @@ mcpfield nginx
 
 ## 注意
 
+- 前端带哈希的静态资源（`mcp-field/build/client/assets/`）发布时只增不删，7 天前的旧文件在发布前端时清理。
+  浏览器和 Cloudflare 里缓存的旧页面还会引用上一版的文件，立即删除会导致点链接时页面原地刷新、进不去详情页。
+- Cloudflare 的 Caching → Configuration → Browser Cache TTL 要设为 "Respect Existing Headers"：
+  页面自己返回 `max-age=0`，浏览器每次都会重新获取；改成固定时长会让浏览器在发布后继续使用旧页面。
+
 - Nginx 属于 bytro 的容器。bytro 重新部署（重建容器）时，compose 里的那行挂载会自动带上 mcpfield 的站点配置；证书在 bytro 的 `ssl` 目录里，也会保留。
 - 站点配置有误会导致 Nginx 无法启动并影响 bytro，所以只通过 `mcpfield nginx` 修改：先 `nginx -t` 校验，通过才重新加载。
-- 每日任务默认只跑抓取、图标、简介翻译、自撰内容；AI 介绍和 README 翻译费用较高，需要时用 `mcpfield data overview readme` 手动触发。
+- 每日任务默认只跑抓取、图标、GitHub 星数与 README、简介翻译、自撰内容（crontab 里 `STEPS="crawl assets github translate describe"`）；AI 介绍和 README 翻译费用较高，需要时用 `mcpfield data overview readme` 手动触发。

@@ -225,7 +225,7 @@ export function ReadmeSection({ d, empty }: { d: BaseItem & DetailBase; empty?: 
       </div>
     )
   }
-  return <MarkdownReadme key={`${d.slug}:${locale}`} content={d.readme.content} repository={d.links.repository} translation={d.readmeTranslation} />
+  return <MarkdownReadme key={`${d.slug}:${locale}`} content={d.readme.content} format={d.readme.format} base={d.readme.baseUrl} translation={d.readmeTranslation} />
 }
 
 /** 侧栏"同类推荐"：同分类按热度取前几个（由详情页 loader 一并取回） */

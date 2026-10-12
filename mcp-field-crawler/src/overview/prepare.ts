@@ -31,9 +31,8 @@ export function prepareReadme(markdown: string, maxChars = MAX_README_CHARS): st
   return s.slice(0, cut > maxChars * 0.6 ? cut : maxChars).trim() + '\n…'
 }
 
-/** 从草稿构造生成介绍的输入；没有足够 README 内容时返回 null */
-export function inputFromDraft(draft: EntityDraft): OverviewInput | null {
-  const readmeRaw = draft.texts.find((t) => t.field === 'readme')?.content ?? ''
+/** 从草稿和它的 GitHub README（见 readme/source.ts）构造生成介绍的输入；没有足够 README 内容时返回 null */
+export function inputFromDraft(draft: EntityDraft, readmeRaw: string, stars: number | null): OverviewInput | null {
   const readme = prepareReadme(readmeRaw)
   if (readme.length < MIN_README_CHARS) return null
   const tagline = draft.texts.find((t) => t.field === 'tagline')?.content ?? null
@@ -45,7 +44,7 @@ export function inputFromDraft(draft: EntityDraft): OverviewInput | null {
     kind: draft.kind,
     externalId: draft.externalId,
     ...fields,
-    stars: draft.metrics.find((m) => m.metric === 'github_stars')?.value ?? null,
+    stars,
     inputHash: sha256(stableJson({ kind: draft.kind, ...fields })),
   }
 }

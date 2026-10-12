@@ -395,6 +395,7 @@ export const en: Messages = {
     otherEmail: 'Use another email',
     errors: {
       invalidEmail: "That email doesn't look quite right. Check it and try again.",
+      undeliverable: "We couldn't send a code to this address. Check the spelling, or log in with GitHub or Google.",
       invalidCode: "That code doesn't match or has expired. Check it, or get a new one.",
       rateLimited: 'That was a lot of tries. Give it a minute and try again.',
       emailBlocked: "We can't send a code to this address right now. Try another way to log in.",

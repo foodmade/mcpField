@@ -11,7 +11,7 @@ import { MCPSO_ORIGIN } from './urls.ts'
 
 /*
  * mcp.so 源记录 → 细粒度草稿。
- * 只映射"事实"：名称、链接、作者、分类、标签、指标、运行方式、工具定义，以及上游项目自己的简介和 README。
+ * 只映射"事实"：名称、链接、作者、分类、标签、指标、运行方式、工具定义，以及上游项目自己的简介和 README（README 现在只用 GitHub 抓取的，见 readme/source.ts）。
  * mcp.so 自己撰写的内容（CLI 描述与能力列表、Skill 摘要、Agent 简介、Loop 的提示词与步骤）不映射，
  * 这些由我们自己生成，见 docs/DESIGN.md。
  */

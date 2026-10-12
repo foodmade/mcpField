@@ -21,14 +21,22 @@ const flag = (path: string, value: boolean) => sql`JSON_EXTRACT(d.draft, ${path}
 /** JSON 里的字符串字段取成定长字符串；缺失或 JSON null 时为 SQL NULL */
 const textAt = (path: string, len: number) => sql`CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(d.draft, ${path})), 'null') AS CHAR(${sql.raw(String(len))}))`
 
+/** 关联 GitHub 仓库统计（g，规则同 github/repo.ts 的 repoRef：repo:github.com/owner/name） */
+const REPO_STATS = sql`LEFT JOIN ingest_enrichments g ON g.enricher = 'github_repo' AND g.status = 'ok'
+  AND JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.host')) = 'github.com'
+  AND g.subject_key = CONCAT('repo:github.com/', JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.owner')), '/', JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.name')))`
+/** 星数、最近提交时间：GitHub 的优先，没抓到时用源站的 */
+const STARS = sql`COALESCE(CAST(JSON_EXTRACT(g.data, '$.stars') AS SIGNED), ${metric('github_stars')})`
+const LAST_COMMIT = sql`COALESCE(CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(g.data, '$.lastCommitAt')), 'null') AS CHAR(40)), ${textAt('$.lastCommitAt', 40)})`
+
 /**
  * 排序键：先在派生表 k 里取成小字段再排序。直接对带草稿 JSON 的行排序时，
  * MySQL 会把整行（含几百 KB 的草稿）放进排序缓冲区，超出 sort_buffer_size 而报错。
  */
 const sortKeys = (popularMetric: MetricName) => sql`d.id, d.external_id,
   ${textAt('$.name', 255)} AS name,
-  ${metric(popularMetric)} AS popularity, ${metric('github_stars')} AS stars, ${metric('skill_installs')} AS installs,
-  ${textAt('$.lastCommitAt', 40)} AS last_commit, ${textAt('$.sourceCreatedAt', 40)} AS created,
+  ${popularMetric === 'github_stars' ? STARS : metric(popularMetric)} AS popularity, ${STARS} AS stars, ${metric('skill_installs')} AS installs,
+  ${LAST_COMMIT} AS last_commit, ${textAt('$.sourceCreatedAt', 40)} AS created,
   (JSON_EXTRACT(d.draft, '$.flags.featured') = TRUE) AS featured`
 
 const ORDER_BY: Record<ListQuery['sort'], SQL> = {
@@ -130,7 +138,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     const [ids, [count]] = await Promise.all([
       this.rows<{ id: number }>(sql`
         SELECT /*+ NO_MERGE(k) */ k.id
-        FROM (SELECT ${sortKeys(this.popularMetric)} FROM ingest_drafts d WHERE ${where}) k
+        FROM (SELECT ${sortKeys(this.popularMetric)} FROM ingest_drafts d ${REPO_STATS} WHERE ${where}) k
         ORDER BY ${ORDER_BY[query.sort]}
         LIMIT ${query.pageSize} OFFSET ${offset}`),
       this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_drafts d WHERE ${where}`),

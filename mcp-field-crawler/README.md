@@ -26,6 +26,7 @@ npm run crawler -- crawl --source mcpso --store file         # 不写数据库�
 npm run crawler -- stats                                     # 采集层统计
 npm run crawler -- merge-plan                                # 合并预演：哪些草稿是同一个东西（只读，报告在 data/merge-plan）
 npm run crawler -- remap --source mcpso --kind client        # 改了映射规则后重建草稿（不发网络请求）
+npm run crawler -- github                                    # 从 GitHub 更新星数、最近提交时间，并抓取 README（Skill 取 SKILL.md，增量）
 npm run crawler -- translate --kind client                   # 把简介翻译成中英日三语
 npm run crawler -- translate --kind client --recheck         # 按当前规则重新校验已有译文，只重翻不合格的
 npm run crawler -- overview --kind client                    # 根据 README 生成三语介绍
@@ -35,6 +36,7 @@ npm run crawler -- describe                                  # 为 Loop / CLI / 
 npm run api:dev                                              # 启动后端 API（http://localhost:3100）
 ```
 
+`github` 建议配置 `GITHUB_TOKEN`（每小时 5000 次；不配置只有 60 次）。
 翻译和生成介绍需要在 `.env` 中配置 `ANTHROPIC_API_KEY`（可选 `ANTHROPIC_BASE_URL` 指向兼容代理）。
 图片转存需要配置 `R2_ACCOUNT_ID`、`R2_BUCKET`、`R2_PUBLIC_BASE_URL`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`。
 

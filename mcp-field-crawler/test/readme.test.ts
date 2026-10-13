@@ -166,4 +166,28 @@ describe('ReadmeTranslateRunner', () => {
     expect(stats.failed).toBe(0)
     expect([...memory.values()].every((t) => t.model === 'mimo')).toBe(true)
   })
+
+  it('目标不带正文时按片读出、处理完释放；读不到正文的跳过', async () => {
+    // 本来就是中文的 README：译成中文时不用调用模型，直接算"同语言"
+    const zhReadme = '# 演示\n\n这是一个用来测试的中文说明文档，介绍如何安装和使用这个工具。'
+    const lazy = (externalId: string): ReadmeTarget => ({ sourceId: 'mcpso', kind: 'client', externalId, name: externalId, license: 'MIT', readmeKey: `readme:${externalId}`, readmeHash: 'old', stars: 1 })
+    const targets = [lazy('a'), lazy('b'), lazy('gone')]
+    const slices: string[][] = []
+    const neverCalled: ReadmeTranslator = { provider: 'fake', model: 'm', promptVersion: 1, translate: async () => { throw new Error('不应调用模型') } }
+    const runner = new ReadmeTranslateRunner(
+      { standard: neverCalled, premiumMinStars: 1000 },
+      fakeMemory(new Map()),
+      { existing: async () => new Map(), save: async () => {} },
+      silent,
+      async (slice) => {
+        slices.push(slice.map((t) => t.externalId))
+        // 已删除的 README 读不到
+        for (const t of slice) if (t.externalId !== 'gone') t.readme = zhReadme
+      },
+    )
+    const stats = await runner.run(targets, { locales: ['zh'], concurrency: 1, sliceSize: 2 })
+    expect(slices).toEqual([['a', 'b'], ['gone']])
+    expect(stats.sameLanguage).toBe(2)
+    expect(targets.every((t) => t.readme === undefined)).toBe(true)
+  })
 })

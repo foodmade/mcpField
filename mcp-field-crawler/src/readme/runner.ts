@@ -1,11 +1,13 @@
 import type { Logger } from '../core/logger.ts'
 import type { EntityKind } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
+import { readmeSubject } from '../github/readme.ts'
+import type { GithubReadmeReader } from '../github/store.ts'
 import { runBatches, type BatchJob } from '../llm/batch.ts'
 import type { TranslationMemory } from '../translate/memory.ts'
 import { prepareReadmeChunks, readmeHash, restoreCode, textLocale, type ReadmeChunk } from './chunk.ts'
 import type { ReadmeLocale } from './prompt.ts'
-import { draftsWithReadme } from './source.ts'
+import { draftsWithReadme, resolveReadme } from './source.ts'
 import { targetKey, type ReadmeTarget, type ReadmeTranslationStore } from './store.ts'
 import type { ReadmeTranslator } from './translator.ts'
 import { validateReadmeChunk } from './validate.ts'
@@ -13,7 +15,10 @@ import { validateReadmeChunk } from './validate.ts'
 /** 明确的开源许可证 */
 const OPEN_LICENSE = /\b(MIT|Apache|GPL|LGPL|AGPL|MPL|BSD|ISC|Unlicense|CC0|EPL|Zlib|0BSD|Artistic)\b/i
 
-/** 分页读取草稿，收集有 GitHub README 的条目；按星数从高到低排，热门条目先翻译 */
+/**
+ * 分页读取草稿，收集有 GitHub README 的条目；按星数从高到低排，热门条目先翻译。
+ * 只记 README 的指纹和记录键，不留正文（12 万篇放进内存约 2GB，小内存的服务器会堆溢出），正文由 loadReadmes 按片读取
+ */
 export async function collectReadmeTargets(db: Db, kinds: readonly EntityKind[], options: { minStars?: number; licensedOnly?: boolean } = {}): Promise<{ targets: ReadmeTarget[]; skipped: number }> {
   const targets: ReadmeTarget[] = []
   let skipped = 0
@@ -25,11 +30,24 @@ export async function collectReadmeTargets(db: Db, kinds: readonly EntityKind[],
       skipped++
       continue
     }
-    targets.push({ sourceId: d.sourceId, kind: d.kind, externalId: d.externalId, name: d.name, license, readme, readmeHash: readmeHash(readme), stars })
+    targets.push({ sourceId: d.sourceId, kind: d.kind, externalId: d.externalId, name: d.name, license, readmeKey: readmeSubject(d)?.key, readmeHash: readmeHash(readme), stars })
   }
   targets.sort((a, b) => (b.stars ?? -1) - (a.stars ?? -1))
   return { targets, skipped }
 }
+
+/** 读出一片目标的 README 正文（收集时只留了指纹）；收集之后 README 又更新过的，指纹跟着换成新的 */
+export async function loadReadmes(reader: GithubReadmeReader, targets: ReadmeTarget[]): Promise<void> {
+  const found = await reader.find(targets.flatMap((t) => (t.readmeKey ? [t.readmeKey] : [])))
+  for (const t of targets) {
+    const readme = resolveReadme(t.readmeKey ? found.get(t.readmeKey) : undefined)?.content.trim()
+    if (!readme) continue
+    t.readme = readme
+    t.readmeHash = readmeHash(readme)
+  }
+}
+
+type LoadedTarget = ReadmeTarget & { readme: string }
 
 interface ChunkWork {
   hash: string
@@ -104,6 +122,8 @@ export class ReadmeTranslateRunner {
     private readonly memory: ChunkMemory,
     private readonly store: Pick<ReadmeTranslationStore, 'existing' | 'save'>,
     private readonly logger: Logger,
+    /** 目标没带正文时（collectReadmeTargets 收集的），处理到所在的那一片再读出来 */
+    private readonly load?: (targets: ReadmeTarget[]) => Promise<void>,
   ) {}
 
   async run(targets: ReadmeTarget[], options: ReadmeOptions): Promise<ReadmeStats> {
@@ -139,14 +159,20 @@ export class ReadmeTranslateRunner {
     // 目标已按星数从高到低排好，热门的先完成；相同段落跨片也只翻一次（译文都在翻译记忆库里）
     const size = options.sliceSize ?? 2_000
     for (let i = 0; i < pending.length && !options.signal?.aborted; i += size) {
-      await this.runSlice(pending.slice(i, i + size), options, stats, version, `${i / size + 1}/${Math.ceil(pending.length / size)}`)
+      const slice = pending.slice(i, i + size)
+      if (this.load) await this.load(slice.filter((t) => t.readme === undefined))
+      // 正文读不到的（README 已被删除）跳过
+      const loaded = slice.filter((t): t is LoadedTarget => t.readme !== undefined)
+      await this.runSlice(loaded, options, stats, version, `${i / size + 1}/${Math.ceil(pending.length / size)}`)
+      // 处理完释放正文：内存里同时只有一片
+      if (this.load) for (const t of slice) t.readme = undefined
     }
     stats.seconds = Math.round((Date.now() - started) / 1000)
     return stats
   }
 
   /** 处理一片 README：切段 → 找出要翻译的片段 → 翻译 → 拼装整篇保存 */
-  private async runSlice(pending: ReadmeTarget[], options: ReadmeOptions, stats: ReadmeStats, version: number, label: string): Promise<void> {
+  private async runSlice(pending: LoadedTarget[], options: ReadmeOptions, stats: ReadmeStats, version: number, label: string): Promise<void> {
     const prepared = pending.map((target) => ({ target, ...prepareReadmeChunks(target.readme, options.maxChunkChars) }))
     const isPremium = (t: ReadmeTarget) => !!this.routing.premium && (t.stars ?? 0) >= this.routing.premiumMinStars
 

@@ -27,7 +27,7 @@ import { collectOverviewInputs, OverviewRunner } from '../overview/runner.ts'
 import { OverviewStore } from '../overview/store.ts'
 import { LlmOverviewWriter } from '../overview/writer.ts'
 import type { ReadmeLocale } from '../readme/prompt.ts'
-import { collectReadmeTargets, ReadmeTranslateRunner } from '../readme/runner.ts'
+import { collectReadmeTargets, loadReadmes, ReadmeTranslateRunner } from '../readme/runner.ts'
 import { ReadmeTranslationStore } from '../readme/store.ts'
 import { LlmReadmeTranslator } from '../readme/translator.ts'
 import { AssetMirror, collectMediaUrls } from '../assets/mirror.ts'
@@ -381,6 +381,7 @@ async function readme() {
       new TranslationMemory(db),
       new ReadmeTranslationStore(db),
       logger,
+      (slice) => loadReadmes(new GithubReadmeStore(db), slice),
     )
     const stats = await runner.run(targets, {
       locales,

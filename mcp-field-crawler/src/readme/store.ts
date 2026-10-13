@@ -9,7 +9,10 @@ export interface ReadmeTarget {
   externalId: string
   name: string
   license: string | null
-  readme: string
+  /** README 正文。收集目标时不保留（12 万篇约 2GB，内存放不下），处理到所在的那一片时才按 readmeKey 读出，处理完释放 */
+  readme?: string
+  /** GitHub README 的记录键（github/readme.ts 的 readmeSubject） */
+  readmeKey?: string
   readmeHash: string
   stars: number | null
 }

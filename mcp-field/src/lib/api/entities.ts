@@ -153,6 +153,8 @@ export type ListParams = {
   type?: string
   sort?: 'popular' | 'stars' | 'installs' | 'name' | 'updated' | 'newest'
   locale: Locale
+  /** false = 后端不统计总数（meta.total 为 null），只要前几条时用，省一半查询 */
+  withTotal?: boolean
 }
 
 export const fetchList = <K extends Kind>(kind: K, params: ListParams, signal?: AbortSignal) =>

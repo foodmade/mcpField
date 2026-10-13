@@ -4,6 +4,7 @@ import { Featured } from '../components/Featured'
 import { Hero } from '../components/Hero'
 import { Rankings } from '../components/Rankings'
 import { Seo } from '../components/Seo'
+import { StatsStrip } from '../components/StatsStrip'
 import { Container } from '../components/ui'
 import { useI18n } from '../i18n/context'
 import { loadHome } from '../lib/api/loaders'
@@ -14,7 +15,8 @@ export const loader = (args: Route.LoaderArgs) => loadHome(args)
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { m, locale } = useI18n()
-  const { hero, featured, hot, skillRank, facets } = loaderData
+  const { hero, featured, spotlight, hot, skillRank, facets, stats, recent, reps } = loaderData
+  const total = stats ? Object.values(stats.totals).reduce((a, b) => a + b, 0) : null
   // 站点信息 + 首页 FAQ 的结构化数据
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -28,11 +30,12 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     <>
       <Seo title={m.meta.home} description={m.meta.homeDescription} path="/" jsonLd={jsonLd} />
       <Container className="pt-6">
-        <Hero slides={hero} />
+        <Hero slides={hero} total={total} />
       </Container>
-      <Categories facets={facets} />
+      {stats && <StatsStrip stats={stats} recent={recent} />}
+      <Categories facets={facets} reps={reps} />
       <Rankings hot={hot} skills={skillRank} />
-      <Featured data={featured} />
+      <Featured data={featured} spotlight={spotlight} />
       <FaqSection />
     </>
   )

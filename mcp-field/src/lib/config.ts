@@ -36,6 +36,24 @@ export function buildLocalConfig(key: string, spec: LocalSpec): string {
 
 export const runCommand = (spec: LocalSpec) => [spec.command, ...spec.args].map(shellQuote).join(' ')
 
+/**
+ * 安装包是否属于这个项目：部分条目合并时串了别的项目的安装包（例如 Playwright 挂着 Slack 的包），
+ * 包名里的词在名称、slug、仓库地址里都找不到时视为不可信，首页不展示，避免给出错误的启动命令。
+ */
+export function packageBelongs(d: Pick<ServerDetail, 'name' | 'slug' | 'links'>, identifier: string): boolean {
+  const hay = `${d.name} ${d.slug} ${d.links.repository ?? ''}`.toLowerCase()
+  const flat = hay.replace(/[^a-z0-9]/g, '')
+  const words = identifier.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !['server', 'servers', 'model', 'context', 'protocol', 'latest'].includes(w))
+  return words.length === 0 || words.some((w) => hay.includes(w) || flat.includes(w))
+}
+
+/** 首页卡片上的一行接入方式：远程服务给地址，本地服务给启动命令；都没有（或安装包不可信）时为 null */
+export function serverCommand(d: ServerDetail): string | null {
+  if (d.remotes[0]) return d.remotes[0].url
+  const spec = localSpec(d)
+  return spec && packageBelongs(d, spec.args.at(-1) ?? '') ? runCommand(spec) : null
+}
+
 /** 远程服务：按客户端生成对应的安装命令或配置；transport 为 sse 时用 SSE，否则用 Streamable HTTP */
 export function buildRemoteConfig(key: string, url: string, client: ClientKey, transport = 'streamable-http'): string {
   const type = transport === 'sse' ? 'sse' : 'http'
@@ -79,18 +97,4 @@ export function highlight(code: string, kind: 'json' | 'shell'): Tok[][] {
     }
     return out
   })
-}
-
-/** 语法色（与 highlight 的 class 对应，随主题变化），供首屏打字机效果使用 */
-const TOKEN_COLOR: Record<string, string> = {
-  'text-sky': 'var(--mf-sky)',
-  'text-amber': 'var(--mf-amber)',
-  'text-code': 'var(--mf-code)',
-  'text-fg/55': 'color-mix(in oklab, var(--mf-fg) 55%, transparent)',
-  'text-ink/90': 'color-mix(in oklab, var(--mf-ink) 90%, transparent)',
-  '': 'var(--mf-ink)',
-}
-
-export function colorTokens(code: string, kind: 'json' | 'shell' = 'json'): [string, string][][] {
-  return highlight(code, kind).map((line) => line.map((t) => [t.text, TOKEN_COLOR[t.cls] ?? 'var(--mf-ink)'] as [string, string]))
 }

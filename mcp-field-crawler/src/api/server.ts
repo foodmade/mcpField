@@ -15,6 +15,8 @@ import { listRemoteTools } from '../probe/mcp-remote.ts'
 import { EntityService } from './modules/entities/entity.service.ts'
 import { LiveToolsService } from './modules/entities/live-tools.ts'
 import { PRESENTERS } from './modules/entities/presenters.ts'
+import { FieldService } from './modules/stats/field.service.ts'
+import { PublishedStatsReader, StatsService } from './modules/stats/stats.service.ts'
 import { DraftEntityRepository } from './repositories/draft-entity.repository.ts'
 
 /* API 的组合根：装配数据库、仓储、业务服务，启动 HTTP 服务 */
@@ -45,6 +47,8 @@ for (const kind of ENTITY_KINDS) (entities as Record<EntityKind, EntityService<E
 const app = createApp({
   entities,
   liveTools: new LiveToolsService(entities.server!, listRemoteTools),
+  stats: new StatsService(new PublishedStatsReader(db)),
+  field: new FieldService({ server: entities.server!, skill: entities.skill! }),
   logger,
   corsOrigins: config.corsOrigins,
   ping: async () => {

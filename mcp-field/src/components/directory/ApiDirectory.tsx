@@ -3,6 +3,7 @@ import { useLocation, useNavigation } from 'react-router'
 import { ROUTE, type Facets, type ItemOf, type Kind, type PageMeta } from '../../lib/api/entities'
 import { PAGE_SIZE, type Category, type TypeOption, type ViewKey } from '../../lib/categories'
 import { DEFAULT_VIEWS } from '../../lib/directoryQuery'
+import { iconFor } from '../../fx/category3d/catalog'
 import { DirectoryLayout, type DirText } from './DirectoryLayout'
 import { useDirectoryParams } from './useDirectoryParams'
 
@@ -46,6 +47,8 @@ export function ApiDirectory<K extends Kind>({ kind, text, categories, views = D
 
   // 远程服务目录只显示有条目的分类
   const visible = remote ? categories.filter((c) => (counts.byCat[c.slug] ?? 0) > 0 || c.slug === p.category) : categories
+  // 头部显示当前分类的 3D 图标，没选分类时显示这个目录的图标（见 fx/category3d/catalog）
+  const icon = iconFor(kind, categories.find((c) => c.slug === p.category))
 
   return (
     <DirectoryLayout
@@ -63,6 +66,7 @@ export function ApiDirectory<K extends Kind>({ kind, text, categories, views = D
       Card={Card}
       Row={Row}
       loading={loading}
+      icon={icon}
     />
   )
 }

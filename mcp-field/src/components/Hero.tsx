@@ -1,231 +1,373 @@
-import { AnimatePresence, motion } from 'motion/react'
-import { ArrowUpRight, CaretLeft, CaretRight, CheckCircle, Pause, Play, Star, Wrench } from '@phosphor-icons/react'
-import { useEffect, useMemo, useState } from 'react'
+import { motion } from 'motion/react'
+import { ArrowUpRight, CaretLeft, CaretRight, Check, CheckCircle, Copy, Pause, Play } from '@phosphor-icons/react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
-import { AuroraBanner } from '../fx/Aurora'
-import { CountUp } from '../fx/CountUp'
+import clsx from 'clsx'
+import { Flashlight, type FieldEntry } from '../fx/flashlight'
 import { SplitText } from '../fx/Reveal'
-import { TiltCard, glass } from '../fx/TiltCard'
 import { useEnterAnimation } from '../fx/hydration'
-import { CodeTypewriter } from '../fx/Typewriter'
 import { useI18n } from '../i18n/context'
 import type { Locale } from '../i18n/locales'
-import { fetchDetail, type ServerDetail, type ServerItem } from '../lib/api/entities'
+import { fetchDetail, ROUTE, type ServerDetail, type ServerItem, type SkillDetail } from '../lib/api/entities'
+import { fetchField, type FieldItem } from '../lib/api/home'
 import { useApi } from '../lib/api/useApi'
-import { categoryOf } from '../lib/categories'
-import { buildLocalConfig, buildRemoteConfig, colorTokens, localSpec } from '../lib/config'
+import { categoryOf, compactNumber } from '../lib/categories'
+import { serverCommand } from '../lib/config'
 import { developerOf } from '../lib/entity'
 import { EntityIcon } from './EntityIcon'
-import { RoundBtn, ShimmerButton } from './ui'
+import { ShimmerButton } from './ui'
 
-const MotionLink = motion.create(Link)
 const ease = [0.22, 1, 0.36, 1] as const
 const INTERVAL = 6
 
-/** 首屏配置片段：远程服务给远程地址，本地服务给安装包启动命令；都没有时不显示 */
-function configCode(d: ServerDetail): string | null {
-  const key = d.slug.replace(/^mcp-server-|^mcp-|-mcp-server$|-mcp$/g, '') || d.slug
-  const remote = d.remotes[0]
-  if (remote) return buildRemoteConfig(key, remote.url, 'cursor', remote.transport)
-  const spec = localSpec(d)
-  return spec ? buildLocalConfig(key, spec) : null
+const keyOf = (i: FieldItem) => `${i.kind}:${i.slug}`
+const colorOf = (i: FieldItem) => categoryOf(i.kind, i.category).color
+
+/** 编辑推荐（首页 loader 取回的服务）转成卡片条目 */
+const fromServer = (s: ServerItem): FieldItem => ({
+  kind: 'server',
+  slug: s.slug,
+  name: s.name,
+  category: s.category?.slug ?? null,
+  tagline: s.tagline,
+  iconUrl: s.iconUrl,
+  author: developerOf(s),
+  verified: s.verified || s.official,
+  metric: s.stars,
+  toolsCount: s.toolsCount,
+  isRemote: s.isRemote,
+})
+
+/* 详情缓存：气泡起飞时预取，落进卡片时多半已经到了；推荐卡来回切换也不重复请求 */
+type Detail = ServerDetail | SkillDetail
+const detailCache = new Map<string, Promise<Detail>>()
+function loadDetail(i: FieldItem, locale: Locale): Promise<Detail> {
+  const key = `${locale}:${keyOf(i)}`
+  let p = detailCache.get(key)
+  if (!p) {
+    p = fetchDetail(i.kind, i.slug, locale)
+    p.catch(() => detailCache.delete(key))
+    detailCache.set(key, p)
+    if (detailCache.size > 60) detailCache.delete(detailCache.keys().next().value!)
+  }
+  return p
+}
+
+/** 卡片里的接入命令：undefined = 详情还在加载，null = 没有可展示的 */
+function commandOf(i: FieldItem, d: Detail | undefined): string | null | undefined {
+  if (i.kind === 'skill') return i.installCommand ?? (d ? ((d as SkillDetail).installCommand ?? null) : undefined)
+  return d ? serverCommand(d as ServerDetail) : undefined
+}
+
+function CopyLine({ text }: { text: string }) {
+  const { m } = useI18n()
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text)
+        } catch {
+          /* 剪贴板不可用时仍给出反馈 */
+        }
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1600)
+      }}
+      className="flex h-[26px] shrink-0 items-center gap-1 rounded-[7px] bg-fg/[0.06] px-2 text-xs text-fg/70 transition-colors hover:bg-fg/10 hover:text-ink"
+    >
+      {copied ? <><Check size={12} weight="bold" className="text-accent" />{m.hero.copied}</> : <><Copy size={12} />{m.hero.copy}</>}
+    </button>
+  )
+}
+
+const item = { hidden: { opacity: 0, y: 8, filter: 'blur(4px)' }, show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.46, ease } } }
+const content = {
+  hidden: {},
+  show: { opacity: 1, filter: 'blur(0px)', transition: { staggerChildren: 0.042, delayChildren: 0.06 } },
+  dim: { opacity: 0.25, filter: 'blur(2px)', transition: { duration: 0.22 } },
 }
 
 /**
- * 一次性预取所有推荐的配置片段，切换时内容已就绪，不会在动画结束后才弹出。
- * 返回 slug → 配置；undefined = 还在加载，null = 没有可展示的配置
+ * 推荐卡：展示编辑推荐，或用户在背景里选中的条目。列表字段（图标、名称、简介、星数）立即显示，
+ * AI 导读、特性、接入命令来自详情，到达后补上。departing = 气泡在路上，旧内容先退半步。
  */
-function useSlideConfigs(slides: ServerItem[], locale: Locale) {
-  const key = slides.length ? `hero:configs:${locale}:${slides.map((s) => s.slug).join(',')}` : null
-  const res = useApi(key, (signal) =>
-    Promise.all(
-      slides.map((s) =>
-        fetchDetail('server', s.slug, locale, signal).then(configCode, (e: unknown) => {
-          if (signal.aborted) throw e
-          return null
-        }),
-      ),
-    ),
-  )
-  return useMemo(() => new Map(slides.map((s, k) => [s.slug, res.data?.[k]])), [slides, res.data])
-}
-
-/** 配置片段区域固定高度：加载中、没有配置时也占同样的位置，切换时卡片不跳动 */
-function SlideConfig({ code }: { code: string | null | undefined }) {
-  const { m } = useI18n()
-  // 语法着色结果要稳定，否则每次重新渲染都会让打字机从头开始
-  const lines = useMemo(() => (code ? colorTokens(code) : null), [code])
-  return (
-    <div className="h-[190px] overflow-hidden rounded-[10px] border border-fg/10 bg-black/35 px-3.5 py-3">
-      {lines ? (
-        <CodeTypewriter lines={lines} className="h-full overflow-auto font-mono text-[13px] leading-[1.6] [scrollbar-width:none]" />
-      ) : code === undefined ? (
-        <div className="flex animate-pulse flex-col gap-2.5 pt-1" aria-hidden>
-          {[40, 62, 54, 70, 48].map((w, k) => <div key={k} className="h-3 rounded bg-fg/[0.07]" style={{ width: `${w}%` }} />)}
-        </div>
-      ) : (
-        <p className="text-sm text-fg/45">{m.detail.noInstall}</p>
-      )}
-    </div>
-  )
-}
-
-const slideVariants = {
-  enter: (d: number) => ({ opacity: 0, x: 28 * d, scale: 0.985 }),
-  center: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.65, ease } },
-  exit: (d: number) => ({ opacity: 0, x: -28 * d, scale: 0.985, transition: { duration: 0.4, ease } }),
-}
-
-/** 首屏推荐轮播：推荐条目由首页 loader 取回，配置片段在浏览器里预取 */
-export function Hero({ slides }: { slides: ServerItem[] }) {
-  const { m, tr, locale, to } = useI18n()
+function LiveCard({ entry, pick, departing, cardRef, iconRef }: { entry: FieldItem; pick: boolean; departing: boolean; cardRef: React.Ref<HTMLElement>; iconRef: React.Ref<HTMLSpanElement> }) {
+  const { m, tr, to, locale } = useI18n()
+  // 服务端渲染出的第一张卡直接显示最终状态（不拖慢首屏），之后换条目时才播放入场动画
   const enter = useEnterAnimation()
-  const configs = useSlideConfigs(slides, locale)
-  const [i, setI] = useState(0)
-  const [dir, setDir] = useState(1)
-  const [paused, setPaused] = useState(false)
-  const go = (d: number) => {
-    if (!slides.length) return
-    setDir(d)
-    setI((v) => (v + d + slides.length) % slides.length)
-  }
+  const firstKey = useRef(keyOf(entry))
+  const animateIn = enter || keyOf(entry) !== firstKey.current
+  const detail = useApi(`hero:detail:${locale}:${keyOf(entry)}`, () => loadDetail(entry, locale))
+  const d = detail.data
+  const cat = categoryOf(entry.kind, entry.category)
+  const overview = d?.overview
+  const cmd = commandOf(entry, d)
+  const chips = entry.kind === 'server'
+    ? [(d as ServerDetail | undefined)?.runtime, ...((d as ServerDetail | undefined)?.transports ?? []), entry.toolsCount ? m.hero.tools(entry.toolsCount) : null, entry.isRemote ? m.hero.remote : null]
+    : [tr(cat.name)]
+  const stats = entry.kind === 'server'
+    ? [entry.metric !== null ? `★ ${compactNumber(entry.metric)}` : null, entry.toolsCount ? m.hero.tools(entry.toolsCount) : null, entry.isRemote ? m.hero.remote : null]
+    : [entry.metric !== null ? m.hero.installs(compactNumber(entry.metric)) : null, entry.author ? m.hero.by(entry.author) : null]
+
+  return (
+    <article
+      ref={cardRef}
+      data-fx-solid
+      aria-live="polite"
+      className="fx-card relative flex h-[352px] flex-col rounded-2xl border border-fg/[0.07] px-[22px] pb-[18px] pt-[22px] backdrop-blur-[9px]"
+      style={{ '--tint': cat.color, background: 'linear-gradient(180deg, #0c1118c7, #0c11189e)' } as CSSProperties}
+    >
+      <motion.div key={keyOf(entry)} variants={content} initial={animateIn ? 'hidden' : false} animate={departing ? 'dim' : 'show'} className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-[42px] items-center gap-3">
+          <motion.span
+            ref={iconRef}
+            variants={{ hidden: { scale: 0.35, opacity: 0 }, show: { scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 420, damping: 16 } } }}
+            className="shrink-0"
+          >
+            <EntityIcon name={entry.name} src={entry.iconUrl} color={cat.color} size={42} className="!rounded-[11px]" />
+          </motion.span>
+          <motion.div variants={item} className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-lg font-semibold"><span className="truncate">{entry.name}</span>{entry.verified && <CheckCircle weight="bold" className="shrink-0 text-accent" size={15} />}</div>
+            <div className="truncate text-xs text-fg/45">{[entry.author, tr(cat.name)].filter(Boolean).join(' · ')}</div>
+          </motion.div>
+          <motion.span variants={item} className="flex shrink-0 items-center gap-1.5 self-start pt-1 text-xs text-fg/70">
+            <i className="size-[5px] rounded-full" style={{ background: cat.color, boxShadow: `0 0 6px ${cat.color}` }} />
+            {pick ? m.hero.pick : entry.kind === 'server' ? m.hero.kindServer : m.hero.kindSkill}
+          </motion.span>
+        </div>
+
+        <motion.p variants={item} className="mt-3.5 line-clamp-3 min-h-[calc(3*1.65*13.5px)] text-[13.5px] leading-[1.65] text-fg/70">
+          {overview?.summary ?? entry.tagline ?? m.hero.noIntro}
+        </motion.p>
+
+        <motion.ul variants={item} className="mt-3 flex flex-col gap-1.5">
+          {overview?.features.length ? (
+            overview.features.slice(0, 3).map((f) => (
+              <li key={f} className="flex items-center gap-2 text-[12.5px] text-fg/60">
+                <i className="size-1 shrink-0 rounded-full opacity-80" style={{ background: cat.color }} />
+                <span className="truncate">{f}</span>
+              </li>
+            ))
+          ) : detail.loading ? (
+            [62, 48, 55].map((w) => <li key={w} className="h-3 animate-pulse rounded bg-fg/[0.06]" style={{ width: `${w}%` }} />)
+          ) : (
+            <li className="flex flex-wrap gap-1.5">
+              {chips.filter(Boolean).map((c) => <span key={c} className="rounded-md border border-fg/10 px-1.5 py-px font-mono text-[11.5px] text-fg/65">{c}</span>)}
+            </li>
+          )}
+        </motion.ul>
+
+        <motion.div
+          variants={item}
+          className="mt-auto flex items-center gap-2.5 rounded-r-lg border-l-2 py-2 pl-3 pr-1.5"
+          style={{ borderColor: `${cat.color}80`, background: 'linear-gradient(90deg, rgba(255,255,255,0.03), transparent)' }}
+        >
+          {cmd === undefined ? (
+            <span className="h-3 w-3/5 animate-pulse rounded bg-fg/[0.06]" />
+          ) : cmd ? (
+            <>
+              <code className="min-w-0 flex-1 truncate font-mono text-xs text-amber">{cmd}</code>
+              <CopyLine text={cmd} />
+            </>
+          ) : (
+            <span className="text-xs text-fg/35">{m.hero.installHint}</span>
+          )}
+        </motion.div>
+
+        <motion.div variants={item} className="mt-3.5 flex items-center justify-between border-t border-fg/[0.05] pt-3.5">
+          <div className="flex gap-3.5 whitespace-nowrap text-xs text-fg/50">{stats.filter(Boolean).map((s) => <span key={s}>{s}</span>)}</div>
+          <Link
+            to={to(`/${ROUTE[entry.kind]}/${entry.slug}`)}
+            className="flex h-8 items-center gap-1.5 rounded-[9px] border border-fg/15 px-3 text-[13px] font-medium text-ink transition-colors hover:border-fg/25 hover:bg-fg/[0.06]"
+          >
+            {m.hero.details}<ArrowUpRight size={13} weight="bold" />
+          </Link>
+        </motion.div>
+      </motion.div>
+    </article>
+  )
+}
+
+/**
+ * 首屏：背景是"手电筒"里流动的服务名与 Skill 名（fx/flashlight.ts），右侧是实时推荐卡。
+ * 没人操作时卡片轮播编辑推荐；在背景名字上停一下或点它，名字化成气泡飞进卡片，卡片换成它。
+ */
+export function Hero({ slides, total }: { slides: ServerItem[]; total: number | null }) {
+  const { m, tr, locale } = useI18n()
+  const enter = useEnterAnimation()
+  const picks = useMemo(() => slides.map(fromServer), [slides])
+  const [pickIdx, setPickIdx] = useState(0)
+  const [shown, setShown] = useState<{ entry: FieldItem; pick: boolean } | null>(null)
+  const [departing, setDeparting] = useState(false)
+  const [playing, setPlaying] = useState(true)
+  const [userPicked, setUserPicked] = useState(false)
+  const [lit, setLit] = useState(0)
+
+  const bannerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const cardRef = useRef<HTMLElement>(null)
+  const iconRef = useRef<HTMLSpanElement>(null)
+  const engine = useRef<Flashlight | null>(null)
+  const localeRef = useRef(locale)
+  localeRef.current = locale
+
+  const field = useApi(`hero:field:${locale}`, (signal) => fetchField(locale, signal))
+  const byKey = useRef(new Map<string, FieldItem>())
+  const entries = useMemo<FieldEntry[]>(() => {
+    const list = field.data ?? []
+    byKey.current = new Map(list.map((i) => [keyOf(i), i]))
+    return list.map((i) => ({ key: keyOf(i), name: i.name, color: colorOf(i), iconUrl: i.iconUrl }))
+  }, [field.data])
+
+  const current = shown ?? (picks[0] ? { entry: picks[pickIdx] ?? picks[0], pick: true } : null)
+
+  // 画布只在浏览器里创建；回调通过 ref 读取最新的条目表
   useEffect(() => {
-    if (paused || !slides.length) return
-    const id = setTimeout(() => go(1), INTERVAL * 1000)
+    const host = bannerRef.current
+    const canvas = canvasRef.current
+    if (!host || !canvas) return
+    const fl = new Flashlight({
+      canvas,
+      host,
+      card: () => cardRef.current,
+      icon: () => iconRef.current,
+      onLit: setLit,
+      onSelect: () => setUserPicked(true),
+      onLaunch: (e) => {
+        const it = byKey.current.get(e.key)
+        if (it) void loadDetail(it, localeRef.current).catch(() => {})
+        setDeparting(true)
+      },
+      onArrive: (e) => {
+        const it = byKey.current.get(e.key)
+        setDeparting(false)
+        if (it) setShown({ entry: it, pick: false })
+      },
+    })
+    engine.current = fl
+    return () => {
+      fl.destroy()
+      engine.current = null
+    }
+  }, [])
+
+  const currentKey = current ? keyOf(current.entry) : null
+  useEffect(() => engine.current?.setEntries(entries), [entries])
+  useEffect(() => engine.current?.setCurrent(currentKey), [currentKey, entries])
+
+  const showPick = (k: number) => {
+    if (!picks.length) return
+    const i = (k + picks.length) % picks.length
+    setPickIdx(i)
+    setShown({ entry: picks[i], pick: true })
+    setUserPicked(false)
+    setDeparting(false)
+  }
+  // 自动轮播：用户在背景里选过条目后停下
+  useEffect(() => {
+    if (!playing || userPicked || picks.length < 2) return
+    const id = setTimeout(() => showPick(pickIdx + 1), INTERVAL * 1000)
     return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [i, paused, slides.length])
-  const s = slides[Math.min(i, slides.length - 1)]
-  const cat = s ? categoryOf('server', s.category?.slug) : null
-  const tag = cat ? `${m.hero.weekly} · ${tr(cat.name)}` : m.hero.weekly
+  }, [playing, userPicked, pickIdx, picks.length])
+
+  const tagCat = picks[pickIdx] ? categoryOf('server', picks[pickIdx].category) : null
+  const tag = tagCat ? `${m.hero.weekly} · ${tr(tagCat.name)}` : m.hero.weekly
 
   return (
-    <AuroraBanner className="min-h-[460px]">
-      <div className="grid items-center gap-10 px-6 py-10 sm:px-8 lg:grid-cols-[1fr_460px] lg:px-16 lg:py-12 [&>*]:min-w-0">
+    <div
+      ref={bannerRef}
+      // 首屏横幅在两种主题下都保持深色
+      data-theme="dark"
+      className="relative isolate overflow-hidden rounded-[22px] border border-fg/[0.08] [touch-action:pan-y]"
+      style={{
+        background:
+          'radial-gradient(55% 75% at 2% 0%, #1d4ed838, transparent 62%), radial-gradient(45% 65% at 100% 100%, #0f6b5240, transparent 60%), linear-gradient(135deg, #0b1430 0%, #0a1620 52%, #0a1f1b 100%)',
+      }}
+    >
+      <canvas ref={canvasRef} aria-hidden className="absolute inset-0 -z-10 size-full" />
+      <p className="sr-only">{m.hero.fieldAria}</p>
+      {total !== null && (
+        <div aria-hidden className="pointer-events-none absolute right-5 top-3.5 z-10 hidden items-center gap-2 text-xs text-fg/50 sm:flex">
+          {m.hero.litBefore}<b className="font-mono font-medium text-mint">{lit.toLocaleString('en-US')}</b>{m.hero.litAfter(total.toLocaleString('en-US'))}
+        </div>
+      )}
+
+      <div className="pointer-events-none grid min-h-[460px] items-center gap-10 px-6 py-10 sm:px-8 lg:grid-cols-[1fr_460px] lg:px-16 [&>*]:min-w-0">
         <div>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={tag}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-medium text-mint"
-            >
-              <span className="relative flex size-1.5">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-70" />
-                <span className="relative size-1.5 rounded-full bg-accent" />
-              </span>
-              {tag}
-            </motion.div>
-          </AnimatePresence>
-          <SplitText key={locale} text={m.hero.title} className="mt-5 text-4xl font-bold leading-[1.15] tracking-[-0.02em] md:text-[52px]" delay={0.1} />
-          <motion.p initial={enter ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={{ delay: 0.7, duration: 0.8 }} className="mt-5 text-base text-fg/70">
+          <motion.div
+            key={tag}
+            initial={enter ? { opacity: 0, y: 8 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-medium text-mint"
+          >
+            <span className="relative flex size-1.5">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-70" />
+              <span className="relative size-1.5 rounded-full bg-accent" />
+            </span>
+            {tag}
+          </motion.div>
+          <SplitText key={locale} text={m.hero.title} className="mt-5 text-4xl font-bold leading-[1.15] tracking-[-0.02em] [text-shadow:0_2px_24px_#0a0f1a] md:text-[52px]" delay={0.1} />
+          <motion.p initial={enter ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={{ delay: 0.7, duration: 0.8 }} className="mt-5 text-base text-fg/70 [text-shadow:0_1px_12px_#0a0f1a]">
             {m.hero.sub}
           </motion.p>
           <motion.div className="mt-6 flex flex-wrap gap-2.5" initial={enter ? 'h' : false} animate="s" variants={{ h: {}, s: { transition: { staggerChildren: 0.06, delayChildren: 0.85 } } }}>
-            {slides.map((t, k) => (
+            {picks.map((t, k) => (
               <motion.button
                 key={t.slug}
+                type="button"
                 aria-label={m.hero.tileAria(t.name)}
                 variants={{ h: { opacity: 0, scale: 0.4, y: 12 }, s: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 380, damping: 18 } } }}
                 whileHover={{ y: -6, rotate: -6, scale: 1.08 }}
-                onClick={() => {
-                  setDir(k > i ? 1 : -1)
-                  setI(k)
-                }}
-                className="rounded-xl border border-fg/15 shadow-[0_8px_18px_rgba(0,0,0,0.35)]"
+                onClick={() => showPick(k)}
+                className="pointer-events-auto rounded-xl border border-fg/15 shadow-[0_8px_18px_rgba(0,0,0,0.35)]"
               >
-                <EntityIcon name={t.name} src={t.iconUrl} color={categoryOf('server', t.category?.slug).color} size={48} className="!rounded-xl" />
+                <EntityIcon name={t.name} src={t.iconUrl} color={colorOf(t)} size={48} className="!rounded-xl" />
               </motion.button>
             ))}
           </motion.div>
-          <motion.div initial={enter ? { opacity: 0, y: 10 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.25 }} className="mt-7">
+          <motion.div initial={enter ? { opacity: 0, y: 10 } : false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.25 }} className="pointer-events-auto mt-7 inline-block">
             <ShimmerButton>{m.hero.browse}</ShimmerButton>
           </motion.div>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <TiltCard>
-            <div className={`${glass} overflow-hidden p-[22px]`} style={{ background: 'radial-gradient(120% 100% at 100% 0%, #3DDC9733, transparent 60%), rgba(255,255,255,0.06)' }}>
-              {!s || !cat ? (
-                <div className="flex animate-pulse flex-col gap-4" aria-hidden>
-                  <div className="flex h-[45px] items-center gap-3"><div className="size-11 rounded-[11px] bg-fg/10" /><div className="h-5 w-40 rounded bg-fg/10" /></div>
-                  <div className="h-[2lh] text-sm leading-relaxed"><div className="h-4 w-full rounded bg-fg/[0.07]" /></div>
-                  <div className="h-[190px] rounded-[10px] bg-black/25" />
-                  <div className="h-[34px]" />
-                </div>
-              ) : (
-              // 新旧两张叠在同一个网格单元里交叉淡入淡出，容器高度不变
-              <div className="grid [&>*]:[grid-area:1/1]">
-              <AnimatePresence custom={dir} initial={false}>
-                <motion.div
-                  key={s.slug}
-                  custom={dir}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  className="flex min-w-0 flex-col gap-4 will-change-transform"
-                >
-                  <div className="flex items-center gap-3">
-                    <EntityIcon name={s.name} src={s.iconUrl} color={cat.color} size={44} className="!rounded-[11px]" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 text-[19px] font-semibold"><span className="truncate">{s.name}</span>{s.verified && <CheckCircle weight="bold" className="shrink-0 text-accent" size={16} />}</div>
-                      <div className="truncate text-xs text-fg/55">{[developerOf(s), tr(cat.name)].filter(Boolean).join(' · ')}</div>
-                    </div>
-                    <span className="shrink-0 rounded-md bg-fg/10 px-2 py-0.5 text-xs text-fg/80">{m.hero.pick}</span>
-                  </div>
-                  <p className="line-clamp-2 h-[2lh] text-sm leading-relaxed text-fg/70">{s.tagline}</p>
-                  <SlideConfig code={configs.get(s.slug)} />
-                  <div className="flex items-center justify-between">
-                    <div className="flex gap-3.5 text-xs text-fg/55">
-                      {s.stars !== null && <span className="flex items-center gap-1"><Star size={14} /><CountUp value={s.stars} /></span>}
-                      {s.toolsCount > 0 && <span className="flex items-center gap-1"><Wrench size={14} />{m.hero.tools(s.toolsCount)}</span>}
-                    </div>
-                    <MotionLink to={to(`/servers/${s.slug}`)} whileTap={{ scale: 0.96 }} className="flex h-[34px] items-center gap-1.5 rounded-lg bg-white px-3.5 text-sm font-semibold text-bg">
-                      {m.hero.details}<ArrowUpRight size={14} weight="bold" />
-                    </MotionLink>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
+        <div className="pointer-events-auto flex flex-col">
+          {current ? (
+            <LiveCard entry={current.entry} pick={current.pick} departing={departing} cardRef={cardRef} iconRef={iconRef} />
+          ) : (
+            <div ref={cardRef as React.Ref<HTMLDivElement>} className="h-[352px] rounded-2xl border border-fg/[0.07] bg-[#0c1118a6]" />
+          )}
+          {picks.length > 1 && (
+            <div className="mt-4 flex items-center justify-between px-1">
+              <div className={clsx('flex gap-1.5 transition-opacity duration-300', userPicked && 'opacity-35')} aria-hidden>
+                {picks.map((_, k) => (
+                  <span key={k} className="h-0.5 overflow-hidden rounded-full bg-fg/15 transition-[width] duration-500" style={{ width: k === pickIdx ? 36 : 18 }}>
+                    {k === pickIdx && !userPicked && (
+                      <motion.span
+                        key={`${pickIdx}-${playing}`}
+                        className="block h-full bg-accent"
+                        initial={{ width: playing ? '0%' : '100%' }}
+                        animate={{ width: '100%' }}
+                        transition={{ duration: playing ? INTERVAL : 0, ease: 'linear' }}
+                      />
+                    )}
+                  </span>
+                ))}
               </div>
-              )}
-            </div>
-          </TiltCard>
-
-          <div className="flex flex-wrap items-center justify-end gap-2.5">
-            <div className="mr-3 hidden items-center gap-1.5 sm:flex">
-              {slides.map((_, k) => (
-                <button
-                  key={k}
-                  onClick={() => {
-                    setDir(k > i ? 1 : -1)
-                    setI(k)
-                  }}
-                  className="relative h-1 overflow-hidden rounded-full bg-fg/20 transition-[width] duration-500"
-                  style={{ width: k === i ? 40 : 8 }}
-                  aria-label={m.hero.slide(k + 1)}
-                >
-                  {k === i && (
-                    <motion.span
-                      key={`${i}-${paused}`}
-                      className="absolute inset-y-0 left-0 bg-accent"
-                      initial={{ width: paused ? '100%' : '0%' }}
-                      animate={{ width: '100%' }}
-                      transition={{ duration: paused ? 0 : INTERVAL, ease: 'linear' }}
-                    />
-                  )}
+              <div className="flex items-center gap-0.5 text-fg/55">
+                <button type="button" aria-label={m.hero.prev} onClick={() => showPick(pickIdx - 1)} className="grid size-7 place-items-center rounded-lg transition-colors hover:bg-fg/[0.06] hover:text-ink"><CaretLeft size={14} /></button>
+                <span className="w-10 text-center font-mono text-xs tabular-nums">{pickIdx + 1} / {picks.length}</span>
+                <button type="button" aria-label={m.hero.next} onClick={() => showPick(pickIdx + 1)} className="grid size-7 place-items-center rounded-lg transition-colors hover:bg-fg/[0.06] hover:text-ink"><CaretRight size={14} /></button>
+                <button type="button" aria-label={playing ? m.hero.pause : m.hero.play} onClick={() => setPlaying((p) => !p)} className="grid size-7 place-items-center rounded-lg transition-colors hover:bg-fg/[0.06] hover:text-ink">
+                  {playing ? <Pause size={12} weight="fill" /> : <Play size={12} weight="fill" />}
                 </button>
-              ))}
+              </div>
             </div>
-            <RoundBtn label={m.hero.prev} onClick={() => go(-1)}><CaretLeft size={14} /></RoundBtn>
-            <span className="w-11 text-center tabular-nums text-sm text-fg/80">{i + 1} / {slides.length}</span>
-            <RoundBtn label={m.hero.next} onClick={() => go(1)}><CaretRight size={14} /></RoundBtn>
-            <RoundBtn label={paused ? m.hero.play : m.hero.pause} onClick={() => setPaused((p) => !p)}>{paused ? <Play size={14} /> : <Pause size={14} />}</RoundBtn>
-          </div>
+          )}
         </div>
       </div>
-    </AuroraBanner>
+    </div>
   )
 }

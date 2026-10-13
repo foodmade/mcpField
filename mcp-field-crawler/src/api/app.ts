@@ -3,10 +3,12 @@ import { cors } from 'hono/cors'
 import type { Logger } from '../core/logger.ts'
 import type { EntityKind } from '../core/types.ts'
 import { ApiError } from './http/errors.ts'
-import { parseQuery, sitemapQuerySchema } from './http/query.ts'
+import { localeQuerySchema, parseQuery, sitemapQuerySchema } from './http/query.ts'
 import { entityRoutes } from './modules/entities/entity.routes.ts'
 import type { EntityService } from './modules/entities/entity.service.ts'
 import type { LiveToolsService } from './modules/entities/live-tools.ts'
+import type { FieldService } from './modules/stats/field.service.ts'
+import type { StatsService } from './modules/stats/stats.service.ts'
 import { ROUTE_BY_KIND } from './modules/entities/presenters.ts'
 
 /** 应用依赖：由 server.ts 装配真实实现，测试时可以注入假实现 */
@@ -15,6 +17,10 @@ export interface ApiDeps {
   entities: { [K in EntityKind]?: EntityService<K> }
   /** 远程服务工具列表的实时读取 */
   liveTools?: LiveToolsService
+  /** 首页统计（各类型总数、近几天新增） */
+  stats?: StatsService
+  /** 首屏背景流动的名字 */
+  field?: FieldService
   logger: Logger
   corsOrigins?: string[]
   /** 数据库连通性检查 */
@@ -45,6 +51,12 @@ export function createApp(deps: ApiDeps) {
       return c.json({ data: result })
     })
   }
+  // GET /api/stats —— 首页统计：各类型总数、近 14 天每天新增、最近发布时间
+  const stats = deps.stats
+  if (stats) app.get('/api/stats', async (c) => c.json({ data: await stats.get() }))
+  // GET /api/stats/field?locale —— 首屏背景里流动的名字（最热门的服务与 Skill，精简字段）
+  const field = deps.field
+  if (field) app.get('/api/stats/field', async (c) => c.json({ data: await field.get(parseQuery(c, localeQuerySchema).locale) }))
   const services = Object.entries(deps.entities) as [EntityKind, EntityService<EntityKind>][]
   // GET /api/sitemap —— 各类型的条目总数；GET /api/sitemap/:kind?page&pageSize —— 分页列出 slug 与最后更新时间
   app.get('/api/sitemap', async (c) => {

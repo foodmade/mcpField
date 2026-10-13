@@ -6,6 +6,8 @@ import clsx from 'clsx'
 import { FaqSection } from '../Faq'
 import { Seo } from '../Seo'
 import { CountUp } from '../../fx/CountUp'
+import { Category3D } from '../../fx/category3d/Category3D'
+import type { DirIcon } from '../../fx/category3d/catalog'
 import { useEnterAnimation } from '../../fx/hydration'
 import { useI18n } from '../../i18n/context'
 import { stripLocale } from '../../i18n/locales'
@@ -47,11 +49,34 @@ type Props<T extends { slug: string; name: string }> = {
   Row: (p: { item: T }) => ReactNode
   /** 站内跳转加载新数据时，列表半透明显示旧数据 */
   loading?: boolean
+  /** 头部右侧的 3D 图标；不传则不显示 */
+  icon?: DirIcon
+}
+
+/** 头部右侧的 3D 图标：切换分类时旧图标缩小淡出、新图标弹出；鼠标悬停时动画更活跃 */
+function HeaderIcon({ icon }: { icon: DirIcon }) {
+  const [active, setActive] = useState(false)
+  return (
+    <div className="relative -my-10 hidden size-[168px] shrink-0 sm:block" onPointerEnter={() => setActive(true)} onPointerLeave={() => setActive(false)}>
+      <AnimatePresence initial={false}>
+        <motion.div
+          key={icon.model}
+          className="absolute inset-0"
+          initial={{ opacity: 0, scale: 0.6, y: 14 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.6, y: -10, transition: { duration: 0.2 } }}
+          transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+        >
+          <Category3D model={icon.model} size={168} active={active} />
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  )
 }
 
 /** 目录页的界面骨架：头部、侧栏、排序与布局切换、列表、分页、FAQ。数据由页面的 loader 提供 */
 export function DirectoryLayout<T extends { slug: string; name: string }>({
-  text, categories, views, types = [], params: p, counts, items, total, page, pageSize, itemPath, Card, Row, loading = false,
+  text, categories, views, types = [], params: p, counts, items, total, page, pageSize, itemPath, Card, Row, loading = false, icon,
 }: Props<T>) {
   const { m, tr, locale } = useI18n()
   const enter = useEnterAnimation()
@@ -91,10 +116,18 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
     <>
       <Seo title={seoTitle} description={seoDesc} path={path} query={directorySearch({ ...p, q: '' }, { keepSort: false })} noindex={!!p.q} jsonLd={jsonLd} />
       <section
-        className="border-b border-fg/[0.04]"
+        className="relative overflow-hidden border-b border-fg/[0.04]"
         style={{ background: 'radial-gradient(60% 220% at 20% 0%, #2B7FFF1F, transparent 60%), radial-gradient(40% 200% at 85% 0%, #3DDC9714, transparent 60%)' }}
       >
-        <div className="mx-auto flex max-w-[1248px] flex-wrap items-center justify-between gap-6 px-6 pb-6 pt-7">
+        {/* 有 3D 图标时，图标背后再加一团当前分类颜色的光晕 */}
+        {icon && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 hidden sm:block"
+            style={{ background: `radial-gradient(22% 150% at min(calc(50% + 516px), calc(100% - 108px)) 50%, color-mix(in oklab, ${icon.color} 24%, transparent), transparent 70%)` }}
+          />
+        )}
+        <div className="relative mx-auto flex max-w-[1248px] flex-wrap items-center justify-between gap-6 px-6 pb-6 pt-7">
           <motion.div key={text.title} initial={enter ? { opacity: 0, y: 14 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
             <h1 className="text-[30px] font-bold leading-tight tracking-[-0.02em]">{text.title}</h1>
             <p className="mt-1.5 text-sm text-text2">
@@ -103,6 +136,7 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
               {text.subAfter}
             </p>
           </motion.div>
+          {icon && <HeaderIcon icon={icon} />}
         </div>
       </section>
 

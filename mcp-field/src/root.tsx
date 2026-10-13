@@ -29,7 +29,12 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#0A0B0D" />
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {/* 有 JS 时才让入场动画先停在起始状态（见 index.css 的 .js 规则）；没有 JS 时直接显示最终结果 */}
+        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
+        {/* 标签页图标：支持 SVG 的浏览器用 favicon.svg，其余退回 favicon.ico；iOS 主屏幕用 apple-touch-icon */}
+        <link rel="icon" href="/favicon.ico" sizes="48x48" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="preconnect" href="https://assets.mcpfield.com" crossOrigin="" />
         <Meta />
         <Links />

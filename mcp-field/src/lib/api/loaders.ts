@@ -3,7 +3,7 @@ import { DEFAULT_LOCALE, localeFromParam } from '../../i18n/locales'
 import { categoryOf, categoryParam, PAGE_SIZE, type SortKey } from '../categories'
 import { parseDirectoryQuery, type DirectoryConfig } from '../directoryQuery'
 import { fetchDetail, fetchFacets, fetchList, type Kind, type ListParams } from './entities'
-import { fetchFeatured } from './home'
+import { fetchFeatured, fetchStats } from './home'
 import { ApiError } from './http'
 
 /*
@@ -64,11 +64,12 @@ export async function loadDirectory<K extends Kind>(spec: DirectorySpec<K>, { re
   return { list, facets }
 }
 
-/** 首页：推荐、排行、分类计数一次并行取回 */
+/** 首页：推荐、排行、分类计数、全站统计一次并行取回；统计和补充数据失败时只隐藏对应区块 */
 export async function loadHome({ request, params }: Args) {
   const locale = localeOf(params)
   const signal = request.signal
-  const [hero, client, cli, loop, skill, hot, skillRank, facets] = await Promise.all([
+  const soft = <T>(p: Promise<T>) => p.catch(() => null)
+  const [hero, client, cli, loop, skill, hot, skillRank, facets, stats, recent] = await Promise.all([
     fetchFeatured('server', 5, locale, signal),
     fetchFeatured('client', 4, locale, signal),
     fetchFeatured('cli', 4, locale, signal),
@@ -77,6 +78,24 @@ export async function loadHome({ request, params }: Args) {
     fetchList('server', { page: 1, pageSize: 6, sort: 'popular', locale }, signal).then((r) => r.data),
     fetchList('skill', { page: 1, pageSize: 7, sort: 'installs', locale }, signal).then((r) => r.data),
     fetchFacets('server', {}, signal),
+    soft(fetchStats(signal)),
+    soft(fetchList('server', { page: 1, pageSize: 4, sort: 'newest', locale }, signal).then((r) => r.data)),
   ])
-  return { hero, featured: { server: hero.slice(0, 4), client, cli, loop, skill }, hot, skillRank, facets }
+  // 热门分类拼贴：前三个分类各取几个代表服务；精选大卡要展示接入命令和工具，需要详情
+  const top = facets.categories.filter((c) => c.slug).sort((a, b) => b.count - a.count).slice(0, 3)
+  const [reps, spotlight] = await Promise.all([
+    Promise.all(top.map((c) => soft(fetchList('server', { page: 1, pageSize: 6, category: c.slug!, sort: 'popular', locale }, signal).then((r) => [c.slug!, [...new Set(r.data.map((i) => i.name))]] as const)))),
+    hero[0] ? soft(fetchDetail('server', hero[0].slug, locale, signal)) : null,
+  ])
+  return {
+    hero,
+    featured: { server: hero, client, cli, loop, skill },
+    spotlight,
+    hot,
+    skillRank,
+    facets,
+    stats,
+    recent: recent ?? [],
+    reps: Object.fromEntries(reps.filter((r) => r !== null)) as Record<string, string[]>,
+  }
 }

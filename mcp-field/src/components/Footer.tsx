@@ -1,8 +1,9 @@
 import { motion } from 'motion/react'
-import { DiscordLogo, GithubLogo, Lifebuoy, PlugsConnected, TwitterLogo } from '@phosphor-icons/react'
+import { DiscordLogo, GithubLogo, Lifebuoy, TwitterLogo } from '@phosphor-icons/react'
 import { Link } from 'react-router'
 import { useI18n } from '../i18n/context'
 import { LanguageMenu } from './LanguageMenu'
+import { BrandMark, Wordmark } from './Logo'
 
 export function Footer() {
   const { m, to } = useI18n()
@@ -11,9 +12,9 @@ export function Footer() {
       <div className="mx-auto max-w-[1248px] px-6 pb-8 pt-14">
         <div className="grid gap-10 md:grid-cols-[1fr_repeat(4,140px)] lg:grid-cols-[1fr_repeat(4,160px)]">
           <div>
-            <div className="flex items-center gap-2.5">
-              <span className="grid size-[26px] place-items-center rounded-md bg-gradient-to-br from-accent to-blue text-accent-ink"><PlugsConnected size={16} weight="bold" /></span>
-              <span className="text-[17px] font-semibold tracking-tight">MCP Field</span>
+            <div className="group flex w-fit items-center gap-2">
+              <BrandMark className="size-7 overflow-visible" />
+              <Wordmark className="text-[17px]" />
             </div>
             <p className="mt-3.5 text-sm text-text2">{m.footer.tagline}</p>
             <button className="mt-3.5 flex h-[34px] items-center gap-1.5 rounded-lg border border-line bg-fg/[0.04] px-3 text-sm transition-colors hover:border-fg/20">

@@ -90,8 +90,16 @@ describe('validateReadmeChunk', () => {
 })
 
 describe('ReadmeTranslateRunner', () => {
+  const target = (externalId: string, stars: number): ReadmeTarget => ({ sourceId: 'mcpso', kind: 'client', externalId, name: externalId, license: 'MIT', readme: README, readmeHash: 'h', stars })
+  type Memory = Map<string, { content: string; status: string; model: string | null; promptVersion: number; origin: string }>
+  const fakeMemory = (memory: Memory) => ({
+    lookupDetailed: async (hashes: string[], locale: string) => new Map(hashes.filter((h) => memory.has(`${h}:${locale}`)).map((h) => [h, memory.get(`${h}:${locale}`)!])),
+    saveSingle: async (source: { hash: string }, locale: string, content: string, problems: unknown[], meta: { model: string }) => {
+      memory.set(`${source.hash}:${locale}`, { content, status: problems.length ? 'review' : 'ok', model: meta.model, promptVersion: 1, origin: 'translated' })
+    },
+  })
+
   it('相同片段只翻一次；拼装后代码块原样保留；两种语言各存一篇', async () => {
-    const target = (externalId: string, stars: number): ReadmeTarget => ({ sourceId: 'mcpso', kind: 'client', externalId, name: externalId, license: 'MIT', readme: README, readmeHash: 'h', stars })
     const calls: string[] = []
     const translator = (model: string): ReadmeTranslator => ({
       provider: 'fake',
@@ -112,16 +120,10 @@ describe('ReadmeTranslateRunner', () => {
         return { text, usage: { requests: 1, inputTokens: 1, outputTokens: 1 } }
       },
     })
-    const memory = new Map<string, { content: string; status: string; model: string | null; promptVersion: number; origin: string }>()
     const saved: { key: string; content: string }[] = []
     const runner = new ReadmeTranslateRunner(
       { standard: translator('haiku'), premium: translator('sonnet'), premiumMinStars: 1000 },
-      {
-        lookupDetailed: async (hashes, locale) => new Map(hashes.filter((h) => memory.has(`${h}:${locale}`)).map((h) => [h, memory.get(`${h}:${locale}`)!])),
-        saveSingle: async (source, locale, content, problems, meta) => {
-          memory.set(`${source.hash}:${locale}`, { content, status: problems.length ? 'review' : 'ok', model: meta.model, promptVersion: 1, origin: 'translated' })
-        },
-      },
+      fakeMemory(new Map()),
       { existing: async () => new Map(), save: async (t, locale, data) => void saved.push({ key: `${t.externalId}:${locale}`, content: data.content }) },
       silent,
     )
@@ -135,5 +137,33 @@ describe('ReadmeTranslateRunner', () => {
     expect(saved.map((s) => s.key).sort()).toEqual(['a:ja', 'a:zh', 'b:ja', 'b:zh'])
     expect(saved[0]!.content).toContain('npm install -g demo')
     expect(saved[0]!.content).toContain('https://docs.example.com/guide')
+  })
+
+  it('热门档模型被限流（429）时改用普通档，并暂停热门档；译文记的是实际用的模型', async () => {
+    const calls: string[] = []
+    const fake = (model: string, fail?: boolean): ReadmeTranslator => ({
+      provider: 'fake',
+      model,
+      promptVersion: 1,
+      async translate(chunk, locale) {
+        calls.push(model)
+        if (fail) throw Object.assign(new Error('rate limited'), { status: 429 })
+        const prose = locale === 'zh' ? '这是一段译文内容。' : 'これは翻訳された文章です。'
+        const text = chunk
+          .split('\n')
+          .map((line) => (!line.trim() || line.includes('](') || line.includes('⟦') || line.startsWith('|') ? line : /^#{1,6}\s/.test(line) ? `## ${prose}` : prose))
+          .join('\n')
+        return { text, usage: { requests: 1, inputTokens: 1, outputTokens: 1 } }
+      },
+    })
+    const memory: Memory = new Map()
+    const runner = new ReadmeTranslateRunner({ standard: fake('mimo'), premium: fake('haiku', true), premiumMinStars: 1000 }, fakeMemory(memory), { existing: async () => new Map(), save: async () => {} }, silent)
+    const stats = await runner.run([target('hot', 5000)], { locales: ['zh'], concurrency: 1 })
+
+    // 第一次被拒后暂停热门档，后面的片段不再请求它
+    expect(calls.filter((c) => c === 'haiku')).toHaveLength(1)
+    expect(stats.premiumFallback).toBe(stats.work)
+    expect(stats.failed).toBe(0)
+    expect([...memory.values()].every((t) => t.model === 'mimo')).toBe(true)
   })
 })

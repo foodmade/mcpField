@@ -8,7 +8,7 @@ import type { OverviewStore } from './store.ts'
 import { overviewKey, type OverviewInput, type OverviewResult, type OverviewWriter } from './types.ts'
 import { validateOverview } from './validate.ts'
 
-/** 分页读取草稿并构造输入（README 用 GitHub 的）；README 不足的条目跳过 */
+/** 分页读取草稿并构造输入（README 用 GitHub 的）；README 不足的条目跳过。按星数从高到低排，热门条目先生成 */
 export async function collectOverviewInputs(db: Db, kinds: readonly EntityKind[], minStars = 0): Promise<{ inputs: OverviewInput[]; skipped: number }> {
   const inputs: OverviewInput[] = []
   let skipped = 0
@@ -17,6 +17,7 @@ export async function collectOverviewInputs(db: Db, kinds: readonly EntityKind[]
     if (!input || (input.stars ?? 0) < minStars) skipped++
     else inputs.push(input)
   }
+  inputs.sort((a, b) => (b.stars ?? -1) - (a.stars ?? -1))
   return { inputs, skipped }
 }
 

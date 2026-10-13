@@ -31,7 +31,7 @@ export type TranslateStats = Omit<BatchStats, 'total'> & { sources: number; pend
 export async function collectSources(db: Db, kinds: readonly EntityKind[], fields: readonly TextField[]): Promise<TranslationItem[]> {
   const [rows] = (await db.execute(sql`
     SELECT d.kind, JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.name')) AS name, t.content
-    FROM ingest_drafts d,
+    FROM ingest_published d,
          JSON_TABLE(d.draft, '$.texts[*]' COLUMNS (field VARCHAR(24) PATH '$.field', content LONGTEXT PATH '$.content')) t
     WHERE d.kind IN (${sql.join(kinds.map((k) => sql`${k}`), sql`, `)})
       AND t.field IN (${sql.join(fields.map((f) => sql`${f}`), sql`, `)})

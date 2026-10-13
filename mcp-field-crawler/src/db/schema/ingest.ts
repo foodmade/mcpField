@@ -1,4 +1,4 @@
-import { boolean, foreignKey, index, int, json, mediumtext, mysqlTable, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
+import { boolean, foreignKey, index, int, json, mediumtext, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
 import { entities } from './catalog.ts'
 import { at, kindCol, localeCol, pk, ref, sha256, sourceIdCol, timestamps } from './columns.ts'
 
@@ -10,6 +10,7 @@ import { at, kindCol, localeCol, pk, ref, sha256, sourceIdCol, timestamps } from
  *   ingest_records   源站原生结构的数据（JSON），解析器版本变化时可从原文重新解析
  *   ingest_drafts    统一结构的细粒度草稿（JSON），发布阶段据此写入目录表
  *   ingest_issues    数据质量问题，按 code 汇总排查
+ *   ingest_published 按身份键合并后的条目（每组一行），网站和各生成任务读这张表
  */
 
 const cascade = { onDelete: 'cascade' } as const
@@ -352,4 +353,49 @@ export const ingestGeneratedSteps = mysqlTable(
     ...timestamps(),
   },
   (t) => [uniqueIndex('uq_ingest_generated_steps').on(t.sourceId, t.kind, t.externalId, t.locale, t.position)],
+)
+
+/**
+ * 发布层：按身份键把各来源的草稿合并后，一组一行（mcp.so 与官方 Registry 收录的同一个服务只有一行）。
+ * draft 是合并后的草稿，结构与 ingest_drafts.draft 相同；source_id / external_id 是主条目的，
+ * 翻译、AI 介绍、README 译文都按它们关联。网站和各生成任务读这张表；每次 publish 整体重建。
+ * 以后的正式目录表（entities 等）从这里写入。
+ */
+export const ingestPublished = mysqlTable(
+  'ingest_published',
+  {
+    id: pk(),
+    kind: kindCol(),
+    /** 网站上的地址（/servers/<slug>），同类型内唯一；重建时沿用上一次的 */
+    slug: varchar('slug', { length: 191 }).notNull(),
+    identityKey: varchar('identity_key', { length: 255 }).notNull(),
+    /** 主条目的源记录（抓取时间取它的） */
+    recordId: ref('record_id').notNull().references(() => ingestRecords.id, cascade),
+    sourceId: sourceRef(),
+    externalId: varchar('external_id', { length: 255 }).notNull(),
+    /** 合并进来的来源，逗号分隔，如 mcp-registry,mcpso */
+    sources: varchar('sources', { length: 255 }).notNull(),
+    memberCount: smallint('member_count', { unsigned: true }).notNull(),
+    draftHash: sha256('draft_hash').notNull(),
+    draft: json('draft').notNull(),
+    /** 成员草稿里最新的映射时间 */
+    mappedAt: at('mapped_at').notNull(),
+    publishedAt: at('published_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uq_ingest_published_slug').on(t.kind, t.slug),
+    uniqueIndex('uq_ingest_published_identity').on(t.kind, t.identityKey),
+    uniqueIndex('uq_ingest_published_primary').on(t.sourceId, t.kind, t.externalId),
+  ],
+)
+
+/** 地址 → 发布条目：除了自己的 slug，还有被合并进来的成员原来的地址（mcp.so 的重复条目），旧链接也能打开 */
+export const ingestPublishedSlugs = mysqlTable(
+  'ingest_published_slugs',
+  {
+    kind: kindCol(),
+    slug: varchar('slug', { length: 191 }).notNull(),
+    publishedId: ref('published_id').notNull().references(() => ingestPublished.id, cascade),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.slug] }), index('ix_ingest_published_slugs_published').on(t.publishedId)],
 )

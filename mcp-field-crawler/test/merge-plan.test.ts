@@ -6,7 +6,7 @@ import { planMerge, type MergeItem } from '../src/merge/plan.ts'
 
 let nextId = 1
 function item(externalId: string, identity: IdentityHints, kind: EntityKind = 'server', sourceId = 'mcpso'): MergeItem {
-  return { draftId: nextId++, sourceId, kind, externalId, name: externalId, identity }
+  return { draftId: nextId++, sourceId, kind, externalId, slug: externalId, name: externalId, identity }
 }
 const repo = (path: string) => parseRepositoryUrl(`https://github.com/${path}`)
 const membersOf = (plan: ReturnType<typeof planMerge>) => plan.groups.map((g) => g.members.map((m) => m.externalId).sort()).sort()

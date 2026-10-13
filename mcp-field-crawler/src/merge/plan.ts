@@ -18,6 +18,7 @@ export interface MergeItem {
   sourceId: string
   kind: EntityKind
   externalId: string
+  slug: string
   name: string
   identity: IdentityHints
 }
@@ -26,6 +27,7 @@ export interface MergeMember {
   draftId: number
   sourceId: string
   externalId: string
+  slug: string
   name: string
 }
 
@@ -202,7 +204,7 @@ function planKind(kind: EntityKind, items: MergeItem[]): Omit<MergePlan, 'relate
     result.push({
       kind,
       key,
-      members: members.map(({ item }) => ({ draftId: item.draftId, sourceId: item.sourceId, externalId: item.externalId, name: item.name })),
+      members: members.map(({ item }) => ({ draftId: item.draftId, sourceId: item.sourceId, externalId: item.externalId, slug: item.slug, name: item.name })),
       keys: [...new Set(all.filter((k) => k.strong).map((k) => k.key))],
       weakKeys: [...new Set(all.filter((k) => !k.strong).map((k) => k.key))],
       sources: [...new Set(members.map((m) => m.item.sourceId))],

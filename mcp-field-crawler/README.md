@@ -25,6 +25,7 @@ npm run crawler -- crawl --source mcpso --since 2026-10-01   # 只抓近期更�
 npm run crawler -- crawl --source mcpso --store file         # 不写数据库，输出到 data/runs
 npm run crawler -- stats                                     # 采集层统计
 npm run crawler -- merge-plan                                # 合并预演：哪些草稿是同一个东西（只读，报告在 data/merge-plan）
+npm run crawler -- publish                                   # 发布：过滤凑数条目、合并各来源，重建 ingest_published（网站和各生成任务读它）
 npm run crawler -- remap --source mcpso --kind client        # 改了映射规则后重建草稿（不发网络请求）
 npm run crawler -- github                                    # 从 GitHub 更新星数、最近提交时间，并抓取 README（Skill 取 SKILL.md，增量）
 npm run crawler -- translate --kind client                   # 把简介翻译成中英日三语

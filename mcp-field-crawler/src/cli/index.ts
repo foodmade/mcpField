@@ -34,6 +34,7 @@ import { AssetMirror, collectMediaUrls } from '../assets/mirror.ts'
 import { LocalStorage, R2Storage } from '../assets/storage.ts'
 import { AssetStore } from '../assets/store.ts'
 import { runMergePlan } from '../merge/runner.ts'
+import { publish } from '../merge/publish.ts'
 import type { MediaType } from '../core/draft.ts'
 import { join } from 'node:path'
 import type { TextField } from '../core/draft.ts'
@@ -58,6 +59,7 @@ MCP Field 数据采集
   assets                  把图标等图片转存到 Cloudflare R2（转成 WebP），数据库只记录链接
   describe                为没有 README 的 Loop / CLI / Agent 撰写我们自己的三语内容
   merge-plan              合并预演：按身份键算出哪些草稿是同一个东西，只读，报告写到 data/merge-plan
+  publish                 发布：过滤凑数条目，把各来源的同一个东西合并成一条，重建 ingest_published（网站和各生成任务读它）
   stats                   查看采集层统计（需要 MySQL）
 
 选项：
@@ -477,6 +479,18 @@ function llmConfig(provider: LlmProvider): LlmConfig {
 /** 翻译（简介、README）用的模型服务：TRANSLATE_PROVIDER、TRANSLATE_REASONING_EFFORT */
 const translateLlm = (): LlmConfig => ({ ...llmConfig(config.translateProvider), reasoningEffort: config.translateReasoningEffort })
 
+async function publishCommand() {
+  if (!config.databaseUrl) throw new Error('publish 需要 DATABASE_URL')
+  const kinds = parseKinds(values.kind, ENTITY_KINDS)
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const stats = await publish(db, kinds, logger)
+    logger.info(stats, '发布完成')
+  } finally {
+    await pool.end()
+  }
+}
+
 async function stats() {
   if (!config.databaseUrl) throw new Error('stats 需要 DATABASE_URL')
   const { db, pool } = createDb(config.databaseUrl)
@@ -520,6 +534,8 @@ async function main() {
       return describe()
     case 'merge-plan':
       return mergePlan()
+    case 'publish':
+      return publishCommand()
     case 'stats':
       return stats()
     default:

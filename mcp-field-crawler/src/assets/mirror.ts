@@ -8,11 +8,11 @@ import { AssetError, download, storageKey, toWebp, type ProcessedImage } from '.
 import type { AssetStorage } from './storage.ts'
 import type { AssetState, AssetStore } from './store.ts'
 
-/** 从草稿里收集要转存的图片地址（去重）；sourceId 只取该数据源的草稿 */
+/** 从发布层收集要转存的图片地址（去重）；sourceId 只取主条目来自该数据源的 */
 export async function collectMediaUrls(db: Db, kinds: readonly EntityKind[], types: readonly MediaType[], sourceId?: string): Promise<{ url: string; type: MediaType }[]> {
   const [rows] = (await db.execute(sql`
     SELECT DISTINCT m.url, m.type
-    FROM ingest_drafts d,
+    FROM ingest_published d,
          JSON_TABLE(d.draft, '$.media[*]' COLUMNS (type VARCHAR(16) PATH '$.type', url VARCHAR(2048) PATH '$.url')) m
     WHERE d.kind IN (${sql.join(kinds.map((k) => sql`${k}`), sql`, `)})
       AND m.type IN (${sql.join(types.map((t) => sql`${t}`), sql`, `)})

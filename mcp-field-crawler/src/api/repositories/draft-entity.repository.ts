@@ -6,7 +6,7 @@ import type { MetricName } from '../../core/draft.ts'
 import type { ListQuery, Scope } from '../http/query.ts'
 import type { CategoryCount, EntityReadRepository, EntityRow, SitemapEntry, TypeCount, ViewCounts } from './types.ts'
 
-/* 从草稿 JSON 中取值的 SQL 片段（d 为 ingest_drafts 的别名） */
+/* 从草稿 JSON 中取值的 SQL 片段（d 为 ingest_published 的别名） */
 const NAME = sql`JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.name'))`
 const metric = (name: MetricName) =>
   sql`(SELECT m.value FROM JSON_TABLE(d.draft, '$.metrics[*]' COLUMNS (metric VARCHAR(32) PATH '$.metric', value BIGINT PATH '$.value')) m WHERE m.metric = ${name} LIMIT 1)`
@@ -33,7 +33,7 @@ const LAST_COMMIT = sql`COALESCE(CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(g.data, '
  * 排序键：先在派生表 k 里取成小字段再排序。直接对带草稿 JSON 的行排序时，
  * MySQL 会把整行（含几百 KB 的草稿）放进排序缓冲区，超出 sort_buffer_size 而报错。
  */
-const sortKeys = (popularMetric: MetricName) => sql`d.id, d.external_id,
+const sortKeys = (popularMetric: MetricName) => sql`d.id, d.slug,
   ${textAt('$.name', 255)} AS name,
   ${popularMetric === 'github_stars' ? STARS : metric(popularMetric)} AS popularity, ${STARS} AS stars, ${metric('skill_installs')} AS installs,
   ${LAST_COMMIT} AS last_commit, ${textAt('$.sourceCreatedAt', 40)} AS created,
@@ -41,12 +41,12 @@ const sortKeys = (popularMetric: MetricName) => sql`d.id, d.external_id,
 
 const ORDER_BY: Record<ListQuery['sort'], SQL> = {
   // 热度相同（包括都没有热度指标，例如 Agent）时精选排在前面
-  popular: sql`k.popularity IS NULL, k.popularity DESC, k.featured DESC, k.external_id`,
-  stars: sql`k.stars IS NULL, k.stars DESC, k.external_id`,
-  installs: sql`k.installs IS NULL, k.installs DESC, k.external_id`,
-  name: sql`LOWER(k.name), k.external_id`,
-  updated: sql`k.last_commit IS NULL, k.last_commit DESC, k.external_id`,
-  newest: sql`k.created IS NULL, k.created DESC, k.external_id`,
+  popular: sql`k.popularity IS NULL, k.popularity DESC, k.featured DESC, k.slug`,
+  stars: sql`k.stars IS NULL, k.stars DESC, k.slug`,
+  installs: sql`k.installs IS NULL, k.installs DESC, k.slug`,
+  name: sql`LOWER(k.name), k.slug`,
+  updated: sql`k.last_commit IS NULL, k.last_commit DESC, k.slug`,
+  newest: sql`k.created IS NULL, k.created DESC, k.slug`,
 }
 
 function escapeLike(value: string): string {
@@ -70,6 +70,7 @@ interface RawRow {
 }
 
 export interface DraftRepositoryOptions {
+  /** 只要主条目来自这个数据源的；默认全部 */
   sourceId?: string
   /** sort=popular 使用的指标 */
   popularMetric?: MetricName
@@ -77,9 +78,9 @@ export interface DraftRepositoryOptions {
   typePath?: string
 }
 
-/** 基于 ingest_drafts 的只读仓储，按实体类型和数据源过滤 */
+/** 基于发布层 ingest_published 的只读仓储（各来源合并后、一组一行），按实体类型过滤 */
 export class DraftEntityRepository<K extends EntityKind> implements EntityReadRepository<K> {
-  private readonly sourceId: string
+  private readonly sourceId: string | undefined
   private readonly popularMetric: MetricName
   private readonly typePath: string | undefined
 
@@ -88,14 +89,15 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     private readonly kind: K,
     options: DraftRepositoryOptions = {},
   ) {
-    this.sourceId = options.sourceId ?? 'mcpso'
+    this.sourceId = options.sourceId
     this.popularMetric = options.popularMetric ?? 'github_stars'
     this.typePath = options.typePath
   }
 
   /** 类型、数据源和统计范围（远程服务）条件 */
   private base(scope: Scope = {}): SQL[] {
-    const conditions: SQL[] = [sql`d.kind = ${this.kind}`, sql`d.source_id = ${this.sourceId}`]
+    const conditions: SQL[] = [sql`d.kind = ${this.kind}`]
+    if (this.sourceId) conditions.push(sql`d.source_id = ${this.sourceId}`)
     if (scope.remote !== undefined) conditions.push(flag('$.detail.isRemote', scope.remote))
     return conditions
   }
@@ -117,7 +119,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
       const translated = sql`EXISTS (SELECT 1 FROM ingest_translations tr WHERE tr.source_hash = SHA2(TRIM(REGEXP_REPLACE(${TAGLINE}, '[[:space:]]+', ' ')), 256) AND LOWER(tr.content) LIKE ${like})`
       // 我们自己撰写的简介（Loop / CLI / Agent）也参与搜索
       const generated = sql`EXISTS (SELECT 1 FROM ingest_generated_texts g WHERE g.source_id = d.source_id AND g.kind = d.kind AND g.external_id = d.external_id AND g.field = 'tagline' AND LOWER(g.content) LIKE ${like})`
-      conditions.push(sql`(LOWER(${NAME}) LIKE ${like} OR d.external_id LIKE ${like} OR LOWER(${TAGLINE}) LIKE ${like} OR ${translated} OR ${generated})`)
+      conditions.push(sql`(LOWER(${NAME}) LIKE ${like} OR d.slug LIKE ${like} OR LOWER(${TAGLINE}) LIKE ${like} OR ${translated} OR ${generated})`)
     }
     if (query.category === 'none') {
       conditions.push(sql`(${PRIMARY_CATEGORY} IS NULL OR JSON_TYPE(${PRIMARY_CATEGORY}) = 'NULL')`)
@@ -138,15 +140,15 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     const [ids, [count]] = await Promise.all([
       this.rows<{ id: number }>(sql`
         SELECT /*+ NO_MERGE(k) */ k.id
-        FROM (SELECT ${sortKeys(this.popularMetric)} FROM ingest_drafts d ${REPO_STATS} WHERE ${where}) k
+        FROM (SELECT ${sortKeys(this.popularMetric)} FROM ingest_published d ${REPO_STATS} WHERE ${where}) k
         ORDER BY ${ORDER_BY[query.sort]}
         LIMIT ${query.pageSize} OFFSET ${offset}`),
-      this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_drafts d WHERE ${where}`),
+      this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_published d WHERE ${where}`),
     ])
     if (ids.length === 0) return { rows: [], total: Number(count?.total ?? 0) }
     const rows = await this.rows<RawRow & { id: number }>(sql`
       SELECT d.id, ${LIST_DRAFT} AS draft, r.fetched_at, d.mapped_at
-      FROM ingest_drafts d JOIN ingest_records r ON r.id = d.record_id
+      FROM ingest_published d JOIN ingest_records r ON r.id = d.record_id
       WHERE d.id IN (${sql.join(ids.map((r) => sql`${r.id}`), sql`, `)})`)
     const byId = new Map(rows.map((r) => [Number(r.id), r]))
     return {
@@ -159,10 +161,13 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   }
 
   async findBySlug(slug: string): Promise<EntityRow<K> | null> {
+    // 除了条目自己的地址，被合并进来的重复条目原来的地址也能找到它
     const [row] = await this.rows<RawRow>(sql`
       SELECT d.draft, r.fetched_at, d.mapped_at
-      FROM ingest_drafts d JOIN ingest_records r ON r.id = d.record_id
-      WHERE d.kind = ${this.kind} AND d.source_id = ${this.sourceId} AND d.external_id = ${slug}
+      FROM ingest_published_slugs s
+      JOIN ingest_published d ON d.id = s.published_id
+      JOIN ingest_records r ON r.id = d.record_id
+      WHERE s.kind = ${this.kind} AND s.slug = ${slug}
       LIMIT 1`)
     return row ? this.toEntityRow(row) : null
   }
@@ -172,7 +177,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
       SELECT SUM(JSON_EXTRACT(d.draft, '$.flags.official') = TRUE) AS official,
              SUM(JSON_EXTRACT(d.draft, '$.flags.featured') = TRUE) AS featured,
              SUM(JSON_EXTRACT(d.draft, '$.flags.verified') = TRUE) AS verified
-      FROM ingest_drafts d
+      FROM ingest_published d
       WHERE ${sql.join(this.base(scope), sql` AND `)}`)
     return { official: Number(row?.official ?? 0), featured: Number(row?.featured ?? 0), verified: Number(row?.verified ?? 0) }
   }
@@ -184,9 +189,9 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
       this.rows<{ slug: string; updated_at: string | null }>(sql`
         SELECT JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.slug')) AS slug,
                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.sourceUpdatedAt')), JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.lastCommitAt'))) AS updated_at
-        FROM (SELECT d.id FROM ingest_drafts d WHERE ${where} ORDER BY d.external_id LIMIT ${limit} OFFSET ${offset}) page
-        JOIN ingest_drafts d ON d.id = page.id`),
-      this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_drafts d WHERE ${where}`),
+        FROM (SELECT d.id FROM ingest_published d WHERE ${where} ORDER BY d.slug LIMIT ${limit} OFFSET ${offset}) page
+        JOIN ingest_published d ON d.id = page.id`),
+      this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_published d WHERE ${where}`),
     ])
     return {
       rows: rows
@@ -200,7 +205,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     if (!this.typePath) return []
     const rows = await this.rows<{ value: string; count: number | string }>(sql`
       SELECT JSON_UNQUOTE(JSON_EXTRACT(d.draft, ${this.typePath})) AS value, COUNT(*) AS count
-      FROM ingest_drafts d
+      FROM ingest_published d
       WHERE ${sql.join(this.base(scope), sql` AND `)} AND JSON_TYPE(JSON_EXTRACT(d.draft, ${this.typePath})) = 'STRING'
       GROUP BY value
       ORDER BY count DESC`)
@@ -208,12 +213,16 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   }
 
   async categoryCounts(scope?: Scope): Promise<CategoryCount[]> {
+    const where = sql.join(this.base(scope), sql` AND `)
+    // 来源没有给分类的条目（官方 Registry 的都没有）算作 slug 为空，和"其他"一起统计
     const rows = await this.rows<{ slug: string | null; source_value: string; count: number | string }>(sql`
       SELECT c.slug, c.source_value, COUNT(*) AS count
-      FROM ingest_drafts d,
+      FROM ingest_published d,
            JSON_TABLE(d.draft, '$.categories[*]' COLUMNS (slug VARCHAR(64) PATH '$.slug', source_value VARCHAR(128) PATH '$.sourceValue', is_primary JSON PATH '$.primary')) c
-      WHERE ${sql.join(this.base(scope), sql` AND `)} AND c.is_primary = TRUE
+      WHERE ${where} AND c.is_primary = TRUE
       GROUP BY c.slug, c.source_value
+      UNION ALL
+      SELECT NULL, '', COUNT(*) FROM ingest_published d WHERE ${where} AND JSON_LENGTH(JSON_EXTRACT(d.draft, '$.categories')) = 0 HAVING COUNT(*) > 0
       ORDER BY count DESC`)
     return rows.map((r) => ({ slug: r.slug === 'null' ? null : r.slug, sourceValue: r.source_value, count: Number(r.count) }))
   }

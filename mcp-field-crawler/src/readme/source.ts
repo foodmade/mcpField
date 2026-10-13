@@ -2,7 +2,7 @@ import { and, asc, gt, inArray } from 'drizzle-orm'
 import type { EntityDraft, TextFormat } from '../core/draft.ts'
 import type { EntityKind } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
-import { ingestDrafts } from '../db/schema/index.ts'
+import { ingestPublished } from '../db/schema/index.ts'
 import { readmeSubject, type GithubReadme } from '../github/readme.ts'
 import { repoRef } from '../github/repo.ts'
 import { GithubReadmeStore, GithubRepoStore, type GithubReadmeReader, type GithubRepoReader } from '../github/store.ts'
@@ -27,7 +27,7 @@ export function resolveReadme(github: GithubReadme | undefined): ResolvedReadme 
 }
 
 /**
- * 分页读取草稿，附上该条目的 GitHub README 和星数（GitHub 的优先，没有时用源站的；
+ * 分页读取发布层的条目（合并后、已过滤凑数的），附上该条目的 GitHub README 和星数（GitHub 的优先，没有时用源站的；
  * 用于 --min-stars 筛选和热门模型分档，CLI 等源站没有星数的条目也能按热度处理）
  */
 export async function* draftsWithReadme(
@@ -38,10 +38,10 @@ export async function* draftsWithReadme(
   let lastId = 0
   for (;;) {
     const rows = await db
-      .select({ id: ingestDrafts.id, draft: ingestDrafts.draft })
-      .from(ingestDrafts)
-      .where(and(inArray(ingestDrafts.kind, [...kinds]), gt(ingestDrafts.id, lastId)))
-      .orderBy(asc(ingestDrafts.id))
+      .select({ id: ingestPublished.id, draft: ingestPublished.draft })
+      .from(ingestPublished)
+      .where(and(inArray(ingestPublished.kind, [...kinds]), gt(ingestPublished.id, lastId)))
+      .orderBy(asc(ingestPublished.id))
       .limit(200)
     if (rows.length === 0) return
     const drafts = rows.map((r) => r.draft as EntityDraft)

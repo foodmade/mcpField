@@ -210,6 +210,11 @@ export interface CliDetailDraft {
 export interface SkillAuditDraft {
   auditor: string
   result: 'pass' | 'fail' | 'warn' | 'unknown'
+  /** 以下来自 skills.sh 的审计接口：风险等级（SAFE / LOW / MEDIUM / HIGH / CRITICAL）、结论摘要、涉及的行为类别、审计时间 */
+  riskLevel?: string
+  summary?: string
+  categories?: string[]
+  auditedAt?: string
 }
 
 export interface SkillDetailDraft {
@@ -218,6 +223,8 @@ export interface SkillDetailDraft {
   installCommand?: string
   firstSeenOn?: string
   audits: SkillAuditDraft[]
+  /** SKILL.md 以外随 Skill 分发的文件路径（references/、scripts/ ……） */
+  files?: string[]
 }
 
 export interface LoopStepDraft {

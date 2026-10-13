@@ -5,7 +5,7 @@ import type { EntityDraft } from '../core/draft.ts'
 import type { Logger } from '../core/logger.ts'
 import type { EntityKind } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
-import { ingestDrafts } from '../db/schema/index.ts'
+import { ingestPublished } from '../db/schema/index.ts'
 import { readmeSubject, type GithubReadmeFetcher, type ReadmeSubject } from './readme.ts'
 import { repoRef, type GithubRepoFetcher, type RepoRef } from './repo.ts'
 import type { GithubReadmeStore, GithubRepoStore, ReadmeFetchState } from './store.ts'
@@ -31,10 +31,10 @@ export async function collectGithubTargets(db: Db, kinds: readonly EntityKind[])
   let lastId = 0
   for (;;) {
     const rows = await db
-      .select({ id: ingestDrafts.id, draft: ingestDrafts.draft })
-      .from(ingestDrafts)
-      .where(and(inArray(ingestDrafts.kind, [...kinds]), gt(ingestDrafts.id, lastId)))
-      .orderBy(asc(ingestDrafts.id))
+      .select({ id: ingestPublished.id, draft: ingestPublished.draft })
+      .from(ingestPublished)
+      .where(and(inArray(ingestPublished.kind, [...kinds]), gt(ingestPublished.id, lastId)))
+      .orderBy(asc(ingestPublished.id))
       .limit(200)
     if (rows.length === 0) break
     for (const row of rows) {

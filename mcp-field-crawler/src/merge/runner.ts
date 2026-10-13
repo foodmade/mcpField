@@ -19,6 +19,7 @@ export async function collectMergeItems(db: Db, kinds: readonly EntityKind[]): P
         kind: ingestDrafts.kind,
         externalId: ingestDrafts.externalId,
         name: sql<string>`JSON_UNQUOTE(JSON_EXTRACT(${ingestDrafts.draft}, '$.name'))`,
+        slug: sql<string>`JSON_UNQUOTE(JSON_EXTRACT(${ingestDrafts.draft}, '$.slug'))`,
         identity: sql<IdentityHints | null>`JSON_EXTRACT(${ingestDrafts.draft}, '$.identity')`,
       })
       .from(ingestDrafts)
@@ -28,7 +29,7 @@ export async function collectMergeItems(db: Db, kinds: readonly EntityKind[]): P
     if (rows.length === 0) break
     for (const row of rows) {
       const identity = typeof row.identity === 'string' ? (JSON.parse(row.identity) as IdentityHints) : (row.identity ?? {})
-      items.push({ draftId: row.id, sourceId: row.sourceId, kind: row.kind as EntityKind, externalId: row.externalId, name: row.name ?? row.externalId, identity })
+      items.push({ draftId: row.id, sourceId: row.sourceId, kind: row.kind as EntityKind, externalId: row.externalId, slug: row.slug ?? row.externalId, name: row.name ?? row.externalId, identity })
     }
     lastId = rows.at(-1)!.id
   }

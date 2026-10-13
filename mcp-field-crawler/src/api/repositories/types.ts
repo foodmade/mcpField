@@ -35,7 +35,7 @@ export interface ViewCounts {
 
 /**
  * 实体读取仓储（仓储模式）：业务层只依赖这个接口。
- * 现阶段由 DraftEntityRepository 从 ingest_drafts 读取；目录表发布后换成读取 entities 等表的实现，
+ * 现阶段由 DraftEntityRepository 从发布层 ingest_published 读取（各来源合并后的草稿）；正式目录表发布后换成读取 entities 等表的实现，
  * service 和路由不用改。
  */
 export interface EntityReadRepository<K extends EntityKind> {

@@ -27,7 +27,7 @@
 | 解析 | HTML → 源站原生结构 `ingest_records` | ✅ 已实现（mcp.so 内嵌数据沙箱解析） |
 | 映射 | 源记录 → 统一结构的细粒度草稿 `ingest_drafts` + 问题 `ingest_issues` | ✅ 已实现（mcp.so 六种类型） |
 | 补全 | GitHub / npm / PyPI / 实时探测 → `ingest_enrichments` | 🚧 已实现 GitHub README（见 13 节），其余下一阶段 |
-| 合并发布 | 多来源草稿按身份键合并 → 目录表 | ⏳ 下一阶段 |
+| 合并发布 | 多来源草稿按身份键合并 → 发布层 `ingest_published`（以后再写目录表） | 🚧 第一版已实现发布层（见第 6 节），目录表下一阶段 |
 | 生成 | LLM 生成中英日简介、介绍 → `entity_texts` | ⏳ 下一阶段 |
 
 ## 3. 设计模式
@@ -179,7 +179,12 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
   - 有条目指向子目录的仓库是 monorepo，它的根目录键不用于合并。
   - 弱键只提示可能重复，不自动合并。
   - 合并组的身份键只从本组独有的强键里选；没有时用 `source:来源/类型/ID`，保证同一类型内唯一。
-- 合并时按字段设来源优先级（下一阶段实现），例如：星数 GitHub > mcp.so；安装方式 官方 Registry > npm > README；简介 我们生成 > 上游仓库描述。
+- 发布（`merge/publish.ts`，`npm run crawler -- publish`）：按上面的规则分组，每组合并成一份草稿写入发布层 `ingest_published`（一组一行），网站 API 和 github / translate / overview / readme / assets 都读这张表，不再直接读 `ingest_drafts`。每次整体重建（一个事务里先删后写，约 15 秒）。
+  - 过滤：同一仓库目录（完整仓库键，含子目录）登记超过 20 条的服务判定为批量凑数，不发布（2026-10 官方 Registry 有 17 个仓库、约 3,300 条，如一个仓库登记了 2,332 个"上海当前时间""英制杯换算毫升"）。
+  - 主条目：有 mcp.so 的用 mcp.so（沿用已有地址和已生成的翻译、介绍）；同来源多条时不带随机后缀、slug 短的优先。发布条目的 `source_id` / `external_id` 是主条目的，生成内容都按它关联。
+  - 字段取舍（`merge/merge-drafts.ts`）：名称、简介、分类、标签、图标、作者按 mcp.so > Registry；安装包、远程端点、环境变量整组取自 Registry（发布者自己登记的；mcp.so 的配置可能被换成代理）；工具列表取最多的；仓库取最具体的（带子目录的）；指标取最大值；创建时间取最早、更新时间取最晚。源站收录的 README 文本不进入发布层（只用 GitHub 原文）。
+  - 名称修正：映射时标为可疑、与仓库所有者和仓库名没有共同词，且是 README 小节标题（"Introduction""License"）、作者名或重复词（"Slack Slack"）的，换成其他来源的名称，没有时用仓库名。填成人名的（microsoft/vscode 叫"Geng"）规则分不出来，留给人工修正。
+  - 地址：同类型内唯一；上一次发布过的沿用（按身份键，其次按主条目），新条目用主条目的 slug，mcp.so 的先分配，重名加 -2、-3。被合并进来的成员原来的地址记在 `ingest_published_slugs`，旧链接也能打开。
 
 ## 7. mcp.so 数据源
 

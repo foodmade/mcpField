@@ -35,6 +35,9 @@ import { LocalStorage, R2Storage } from '../assets/storage.ts'
 import { AssetStore } from '../assets/store.ts'
 import { runMergePlan } from '../merge/runner.ts'
 import { publish } from '../merge/publish.ts'
+import { LlmClassifier } from '../classify/classifier.ts'
+import { ClassifyRunner, collectClassifyInputs } from '../classify/runner.ts'
+import { ClassificationStore } from '../classify/store.ts'
 import type { MediaType } from '../core/draft.ts'
 import { join } from 'node:path'
 import type { TextField } from '../core/draft.ts'
@@ -59,6 +62,7 @@ MCP Field 数据采集
   assets                  把图标等图片转存到 Cloudflare R2（转成 WebP），数据库只记录链接
   describe                为没有 README 的 Loop / CLI / Agent 撰写我们自己的三语内容
   merge-plan              合并预演：按身份键算出哪些草稿是同一个东西，只读，报告写到 data/merge-plan
+  classify                给来源没有分类的条目分类（按 classify/taxonomy.ts 的分类体系），之后 publish 写入发布层
   publish                 发布：过滤凑数条目，把各来源的同一个东西合并成一条，重建 ingest_published（网站和各生成任务读它）
   stats                   查看采集层统计（需要 MySQL）
 
@@ -114,6 +118,15 @@ describe 选项：
   --concurrency <n>       并发请求数，默认 4
   --stale / --force       重新生成旧版提示词的结果 / 全部重新生成
 
+classify 选项：
+  --kind <a,b>            要分类的类型，默认全部
+  --limit <n>             最多分类 n 条（试跑用）
+  --all                   连来源已经有分类的也分类（用来和源站分类对比评估；发布时仍以来源的为准）
+  --model <id>            模型，默认 CLASSIFY_MODEL（claude-opus-5-5）；CLASSIFY_PROVIDER=openai 时走 OpenAI 兼容接口
+  --batch <n>             每次请求的条数，默认 25
+  --concurrency <n>       并发请求数，默认 4（代理网关有每用户并发上限，和其他任务共用）
+  --force                 忽略已有结果全部重新分类
+
 assets 选项：
   --kind <a,b>            要处理的类型，默认全部
   --media <icon,screenshot>  图片类型，默认 icon
@@ -147,6 +160,7 @@ const { positionals, values } = parseArgs({
     'licensed-only': { type: 'boolean', default: false },
     media: { type: 'string' },
     'retry-all': { type: 'boolean', default: false },
+    all: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
 })
@@ -479,6 +493,32 @@ function llmConfig(provider: LlmProvider): LlmConfig {
 /** 翻译（简介、README）用的模型服务：TRANSLATE_PROVIDER、TRANSLATE_REASONING_EFFORT */
 const translateLlm = (): LlmConfig => ({ ...llmConfig(config.translateProvider), reasoningEffort: config.translateReasoningEffort })
 
+async function classify() {
+  if (!config.databaseUrl) throw new Error('classify 需要 DATABASE_URL')
+  const kinds = parseKinds(values.kind, ENTITY_KINDS)
+  const controller = new AbortController()
+  process.once('SIGINT', () => {
+    logger.warn('收到中断信号，等待进行中的请求完成后退出……')
+    controller.abort()
+  })
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const classifier = new LlmClassifier({ ...llmConfig(config.classifyProvider), model: values.model ?? config.classifyModel })
+    const inputs = await collectClassifyInputs(db, kinds, { all: values.all })
+    const stats = await new ClassifyRunner(classifier, new ClassificationStore(db), logger).run(inputs, {
+      limit: values.limit ? Number(values.limit) : undefined,
+      force: values.force,
+      batchSize: values.batch ? Number(values.batch) : 25,
+      maxBatchChars: 40_000,
+      concurrency: values.concurrency ? Number(values.concurrency) : 4,
+      signal: controller.signal,
+    })
+    logger.info(stats, '分类完成（运行 publish 后在网站上生效）')
+  } finally {
+    await pool.end()
+  }
+}
+
 async function publishCommand() {
   if (!config.databaseUrl) throw new Error('publish 需要 DATABASE_URL')
   const kinds = parseKinds(values.kind, ENTITY_KINDS)
@@ -534,6 +574,8 @@ async function main() {
       return describe()
     case 'merge-plan':
       return mergePlan()
+    case 'classify':
+      return classify()
     case 'publish':
       return publishCommand()
     case 'stats':

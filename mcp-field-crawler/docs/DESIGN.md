@@ -70,7 +70,7 @@ src/
 ├── db/schema/              表结构：catalog.ts（目录层）、ingest.ts（采集层）
 ├── merge/                  合并预演：哪些草稿是同一个东西（见第 6 节）
 ├── sources/mcpso/          mcp.so 数据源：URL 规则、字段校验、解析、映射、分类映射
-└── sources/mcp-registry/   官方 MCP Registry 数据源：列表发现、server.json 解析与映射（见第 14 节）
+└── sources/mcp-registry/   官方 MCP Registry 数据源：列表发现、server.json 解析与映射（见第 15 节）
 ```
 
 ## 5. 数据库设计
@@ -293,7 +293,16 @@ README 只用 GitHub 上的原文。mcp.so 收录的 README（`item.description`
 - 读取：`readme/source.ts` 按条目查 GitHub README，接口详情、README 翻译、AI 介绍共用；接口返回 `readme.baseUrl`（README 所在目录，前端据此解析相对链接）。没抓到的条目没有 README。
 - Loop / CLI / Agent 的介绍由 `describe` 撰写，`overview` 不处理这三类，避免覆盖。
 
-## 14. 官方 MCP Registry 数据源
+## 14. 分类器
+
+- 分类体系：`classify/taxonomy.ts`，每个类型的分类 slug + 判定说明（给模型和人工复核共用），带 `TAXONOMY_VERSION`；网站 `mcp-field/src/lib/categories.ts` 只负责名称、图标、颜色，`test/classify.test.ts` 核对两边 slug 一致。MCP 服务在 mcp.so 原有 14 个分类之外新增 8 个：security、legal-gov、business、social、travel、health、entertainment、science。
+- 范围：来源没有给出可用分类的条目（官方 Registry 全部、mcp.so 的 "Other"）；`--all` 连已有分类的也分，只用于评估。
+- 输入：名称、英文简介、标签、工具名、安装包名、仓库、源站分类原值、GitHub README 开头 1,200 字。输出：主分类（只能选分类体系里的 slug 或 other）、最多 2 个次分类、把握程度 0–100（< 50 标记 review）。
+- 模型：Opus 5.5（`CLASSIFY_MODEL`）。2026-10 在 200 条样本上与 Haiku 5.5 对比，两者速度相同，分歧时 Opus 更贴合判定说明。每批 25 条，结构化输出走工具调用。
+- 增量：输入指纹（含分类体系版本）或提示词版本变化才重新分类；结果在 `ingest_classifications`。
+- 生效：`publish` 时把结果写进发布层草稿的 categories（sourceValue 为 `classifier`，与来源给的分类区分）；来源已有的分类不覆盖，主分类为 other 的保持没有分类。
+
+## 15. 官方 MCP Registry 数据源
 
 数据源 ID `mcp-registry`，只有 MCP 服务一种类型。`npm run crawler -- crawl --source mcp-registry`。
 

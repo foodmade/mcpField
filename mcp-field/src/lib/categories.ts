@@ -1,15 +1,15 @@
 import {
-  BookOpen, Brain, Browser, ChartBar, ChartLineUp, ChatsCircle, CheckCircle, CheckSquare, Cloud, Code, Database, Desktop, DotsThreeCircle,
-  Briefcase, FileDoc, FilmStrip, Flask, FlowArrow, Folder, FrameCorners, GitBranch, GlobeSimple, MagnifyingGlass, Megaphone, Package, Palette, Robot,
-  ShieldCheck, Stack, TestTube, UserCircle, type Icon,
+  Atom, BookOpen, Brain, Browser, ChartBar, ChartLineUp, ChatsCircle, CheckCircle, CheckSquare, Cloud, Code, Database, Desktop, DotsThreeCircle,
+  Briefcase, FileDoc, FilmStrip, Flask, FlowArrow, Folder, FrameCorners, GameController, GitBranch, GlobeSimple, Heartbeat, MagnifyingGlass, MapTrifold,
+  Megaphone, Package, Palette, Robot, Scales, ShieldCheck, Stack, TestTube, UserCircle, UsersThree, type Icon,
 } from '@phosphor-icons/react'
 import type { L } from '../i18n/locales'
 import type { Kind } from './api/entities'
 
 /*
  * 各类型的分类配置（界面上的名称、图标、颜色）。
- * slug 与采集服务里的分类映射一致（mcp-field-crawler/src/sources/mcpso/categories.ts）；
- * 数据源里没有对应分类的条目归入 other，接口里用 category=none 查询。
+ * slug 与采集服务的分类体系一致（mcp-field-crawler/src/classify/taxonomy.ts，那里有判定说明；它的测试会核对两边的 slug）；
+ * 没有合适分类的条目归入 other，接口里用 category=none 查询。
  */
 
 export type Category = { slug: string; name: L; icon: Icon; color: string }
@@ -33,6 +33,14 @@ export const serverCategories: Category[] = [
   { slug: 'communication', name: ['通信协作', 'Communication', 'コミュニケーション'], icon: ChatsCircle, color: '#D9577E' },
   { slug: 'media', name: ['媒体与设计', 'Media & Design', 'メディア・デザイン'], icon: Palette, color: '#D9944A' },
   { slug: 'finance', name: ['金融数据', 'Finance', '金融データ'], icon: ChartLineUp, color: '#B8C23A' },
+  { slug: 'security', name: ['安全', 'Security', 'セキュリティ'], icon: ShieldCheck, color: '#E5484D' },
+  { slug: 'legal-gov', name: ['法律与政务', 'Legal & Government', '法務・行政'], icon: Scales, color: '#8B7355' },
+  { slug: 'business', name: ['商业与营销', 'Business & Marketing', 'ビジネス・マーケティング'], icon: Briefcase, color: '#D9944A' },
+  { slug: 'social', name: ['社交媒体', 'Social Media', 'ソーシャルメディア'], icon: UsersThree, color: '#4F7DD9' },
+  { slug: 'travel', name: ['地图与出行', 'Maps & Travel', '地図・旅行'], icon: MapTrifold, color: '#2BB3A3' },
+  { slug: 'health', name: ['健康医疗', 'Health', 'ヘルスケア'], icon: Heartbeat, color: '#D9577E' },
+  { slug: 'entertainment', name: ['游戏娱乐', 'Games & Entertainment', 'ゲーム・エンタメ'], icon: GameController, color: '#9B6CE0' },
+  { slug: 'science', name: ['科研与教育', 'Science & Education', '科学・教育'], icon: Atom, color: '#22B8D9' },
   OTHER,
 ]
 

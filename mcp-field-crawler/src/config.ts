@@ -25,6 +25,7 @@ const envSchema = z.object({
   /** Loop 内容要写步骤，用更强的模型；CLI / Agent 用快速模型 */
   DESCRIBE_LOOP_MODEL: z.string().trim().default('claude-sonnet-5-5'),
   DESCRIBE_MODEL: z.string().trim().default('claude-haiku-5-5'),
+  CLASSIFY_MODEL: z.string().trim().default('claude-opus-5-5'),
   /** 翻译（简介、README）用哪个模型服务：claude、openai（OpenAI 兼容接口，如 ChatGPT 模型）、minimax、opencode 或 qwen */
   TRANSLATE_PROVIDER: z.enum(LLM_PROVIDERS).default('claude'),
   /** 翻译时推理模型的推理强度（OpenAI 兼容接口的 reasoning_effort）；不设置时用模型默认值。MiniMax M3 不允许 none */
@@ -69,6 +70,7 @@ export interface AppConfig {
   readmePremiumModel: string | undefined
   describeLoopModel: string
   describeModel: string
+  classifyModel: string
   translateProvider: LlmProvider
   translateReasoningEffort?: ReasoningEffort
   overviewProvider: LlmProvider
@@ -99,6 +101,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     readmePremiumModel: parsed.README_PREMIUM_MODEL,
     describeLoopModel: parsed.DESCRIBE_LOOP_MODEL,
     describeModel: parsed.DESCRIBE_MODEL,
+    classifyModel: parsed.CLASSIFY_MODEL,
     translateProvider: parsed.TRANSLATE_PROVIDER,
     translateReasoningEffort: parsed.TRANSLATE_REASONING_EFFORT,
     overviewProvider: parsed.OVERVIEW_PROVIDER,

@@ -5,13 +5,16 @@ import type { Logger } from '../core/logger.ts'
 import type { EntityKind } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
 import { ingestDrafts, ingestPublished, ingestPublishedSlugs } from '../db/schema/index.ts'
+import { classifyKey } from '../classify/classifier.ts'
+import { applyClassification } from '../classify/runner.ts'
+import { ClassificationStore } from '../classify/store.ts'
 import { sha256, stableJson } from '../store/hash.ts'
 import { displayRank, mergeDrafts, pickPrimary } from './merge-drafts.ts'
 import { planMerge, type MergeGroup, type MergeItem, type MergeMember } from './plan.ts'
 import { collectMergeItems } from './runner.ts'
 
 /*
- * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 整体重建 ingest_published。
+ * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类 → 整体重建 ingest_published。
  * 在一个事务里先删后写：网站在重建期间读到的仍是旧数据，提交后一次切换。
  */
 
@@ -124,6 +127,7 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
     .from(ingestPublished)
     .where(inArray(ingestPublished.kind, [...kinds]))
   const slugs = assignSlugs(jobs, previous)
+  const classifications = await new ClassificationStore(db).all(kinds)
   const canonical = new Set([...slugs].map(([job, slug]) => `${job.kind}:${slug}`))
   logger.info({ drafts: all.length, bulk: bulk.size, groups: jobs.length }, '开始发布')
 
@@ -149,6 +153,7 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
           const primary = members[job.group.members.indexOf(job.primary)]!
           const slug = slugs.get(job)!
           const draft = mergeDrafts(members, { primary, slug, identityKey: job.key })
+          applyClassification(draft, classifications.get(classifyKey({ ...job.primary, kind })))
           const sources = [...job.group.sources].sort().join(',')
           bySources[sources] = (bySources[sources] ?? 0) + 1
           return {

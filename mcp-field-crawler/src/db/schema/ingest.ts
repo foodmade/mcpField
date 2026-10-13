@@ -399,3 +399,33 @@ export const ingestPublishedSlugs = mysqlTable(
   },
   (t) => [primaryKey({ columns: [t.kind, t.slug] }), index('ix_ingest_published_slugs_published').on(t.publishedId)],
 )
+
+/**
+ * 分类器的结果：一行 = 一个发布条目（按主条目的来源、类型、ID 关联）。
+ * publish 时，来源没有给出分类的条目用这里的结果；输入、分类体系、提示词都没变就不重复分类。
+ */
+export const ingestClassifications = mysqlTable(
+  'ingest_classifications',
+  {
+    id: pk(),
+    sourceId: sourceRef(),
+    kind: kindCol(),
+    externalId: varchar('external_id', { length: 255 }).notNull(),
+    /** 主分类 slug；没有合适分类时为 other */
+    primarySlug: varchar('primary_slug', { length: 64 }).notNull(),
+    /** 次分类 slug，最多 2 个 */
+    secondary: json('secondary').$type<string[]>().notNull(),
+    /** 模型给出的把握程度 0–100 */
+    confidence: smallint('confidence', { unsigned: true }).notNull(),
+    taxonomyVersion: smallint('taxonomy_version', { unsigned: true }).notNull(),
+    promptVersion: smallint('prompt_version', { unsigned: true }).notNull(),
+    /** 输入（名称、简介、标签、工具、README 摘要……）的指纹 */
+    inputHash: sha256('input_hash').notNull(),
+    model: varchar('model', { length: 64 }).notNull(),
+    /** ok / review（把握不足，待人工复核） */
+    status: varchar('status', { length: 16 }).notNull().default('ok'),
+    classifiedAt: at('classified_at').notNull(),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex('uq_ingest_classifications_entity').on(t.sourceId, t.kind, t.externalId), index('ix_ingest_classifications_primary').on(t.kind, t.primarySlug)],
+)

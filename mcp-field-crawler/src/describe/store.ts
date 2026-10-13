@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
-import { withDeadlockRetry } from '../db/retry.ts'
+import { REPLACE_TX_CONFIG, withDeadlockRetry } from '../db/retry.ts'
 import { LOCALES, type EntityKind, type Locale } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
 import { ingestGeneratedSteps, ingestGeneratedTexts } from '../db/schema/index.ts'
@@ -95,7 +95,7 @@ export class DescribeStore implements GeneratedReader {
         }))
         if (steps.length > 0) await tx.insert(ingestGeneratedSteps).values(steps)
       }
-    }))
+    }, REPLACE_TX_CONFIG))
     // 概述、功能、场景走 AI 介绍的存储，详情页"关于"区块统一读取
     await this.overviews.save(
       { ...ref, name: input.name, tagline: null, category: null, tags: [], website: null, readme: '', stars: null, inputHash: input.inputHash },

@@ -121,7 +121,9 @@ export async function runBatches<I, R>(items: I[], job: BatchJob<I, R>, options:
       } catch (error) {
         // 单条写库失败只记一条失败，不中断整个任务；下次运行会重新处理
         stats.failed++
-        logger.error({ item: job.describe(item), err: (error as Error).message.slice(0, 300) }, '保存失败')
+        // drizzle 的报错信息只有 SQL，数据库返回的原因（如死锁）在 cause 里
+        const cause = (error as Error).cause as Error | undefined
+        logger.error({ item: job.describe(item), err: (error as Error).message.slice(0, 300), cause: cause?.message }, '保存失败')
         continue
       }
       if (problems.length > 0) stats.review++

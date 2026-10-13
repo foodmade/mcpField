@@ -6,7 +6,7 @@ import type { SourceMeta } from '../core/source.ts'
 import type { IngestStore, RecordSource, RunInfo, RunStats, TargetState } from '../core/store.ts'
 import type { CrawlTarget, EntityKind, RawDocument, SourceRecord } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
-import { withDeadlockRetry } from '../db/retry.ts'
+import { REPLACE_TX_CONFIG, withDeadlockRetry } from '../db/retry.ts'
 import { ingestDocuments, ingestDrafts, ingestIssues, ingestRecords, ingestRuns, ingestSources, ingestTargets } from '../db/schema/index.ts'
 import type { BlobStore } from './blob-store.ts'
 import { safeSegment, sha256, stableJson } from './hash.ts'
@@ -253,7 +253,7 @@ export class MySqlIngestStore implements IngestStore, RecordSource {
             })),
           )
         }
-      }))
+      }, REPLACE_TX_CONFIG))
     }
   }
 

@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
-import { withDeadlockRetry } from '../db/retry.ts'
+import { REPLACE_TX_CONFIG, withDeadlockRetry } from '../db/retry.ts'
 import { LOCALES, type EntityKind, type Locale } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
 import { ingestOverviewItems, ingestOverviews } from '../db/schema/index.ts'
@@ -82,7 +82,7 @@ export class OverviewStore implements OverviewReader {
         ]
         if (items.length > 0) await tx.insert(ingestOverviewItems).values(items)
       }
-    }))
+    }, REPLACE_TX_CONFIG))
   }
 
   async find(ref: { sourceId: string; kind: EntityKind; externalId: string }, locale: Locale): Promise<StoredOverview | null> {

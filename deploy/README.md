@@ -1,21 +1,24 @@
 # 部署说明
 
-服务器 `43.132.191.159`（OpenCloudOS 9，2 核 3.6G + 2G swap），与 bytro 共用一台机器，**不改动 bytro 的容器和数据**。
+服务器 `43.165.173.197`（腾讯云 Lighthouse，OpenCloudOS 9.2，2 核 7.5G，无 swap），2026-10-13 从 `43.132.191.159` 迁来。
+与 sub2api（8080）、PostgreSQL、Redis、80 端口的 lighthouse 应用共用一台机器，**不改动它们的配置和数据，系统盘的 `/data` 是 sub2api 的**。
+mcpfield 的代码、数据库、运行环境都放在数据盘 `/storage02/mcpfield/` 下。
 
 ```
-访客 → Cloudflare（HTTPS、CDN 缓存）→ bytor-website 容器里的 Nginx（80/443，按域名转发）
-     → 宿主机 mcpfield-web（pm2，127.0.0.1/172.17.0.1:3000）→ mcpfield-api（pm2，127.0.0.1:3100）
-     → mcpfield-mysql 容器（127.0.0.1:3307，限 512MB）
+访客 → Cloudflare（HTTPS、CDN 缓存）→ 系统自带的 Nginx（只监听 443，按域名转发）
+     → mcpfield-web（pm2，127.0.0.1:3000）→ mcpfield-api（pm2，127.0.0.1:3100）
+     → 系统自带的 mysqld（127.0.0.1:3306，缓冲池 1G，systemd 限内存 2.5G）
 ```
 
 | 位置 | 内容 |
 |---|---|
-| `/data/mcpfield` | 代码（由本机 `mcpfield deploy` 同步，不在服务器上构建） |
-| `/data/mcpfield/.mysql.env` | 数据库密码（只在服务器上） |
-| `/data/mcpfield/mcp-field-crawler/.env` | API 与采集配置（只在服务器上） |
-| `/data/mcpfield/deploy/nginx/mcpfield.com.conf` | 站点配置，挂载进 bytor-website 容器 |
-| `/data/bytro/ssl/mcpfield.com*.pem` | Cloudflare 源服务器证书 |
-| `/data/bytro/docker-compose.prod.yml` | 只加了一行挂载站点配置（备份：`.bak-before-mcpfield-*`） |
+| `/storage02/mcpfield/app` | 代码（由本机 `mcpfield deploy` 同步，不在服务器上构建） |
+| `/storage02/mcpfield/app/.mysql.env` | 数据库密码（只在服务器上） |
+| `/storage02/mcpfield/app/mcp-field-crawler/.env` | API、采集和模型服务配置（只在服务器上） |
+| `/storage02/mcpfield/mysql` | MySQL 数据目录（`/etc/my.cnf.d/zz-mcpfield.cnf`；资源限制 `/etc/systemd/system/mysqld.service.d/mcpfield.conf`） |
+| `/storage02/mcpfield/runtime/node` | Node 22（`/usr/local/bin` 下的 node、npm、pm2 是指向这里的链接）；pm2 开机自启（`pm2-root.service`） |
+| `/storage02/mcpfield/ssl/mcpfield.com*.pem` | Cloudflare 源服务器证书 |
+| `/etc/nginx/conf.d/mcpfield.com.conf` | 站点配置（来自 `deploy/nginx/`，用 `mcpfield nginx` 更新）；`nginx.conf` 里默认的 80 端口站点已注释掉（原文件 `nginx.conf.orig`） |
 | crontab | 每天 3:30 增量更新数据，日志 `mcp-field-crawler/logs/daily.log` |
 
 ## 日常操作（本机执行）
@@ -41,7 +44,7 @@ mcpfield db / ssh          # 数据库命令行 / 登录服务器
 在 Cloudflare 后台 SSL/TLS → 源服务器 创建新证书后：
 
 ```bash
-scp mcpfield.com.pem mcpfield.com-key.pem root@43.132.191.159:/data/bytro/ssl/
+scp mcpfield.com.pem mcpfield.com-key.pem root@43.165.173.197:/storage02/mcpfield/ssl/
 mcpfield nginx
 ```
 
@@ -52,6 +55,10 @@ mcpfield nginx
 - Cloudflare 的 Caching → Configuration → Browser Cache TTL 要设为 "Respect Existing Headers"：
   页面自己返回 `max-age=0`，浏览器每次都会重新获取；改成固定时长会让浏览器在发布后继续使用旧页面。
 
-- Nginx 属于 bytro 的容器。bytro 重新部署（重建容器）时，compose 里的那行挂载会自动带上 mcpfield 的站点配置；证书在 bytro 的 `ssl` 目录里，也会保留。
-- 站点配置有误会导致 Nginx 无法启动并影响 bytro，所以只通过 `mcpfield nginx` 修改：先 `nginx -t` 校验，通过才重新加载。
-- 每日任务默认只跑抓取、图标、GitHub 星数与 README、简介翻译、自撰内容（crontab 里 `STEPS="crawl assets github translate describe"`）；AI 介绍和 README 翻译费用较高，需要时用 `mcpfield data overview readme` 手动触发。
+- Nginx 只监听 443（80 是同机 lighthouse 应用的）：Cloudflare 要开 SSL/TLS → Edge Certificates → Always Use HTTPS，
+  否则用 http 访问的请求会回源到 80 端口的别的应用。站点配置只通过 `mcpfield nginx` 修改：先 `nginx -t` 校验，通过才重新加载。
+- 与 sub2api 同机：mysqld 的 systemd 配置里限了内存（MemoryHigh 2G / MemoryMax 2.5G），CPU、磁盘 IO 的权重减半，
+  紧张时 sub2api 优先；采集命令（`mcpfield run` / `data` / 每日任务）用 `nice -n 10` 运行；pm2 的两个服务超过 350MB 自动重启。不要在服务器上构建前端。
+- 每日任务跑抓取、发布、图标、GitHub 星数与 README、简介翻译、自撰内容（crontab 里 `STEPS="crawl publish assets github translate describe"`，
+  cron 的 PATH 要带 `/usr/local/bin`）；AI 介绍、README 翻译、分类费用较高，需要时用 `mcpfield run readme`、`mcpfield run classify` 等手动触发。
+- `deploy/docker-compose.yml` 是旧服务器上 MySQL 容器的配置，新服务器不用 Docker。

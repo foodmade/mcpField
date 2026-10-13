@@ -3,8 +3,9 @@
 # 安装：ln -sf "$(pwd)/deploy/mcpfield.sh" ~/.local/bin/mcpfield
 set -euo pipefail
 
-SERVER="${MCPFIELD_SERVER:-root@43.132.191.159}"
-REMOTE="${MCPFIELD_DIR:-/data/mcpfield}"
+# 2026-10-13 迁到新服务器（与 sub2api 同机）：代码和 MySQL 数据都在数据盘 /storage02/mcpfield 下
+SERVER="${MCPFIELD_SERVER:-root@43.165.173.197}"
+REMOTE="${MCPFIELD_DIR:-/storage02/mcpfield/app}"
 ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 
 c_info=$'\e[36m'; c_ok=$'\e[32m'; c_err=$'\e[31m'; c_off=$'\e[0m'
@@ -21,7 +22,7 @@ MCP Field 运维命令（服务器：${SERVER}:${REMOTE}）
 
   deploy [web|api] [--skip-checks]   发布：本地类型检查 → 构建前端 → 同步代码 → 安装依赖 → 数据库迁移 → 平滑重启
   status                             服务、站点、数据库、内存状态
-  logs [web|api|nginx|data|<采集命令>] [-f]   查看日志（默认 web，-f 持续跟踪；nginx 是 bytor-website 容器的访问日志；
+  logs [web|api|nginx|data|<采集命令>] [-f]   查看日志（默认 web，-f 持续跟踪；nginx 是站点的访问日志；
                                      采集命令的日志例如：mcpfield logs overview -f）
   restart [web|api]                  重启服务（默认全部）
   data [step...]                     在服务器后台立即跑一次数据更新（默认全部步骤，例如：mcpfield data translate overview）
@@ -39,7 +40,7 @@ sync_code() {
   info "同步代码到 ${SERVER}:${REMOTE}"
   rsync -az --delete --no-owner --no-group \
     --exclude='.git/' --exclude='node_modules/' --exclude='.DS_Store' --exclude='*.tar.gz' \
-    --exclude='/.mysql.env' --exclude='/backups/' \
+    --exclude='/.mysql.env' --exclude='/.bytro' --exclude='/backups/' \
     --exclude='/mcp-field/.react-router/' --exclude='/mcp-field/dist/' \
     --exclude='/mcp-field/build/client/assets/' \
     --exclude='/mcp-field-crawler/.env' --exclude='/mcp-field-crawler/data/' --exclude='/mcp-field-crawler/logs/' \
@@ -104,7 +105,7 @@ cmd_status() {
   remote "cd ${REMOTE} && bash -s" <<'EOF'
 pm2 list | grep -E 'name|mcpfield' || true
 printf '\n站点（经 Nginx）：%s\n' "$(curl -sk -o /dev/null -w '%{http_code}' --resolve mcpfield.com:443:127.0.0.1 https://mcpfield.com/robots.txt)"
-printf '数据库：%s\n' "$(docker inspect -f '{{.State.Health.Status}}' mcpfield-mysql 2>/dev/null)"
+printf '数据库：%s\n' "$(systemctl is-active mysqld)"
 printf 'API：%s  前端：%s\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/health)" "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)"
 echo; free -m | head -3
 [[ -f mcp-field-crawler/logs/daily.log ]] && printf '\n最近一次数据更新：\n' && tail -3 mcp-field-crawler/logs/daily.log
@@ -121,7 +122,7 @@ cmd_logs() {
   done
   case "$which" in
     web|api) if [[ -n $follow ]]; then ssh -t "${SERVER}" "pm2 logs mcpfield-$which"; else remote "pm2 logs mcpfield-$which --nostream --lines 100"; fi ;;
-    nginx) if [[ -n $follow ]]; then ssh -t "${SERVER}" "docker logs -f --tail 50 bytor-website"; else remote "docker logs --tail 100 bytor-website 2>&1"; fi ;;
+    nginx) if [[ -n $follow ]]; then ssh -t "${SERVER}" "tail -f /var/log/nginx/mcpfield.com.access.log"; else remote "tail -n 100 /var/log/nginx/mcpfield.com.access.log"; fi ;;
     *)
       # data 是每日任务的日志，其余是 mcpfield run 启动的采集命令日志
       local file="${REMOTE}/mcp-field-crawler/logs/run-${which}.log"
@@ -142,23 +143,24 @@ cmd_restart() {
 
 cmd_data() {
   local steps="$*"
-  remote "cd ${REMOTE}/mcp-field-crawler && mkdir -p logs && STEPS='$steps' nohup flock -n /tmp/mcpfield-daily.lock ./scripts/daily.sh >> logs/daily.log 2>&1 &"
+  remote "cd ${REMOTE}/mcp-field-crawler && mkdir -p logs && STEPS='$steps' nohup nice -n 10 flock -n /tmp/mcpfield-daily.lock ./scripts/daily.sh >> logs/daily.log 2>&1 &"
   ok "已在服务器后台开始数据更新${steps:+（${steps}）}；查看进度：mcpfield logs data -f"
 }
 
-# 站点配置放在 bytor-website 容器的 Nginx 里（它占用 80/443）：先校验，通过才重新加载，不会重启容器
+# 站点配置放进服务器自带的 Nginx（只占 443，80 是同机其他应用的）：先校验，通过才重新加载，失败恢复原配置
 cmd_nginx() {
   rsync -az --no-owner --no-group "${ROOT}/deploy/nginx/" "${SERVER}:${REMOTE}/deploy/nginx/"
-  remote "bash -s" <<'EOF'
+  remote "REMOTE='${REMOTE}' bash -s" <<'EOF'
 set -e
-c=bytor-website f=/etc/nginx/conf.d/mcpfield.com.conf
-docker exec $c cp $f /tmp/mcpfield.com.conf.bak 2>/dev/null || true
-docker cp /data/mcpfield/deploy/nginx/mcpfield.com.conf $c:$f
-if docker exec $c nginx -t >/dev/null 2>&1; then
-  docker exec $c nginx -s reload && echo "Nginx 已重新加载"
+f=/etc/nginx/conf.d/mcpfield.com.conf
+rm -f /tmp/mcpfield.com.conf.bak
+[ -f $f ] && cp $f /tmp/mcpfield.com.conf.bak
+cp "$REMOTE/deploy/nginx/mcpfield.com.conf" $f
+if nginx -t >/dev/null 2>&1; then
+  systemctl reload-or-restart nginx && echo "Nginx 已重新加载"
 else
-  docker exec $c nginx -t || true
-  docker exec $c sh -c "[ -f /tmp/mcpfield.com.conf.bak ] && cp /tmp/mcpfield.com.conf.bak $f" || true
+  nginx -t || true
+  if [ -f /tmp/mcpfield.com.conf.bak ]; then cp /tmp/mcpfield.com.conf.bak $f; else rm -f $f; fi
   echo "校验失败，已恢复原配置"; exit 1
 fi
 EOF
@@ -171,7 +173,7 @@ cmd_run() {
   args=$(printf '%q ' "$@")
   remote "cd ${REMOTE}/mcp-field-crawler && mkdir -p logs && if pgrep -f 'cli/index.ts ${name}( |$)' >/dev/null; then echo '${name} 已经在运行'; exit 1; fi
     echo \"[\$(date '+%F %T')] 开始 crawler ${*}\" >> logs/run-${name}.log
-    nohup npm run --silent crawler -- ${args} >> logs/run-${name}.log 2>&1 < /dev/null &"
+    nohup nice -n 10 npm run --silent crawler -- ${args} >> logs/run-${name}.log 2>&1 < /dev/null &"
   ok "已在服务器后台运行：crawler ${*}；查看进度：mcpfield logs ${name} -f；停止：mcpfield stop ${name}"
 }
 
@@ -185,14 +187,14 @@ cmd_backup() {
   local name
   name="mcp_field-$(date +%Y%m%d-%H%M%S).sql.gz"
   info "导出服务器数据库"
-  remote "mkdir -p ${REMOTE}/backups && cd ${REMOTE} && set -a && . ./.mysql.env && docker exec -e MYSQL_PWD=\"\$MYSQL_ROOT_PASSWORD\" mcpfield-mysql mysqldump -uroot --single-transaction --set-gtid-purged=OFF --no-tablespaces mcp_field | gzip > backups/${name} && ls -t backups/*.sql.gz | tail -n +8 | xargs -r rm"
+  remote "mkdir -p ${REMOTE}/backups && cd ${REMOTE} && set -a && . ./.mysql.env && MYSQL_PWD=\"\$MYSQL_ROOT_PASSWORD\" nice mysqldump -uroot --single-transaction --set-gtid-purged=OFF --no-tablespaces mcp_field | gzip > backups/${name} && ls -t backups/*.sql.gz | tail -n +8 | xargs -r rm"
   mkdir -p "${ROOT}/backups"
   scp -q "${SERVER}:${REMOTE}/backups/${name}" "${ROOT}/backups/${name}"
   ok "已备份：${ROOT}/backups/${name}（服务器上保留最近 7 份）"
 }
 
 cmd_db() {
-  ssh -t "${SERVER}" "cd ${REMOTE} && set -a && . ./.mysql.env && docker exec -it -e MYSQL_PWD=\"\$MYSQL_PASSWORD\" mcpfield-mysql mysql -umcpfield mcp_field"
+  ssh -t "${SERVER}" "cd ${REMOTE} && set -a && . ./.mysql.env && MYSQL_PWD=\"\$MYSQL_PASSWORD\" mysql -umcpfield -h127.0.0.1 mcp_field"
 }
 
 case "${1:-help}" in

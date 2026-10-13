@@ -16,12 +16,12 @@ module.exports = {
       env: { NODE_ENV: 'production' },
     },
     {
-      // 前端服务端渲染：只监听本机和 docker0 网桥（172.17.0.1），由服务器上 bytor-website 容器里的 Nginx 转发外部请求
+      // 前端服务端渲染：只监听本机，由服务器自带的 Nginx（443）转发外部请求
       name: 'mcpfield-web',
       cwd: resolve(root, 'mcp-field'),
       script: 'server.js',
       max_memory_restart: '350M',
-      env: { NODE_ENV: 'production', HOST: '127.0.0.1,172.17.0.1', PORT: '3000', API_ORIGIN: 'http://127.0.0.1:3100' },
+      env: { NODE_ENV: 'production', HOST: '127.0.0.1', PORT: '3000', API_ORIGIN: 'http://127.0.0.1:3100' },
     },
   ],
 }

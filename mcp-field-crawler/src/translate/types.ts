@@ -23,7 +23,7 @@ export interface TranslationResult {
 export type TranslatorUsage = LlmUsage
 
 /**
- * 翻译器接口（策略模式）：默认实现是 ClaudeTranslator，
+ * 翻译器接口（策略模式）：默认实现是 LlmTranslator（Claude 或 OpenAI 兼容接口），
  * 以后接 DeepL 等固定翻译服务只需再写一个实现，运行器和翻译记忆库不用改。
  */
 export interface Translator {

@@ -1,7 +1,8 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
 import { LOCALES } from '../core/types.ts'
-import { callTool, createClaude, type ClaudeConfig, type LlmUsage } from '../llm/claude.ts'
+import type { LlmUsage } from '../llm/claude.ts'
+import { createLlm, type Llm, type LlmConfig } from '../llm/provider.ts'
 import { DESCRIBE_PROMPT_VERSION, describeSystemPrompt } from './prompt.ts'
 import { describeKey, type DescribeContent, type DescribeInput, type DescribeKind, type DescribeResult, type DescribeWriter } from './types.ts'
 
@@ -67,15 +68,17 @@ function toContent(c: z.infer<typeof contentSchema>): DescribeContent {
 /** Loop 三种语言约 3,000 token，CLI / Agent 约 1,200 token */
 const maxTokensFor = (kind: DescribeKind, n: number) => Math.min(16_000, (kind === 'loop' ? 3_500 : 1_600) * n + 512)
 
-export class ClaudeDescribeWriter implements DescribeWriter {
-  readonly provider = 'claude'
+/** 大模型内容写作器：模型服务（Claude / OpenAI 兼容）由配置决定 */
+export class LlmDescribeWriter implements DescribeWriter {
   readonly promptVersion = DESCRIBE_PROMPT_VERSION
+  readonly provider: string
   readonly model: string
-  private readonly client: Anthropic
+  private readonly llm: Llm
 
-  constructor(options: ClaudeConfig & { model: string }) {
+  constructor(options: LlmConfig & { model: string }) {
     this.model = options.model
-    this.client = createClaude(options)
+    this.llm = createLlm(options)
+    this.provider = this.llm.provider
   }
 
   async write(items: DescribeInput[], signal?: AbortSignal): Promise<{ results: DescribeResult[]; usage: LlmUsage }> {
@@ -87,7 +90,7 @@ export class ClaudeDescribeWriter implements DescribeWriter {
       ...(item.commands.length ? { commands: item.commands.map((command, index) => ({ index, command })) } : {}),
       ...(item.background.en ? { background: item.background.en } : {}),
     }))
-    const { output, usage } = await callTool(this.client, {
+    const { output, usage } = await this.llm.tool({
       model: this.model,
       system: describeSystemPrompt(kind),
       tool: tool(kind),

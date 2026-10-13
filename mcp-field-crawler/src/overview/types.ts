@@ -34,7 +34,7 @@ export interface OverviewResult {
 
 export const overviewKey = (i: Pick<OverviewInput, 'sourceId' | 'kind' | 'externalId'>) => `${i.sourceId}:${i.kind}:${i.externalId}`
 
-/** 介绍生成器（策略模式）：默认 ClaudeOverviewWriter，可按项目热度选择不同模型 */
+/** 介绍生成器（策略模式）：默认 LlmOverviewWriter（Claude 或 OpenAI 兼容接口），可按项目热度选择不同模型 */
 export interface OverviewWriter {
   readonly provider: string
   readonly model: string

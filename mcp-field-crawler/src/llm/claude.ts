@@ -6,6 +6,8 @@ export interface ClaudeConfig {
   /** 可指向兼容 Anthropic Messages API 的代理 */
   baseURL?: string
   timeoutMs?: number
+  /** 每个请求都带上的额外请求头 */
+  headers?: Record<string, string>
 }
 
 export interface LlmUsage {
@@ -30,8 +32,26 @@ export class NoToolOutputError extends Error {
   }
 }
 
+/** 服务端要求等待超过这个时长时不照办（与 OpenAI SDK 的上限一致） */
+const MAX_RETRY_AFTER_SECONDS = 60
+
+/**
+ * Anthropic SDK 会照 retry-after 等待（最长约 24 天）。订阅额度用完时（例如 OpenCode Go 的 5 小时窗口）服务端会让等几个小时，
+ * 请求就一直挂着、既不成功也不报错。等待超过一分钟时去掉这个头，SDK 改用默认退避，重试用完后报 429，由调用方决定降级还是失败
+ */
+export const capRetryAfter: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init)
+  const headers = response.headers
+  const waitSeconds = Number(headers.get('retry-after-ms')) / 1000 || Number(headers.get('retry-after'))
+  if (response.status !== 429 || !(waitSeconds > MAX_RETRY_AFTER_SECONDS)) return response
+  const capped = new Headers(headers)
+  capped.delete('retry-after')
+  capped.delete('retry-after-ms')
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers: capped })
+}
+
 export function createClaude(config: ClaudeConfig): Anthropic {
-  return new Anthropic({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: 4, timeout: config.timeoutMs ?? 300_000 })
+  return new Anthropic({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: 4, timeout: config.timeoutMs ?? 300_000, defaultHeaders: config.headers, fetch: capRetryAfter })
 }
 
 /** 不支持强制指定工具的模型（例如默认开启推理的模型），首次被拒后记住，之后直接用 auto */
@@ -75,10 +95,37 @@ function jsonFromText(blocks: Anthropic.ContentBlock[]): unknown {
  * 优先强制调用工具；模型不支持时自动改用 auto，并兼容模型直接在文本里返回 JSON 的情况。
  * 系统提示词开启缓存：同一批任务里重复的系统提示词只完整计费一次（取决于服务方是否支持）。
  */
-export async function callTool<T>(
-  client: Anthropic,
-  params: { model: string; system: string; tool: Anthropic.Tool; input: string; maxTokens: number; schema: z.ZodType<T>; signal?: AbortSignal },
-): Promise<{ output: T; usage: LlmUsage }> {
+/** 结构化输出调用的参数（各模型服务共用；工具定义沿用 Anthropic 的格式，OpenAI 兼容接口会转换） */
+export interface ToolCallParams<T> {
+  model: string
+  system: string
+  tool: Anthropic.Tool
+  input: string
+  maxTokens: number
+  schema: z.ZodType<T>
+  signal?: AbortSignal
+}
+
+/** 纯文本输出调用的参数：结果放在 <tag>…</tag> 里 */
+export interface TextCallParams {
+  model: string
+  system: string
+  input: string
+  maxTokens: number
+  tag: string
+  signal?: AbortSignal
+}
+
+/** 从 <tag>…</tag> 里取出结果；没有闭合标签说明被截断 */
+export function textInTag(raw: string, tag: string, truncated: boolean): string {
+  const open = raw.indexOf(`<${tag}>`)
+  const close = raw.lastIndexOf(`</${tag}>`)
+  if (truncated || (open >= 0 && close < open)) throw new TruncatedOutputError()
+  if (open < 0 || close < 0) throw new NoToolOutputError()
+  return raw.slice(open + tag.length + 2, close).replace(/^\n+|\n+$/g, '')
+}
+
+export async function callTool<T>(client: Anthropic, params: ToolCallParams<T>): Promise<{ output: T; usage: LlmUsage }> {
   const request = async (forced: boolean) => {
     const response = await client.messages.create(
       {
@@ -123,10 +170,7 @@ export async function callTool<T>(
  * 纯文本输出：适合整段 Markdown 这类长文本（放进 JSON 需要大量转义）。
  * 要求模型把结果放在 <tag>…</tag> 里，只取标签内的内容；没有闭合标签说明被截断。
  */
-export async function callText(
-  client: Anthropic,
-  params: { model: string; system: string; input: string; maxTokens: number; tag: string; signal?: AbortSignal },
-): Promise<{ text: string; usage: LlmUsage }> {
+export async function callText(client: Anthropic, params: TextCallParams): Promise<{ text: string; usage: LlmUsage }> {
   const response = await client.messages.create(
     {
       model: params.model,
@@ -140,13 +184,10 @@ export async function callText(
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
     .join('')
-  const open = raw.indexOf(`<${params.tag}>`)
-  const close = raw.lastIndexOf(`</${params.tag}>`)
-  if (response.stop_reason === 'max_tokens' || (open >= 0 && close < open)) throw new TruncatedOutputError()
-  if (open < 0 || close < 0) throw new NoToolOutputError()
+  const text = textInTag(raw, params.tag, response.stop_reason === 'max_tokens')
   const u = response.usage
   return {
-    text: raw.slice(open + params.tag.length + 2, close).replace(/^\n+|\n+$/g, ''),
+    text,
     usage: {
       requests: 1,
       inputTokens: u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),

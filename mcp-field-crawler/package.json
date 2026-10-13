@@ -26,6 +26,7 @@
     "fast-xml-parser": "^5.11.2",
     "hono": "^4.13.13",
     "mysql2": "^3.24.5",
+    "openai": "^7.32.0",
     "p-limit": "^7.3.3",
     "pino": "^10.4.0",
     "quickjs-emscripten": "^0.32.0",

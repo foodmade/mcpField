@@ -1,7 +1,8 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
 import { LOCALES } from '../core/types.ts'
-import { callTool, createClaude, type ClaudeConfig, type LlmUsage } from '../llm/claude.ts'
+import type { LlmUsage } from '../llm/claude.ts'
+import { createLlm, type Llm, type LlmConfig } from '../llm/provider.ts'
 import { OVERVIEW_PROMPT_VERSION, OVERVIEW_SYSTEM_PROMPT } from './prompt.ts'
 import { overviewKey, type OverviewInput, type OverviewResult, type OverviewWriter } from './types.ts'
 
@@ -44,15 +45,17 @@ const clean = (list: string[]) => list.map((s) => s.trim().replace(/[。.]$/, ''
 /** 三种语言的介绍每条约 1,500 个 token，留出余量 */
 const maxTokensFor = (n: number) => Math.min(16_000, 2_200 * n + 512)
 
-export class ClaudeOverviewWriter implements OverviewWriter {
-  readonly provider = 'claude'
+/** 大模型介绍写作器：模型服务（Claude / OpenAI 兼容）由配置决定 */
+export class LlmOverviewWriter implements OverviewWriter {
   readonly promptVersion = OVERVIEW_PROMPT_VERSION
+  readonly provider: string
   readonly model: string
-  private readonly client: Anthropic
+  private readonly llm: Llm
 
-  constructor(options: ClaudeConfig & { model: string }) {
+  constructor(options: LlmConfig & { model: string }) {
     this.model = options.model
-    this.client = createClaude(options)
+    this.llm = createLlm(options)
+    this.provider = this.llm.provider
   }
 
   async write(items: OverviewInput[], signal?: AbortSignal): Promise<{ results: OverviewResult[]; usage: LlmUsage }> {
@@ -66,7 +69,7 @@ export class ClaudeOverviewWriter implements OverviewWriter {
       website: item.website,
       readme: item.readme,
     }))
-    const { output, usage } = await callTool(this.client, {
+    const { output, usage } = await this.llm.tool({
       model: this.model,
       system: OVERVIEW_SYSTEM_PROMPT,
       tool: TOOL,

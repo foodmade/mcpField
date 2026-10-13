@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
-import { callTool, createClaude, type ClaudeConfig } from '../llm/claude.ts'
+import { createLlm, type Llm, type LlmConfig } from '../llm/provider.ts'
 import { normalizeSource } from './key.ts'
 import { PROMPT_VERSION, SYSTEM_PROMPT } from './prompt.ts'
 import type { TranslationItem, TranslationResult, Translator, TranslatorUsage } from './types.ts'
@@ -45,21 +45,22 @@ const outputSchema = z.object({
 /** 每条译文三种语言大约 200 个 token，留出余量 */
 const maxTokensFor = (n: number) => Math.min(16_000, 300 * n + 512)
 
-/** 基于 Claude 的翻译器：一次请求翻译一批条目，通过强制调用工具拿到结构化 JSON */
-export class ClaudeTranslator implements Translator {
-  readonly provider = 'claude'
+/** 大模型翻译器：一次请求翻译一批条目，通过强制调用工具拿到结构化 JSON；模型服务（Claude / OpenAI 兼容）由配置决定 */
+export class LlmTranslator implements Translator {
   readonly promptVersion = PROMPT_VERSION
+  readonly provider: string
   readonly model: string
-  private readonly client: Anthropic
+  private readonly llm: Llm
 
-  constructor(options: ClaudeConfig & { model: string }) {
+  constructor(options: LlmConfig & { model: string }) {
     this.model = options.model
-    this.client = createClaude(options)
+    this.llm = createLlm(options)
+    this.provider = this.llm.provider
   }
 
   async translate(items: TranslationItem[], signal?: AbortSignal): Promise<{ results: TranslationResult[]; usage: TranslatorUsage }> {
     const payload = items.map((item, i) => ({ id: String(i + 1), ...(item.name ? { name: item.name } : {}), text: normalizeSource(item.text) }))
-    const { output, usage } = await callTool(this.client, {
+    const { output, usage } = await this.llm.tool({
       model: this.model,
       system: SYSTEM_PROMPT,
       tool: TOOL,

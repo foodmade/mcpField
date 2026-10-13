@@ -1,3 +1,4 @@
+import { LLM_PROVIDERS, REASONING_EFFORTS, type LlmProvider, type ReasoningEffort } from './llm/providers.ts'
 import { z } from 'zod'
 
 const optionalString = z
@@ -24,6 +25,29 @@ const envSchema = z.object({
   /** Loop 内容要写步骤，用更强的模型；CLI / Agent 用快速模型 */
   DESCRIBE_LOOP_MODEL: z.string().trim().default('claude-sonnet-5-5'),
   DESCRIBE_MODEL: z.string().trim().default('claude-haiku-5-5'),
+  /** 翻译（简介、README）用哪个模型服务：claude、openai（OpenAI 兼容接口，如 ChatGPT 模型）、minimax、opencode 或 qwen */
+  TRANSLATE_PROVIDER: z.enum(LLM_PROVIDERS).default('claude'),
+  /** 翻译时推理模型的推理强度（OpenAI 兼容接口的 reasoning_effort）；不设置时用模型默认值。MiniMax M3 不允许 none */
+  TRANSLATE_REASONING_EFFORT: z.enum(REASONING_EFFORTS).optional(),
+  /** AI 介绍用哪个模型服务，取值同上 */
+  OVERVIEW_PROVIDER: z.enum(LLM_PROVIDERS).default('claude'),
+  /** 分类器用哪个模型服务，取值同上 */
+  CLASSIFY_PROVIDER: z.enum(LLM_PROVIDERS).default('claude'),
+  /** 自撰内容（Loop / CLI / Agent）用哪个模型服务，取值同上 */
+  DESCRIBE_PROVIDER: z.enum(LLM_PROVIDERS).default('claude'),
+  OPENAI_API_KEY: optionalString,
+  OPENAI_BASE_URL: optionalString,
+  MINIMAX_API_KEY: optionalString,
+  /** MiniMax 的 OpenAI 兼容接口；国内站 api.minimaxi.com，国际站 api.minimax.io（密钥不通用） */
+  MINIMAX_BASE_URL: z.string().trim().default('https://api.minimaxi.com/v1'),
+  OPENCODE_API_KEY: optionalString,
+  /** OpenCode Go 订阅的 OpenAI 兼容接口；DeepSeek 等模型要求工作区 Privacy 设置选 Global 区域 */
+  OPENCODE_BASE_URL: z.string().trim().default('https://opencode.ai/inference/go/v1'),
+  QWEN_API_KEY: optionalString,
+  /** 阿里云百炼的 OpenAI 兼容接口；业务空间有专属地址时换成它（…/compatible-mode/v1） */
+  QWEN_BASE_URL: z.string().trim().default('https://dashscope.aliyuncs.com/compatible-mode/v1'),
+  /** 翻译（简介、README）的默认并发数；不设置时简介 4、README 6（适合 Claude 网关）。代理并发上限高时调大，命令行的 --concurrency 优先 */
+  TRANSLATE_CONCURRENCY: z.coerce.number().int().positive().optional(),
   R2_ACCOUNT_ID: optionalString,
   R2_BUCKET: optionalString,
   R2_PUBLIC_BASE_URL: optionalString,
@@ -45,6 +69,16 @@ export interface AppConfig {
   readmePremiumModel: string | undefined
   describeLoopModel: string
   describeModel: string
+  translateProvider: LlmProvider
+  translateReasoningEffort?: ReasoningEffort
+  overviewProvider: LlmProvider
+  classifyProvider: LlmProvider
+  describeProvider: LlmProvider
+  openai: { apiKey?: string; baseURL?: string }
+  minimax: { apiKey?: string; baseURL: string }
+  opencode: { apiKey?: string; baseURL: string }
+  qwen: { apiKey?: string; baseURL: string }
+  translateConcurrency?: number
   /** 五项都配置了才启用 R2 */
   r2?: { accountId: string; bucket: string; publicBaseUrl: string; accessKeyId: string; secretAccessKey: string }
 }
@@ -65,6 +99,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     readmePremiumModel: parsed.README_PREMIUM_MODEL,
     describeLoopModel: parsed.DESCRIBE_LOOP_MODEL,
     describeModel: parsed.DESCRIBE_MODEL,
+    translateProvider: parsed.TRANSLATE_PROVIDER,
+    translateReasoningEffort: parsed.TRANSLATE_REASONING_EFFORT,
+    overviewProvider: parsed.OVERVIEW_PROVIDER,
+    classifyProvider: parsed.CLASSIFY_PROVIDER,
+    describeProvider: parsed.DESCRIBE_PROVIDER,
+    openai: { apiKey: parsed.OPENAI_API_KEY, baseURL: parsed.OPENAI_BASE_URL },
+    minimax: { apiKey: parsed.MINIMAX_API_KEY, baseURL: parsed.MINIMAX_BASE_URL },
+    opencode: { apiKey: parsed.OPENCODE_API_KEY, baseURL: parsed.OPENCODE_BASE_URL },
+    qwen: { apiKey: parsed.QWEN_API_KEY, baseURL: parsed.QWEN_BASE_URL },
+    translateConcurrency: parsed.TRANSLATE_CONCURRENCY,
     r2:
       parsed.R2_ACCOUNT_ID && parsed.R2_BUCKET && parsed.R2_PUBLIC_BASE_URL && parsed.R2_ACCESS_KEY_ID && parsed.R2_SECRET_ACCESS_KEY
         ? { accountId: parsed.R2_ACCOUNT_ID, bucket: parsed.R2_BUCKET, publicBaseUrl: parsed.R2_PUBLIC_BASE_URL, accessKeyId: parsed.R2_ACCESS_KEY_ID, secretAccessKey: parsed.R2_SECRET_ACCESS_KEY }

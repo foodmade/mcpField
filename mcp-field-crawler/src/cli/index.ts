@@ -4,7 +4,7 @@ import { createRegistry, createStore, FACT_EXTRACTORS, type StoreKind } from '..
 import { collectDescribeInputs, DescribeRunner } from '../describe/runner.ts'
 import { DescribeStore } from '../describe/store.ts'
 import { DESCRIBE_KINDS, type DescribeKind } from '../describe/types.ts'
-import { ClaudeDescribeWriter } from '../describe/writer.ts'
+import { LlmDescribeWriter } from '../describe/writer.ts'
 import { loadConfig } from '../config.ts'
 import { CrawlEvents } from '../core/events.ts'
 import { CrawlRunner, DiscoverRunner, InlineRunner, remapRecords, type RunOptions } from '../core/runner.ts'
@@ -19,16 +19,17 @@ import { GithubReadmeFetcher } from '../github/readme.ts'
 import { GithubRepoFetcher } from '../github/repo.ts'
 import { collectGithubTargets, GithubReadmeRunner, GithubRepoRunner } from '../github/runner.ts'
 import { GithubReadmeStore, GithubRepoStore } from '../github/store.ts'
-import { ClaudeTranslator } from '../translate/claude-translator.ts'
+import { LlmTranslator } from '../translate/claude-translator.ts'
+import type { LlmConfig, LlmProvider } from '../llm/provider.ts'
 import { TranslationMemory } from '../translate/memory.ts'
 import { collectSources, TranslateRunner } from '../translate/runner.ts'
 import { collectOverviewInputs, OverviewRunner } from '../overview/runner.ts'
 import { OverviewStore } from '../overview/store.ts'
-import { ClaudeOverviewWriter } from '../overview/writer.ts'
+import { LlmOverviewWriter } from '../overview/writer.ts'
 import type { ReadmeLocale } from '../readme/prompt.ts'
 import { collectReadmeTargets, ReadmeTranslateRunner } from '../readme/runner.ts'
 import { ReadmeTranslationStore } from '../readme/store.ts'
-import { ClaudeReadmeTranslator } from '../readme/translator.ts'
+import { LlmReadmeTranslator } from '../readme/translator.ts'
 import { AssetMirror, collectMediaUrls } from '../assets/mirror.ts'
 import { LocalStorage, R2Storage } from '../assets/storage.ts'
 import { AssetStore } from '../assets/store.ts'
@@ -70,7 +71,7 @@ translate 选项：
   --kind <a,b>            要翻译的类型，默认全部
   --field <a,b>           要翻译的字段，默认 tagline,description
   --limit <n>             最多翻译 n 段原文（试跑用）
-  --model <id>            模型，默认 TRANSLATE_MODEL（claude-haiku-5-5）
+  --model <id>            模型，默认 TRANSLATE_MODEL（claude-haiku-5-5）；TRANSLATE_PROVIDER=openai 时走 OpenAI 兼容接口（README 翻译同样适用）
   --batch <n>             每次请求的条数，默认 40
   --concurrency <n>       并发请求数，默认 4
   --stale                 重翻旧版提示词的结果
@@ -87,7 +88,7 @@ overview 选项：
   --kind <a,b>            要生成的类型，默认 ${OVERVIEW_KINDS.join(', ')}
   --limit <n>             最多生成 n 条（试跑用）
   --min-stars <n>         只给星数不低于 n 的条目生成
-  --model <id>            普通条目的模型，默认 OVERVIEW_MODEL（claude-haiku-5-5）
+  --model <id>            普通条目的模型，默认 OVERVIEW_MODEL（claude-haiku-5-5）；OVERVIEW_PROVIDER=openai 时走 OpenAI 兼容接口
   --premium-model <id>    热门条目单独用的模型，默认 OVERVIEW_PREMIUM_MODEL；都不设置时不分档，全部用 --model
   --premium-min-stars <n> 设置了热门模型时，星数达到 n 算热门，默认 1000
   --batch <n>             每次请求的条数，默认 3
@@ -101,7 +102,7 @@ readme 选项：
   --min-stars <n>         只翻译星数不低于 n 的条目
   --licensed-only         只翻译有明确开源许可证的 README
   --model / --premium-model / --premium-min-stars   同 overview，默认 Haiku 5.5 / 不分档 / 1000
-  --concurrency <n>       并发请求数，默认 6
+  --concurrency <n>       并发请求数，默认 TRANSLATE_CONCURRENCY，没有设置时 6
   --stale / --force       重翻旧版提示词的片段 / 全部重翻（人工译文保留）
 
 describe 选项：
@@ -250,7 +251,6 @@ const TEXT_FIELDS: TextField[] = ['tagline', 'description']
 
 async function translate() {
   if (!config.databaseUrl) throw new Error('translate 需要 DATABASE_URL')
-  if (!config.anthropic.apiKey) throw new Error('translate 需要在 .env 中设置 ANTHROPIC_API_KEY')
   const kinds = parseKinds(values.kind, ENTITY_KINDS)
   const fields = (values.field?.split(',').map((f) => f.trim()) ?? TEXT_FIELDS) as TextField[]
   const invalid = fields.filter((f) => !TEXT_FIELDS.includes(f))
@@ -264,12 +264,12 @@ async function translate() {
 
   const { db, pool } = createDb(config.databaseUrl)
   try {
-    const translator = new ClaudeTranslator({ apiKey: config.anthropic.apiKey, baseURL: config.anthropic.baseURL, model: values.model ?? config.translateModel })
+    const translator = new LlmTranslator({ ...translateLlm(), model: values.model ?? config.translateModel })
     const items = await collectSources(db, kinds, fields)
     const stats = await new TranslateRunner(translator, new TranslationMemory(db), logger).run(items, {
       batchSize: values.batch ? Number(values.batch) : 40,
       maxBatchChars: 8_000,
-      concurrency: values.concurrency ? Number(values.concurrency) : 4,
+      concurrency: values.concurrency ? Number(values.concurrency) : (config.translateConcurrency ?? 4),
       limit: values.limit ? Number(values.limit) : undefined,
       stale: values.stale,
       force: values.force,
@@ -284,7 +284,6 @@ async function translate() {
 
 async function overview() {
   if (!config.databaseUrl) throw new Error('overview 需要 DATABASE_URL')
-  if (!config.anthropic.apiKey) throw new Error('overview 需要在 .env 中设置 ANTHROPIC_API_KEY')
   const kinds = parseKinds(values.kind, OVERVIEW_KINDS)
 
   const controller = new AbortController()
@@ -295,16 +294,16 @@ async function overview() {
 
   const { db, pool } = createDb(config.databaseUrl)
   try {
-    const claude = { apiKey: config.anthropic.apiKey, baseURL: config.anthropic.baseURL }
+    const llm = llmConfig(config.overviewProvider)
     const { inputs, skipped } = await collectOverviewInputs(db, kinds, values['min-stars'] ? Number(values['min-stars']) : 0)
     logger.info({ inputs: inputs.length, skipped }, 'README 不足或星数不够的条目已跳过')
     const model = values.model ?? config.overviewModel
     const premiumModel = values['premium-model'] ?? config.overviewPremiumModel
     const runner = new OverviewRunner(
       {
-        standard: new ClaudeOverviewWriter({ ...claude, model }),
+        standard: new LlmOverviewWriter({ ...llm, model }),
         // 只有单独设置了热门模型（且与普通模型不同）时才按星数分档
-        premium: premiumModel && premiumModel !== model ? new ClaudeOverviewWriter({ ...claude, model: premiumModel }) : undefined,
+        premium: premiumModel && premiumModel !== model ? new LlmOverviewWriter({ ...llm, model: premiumModel }) : undefined,
         premiumMinStars: values['premium-min-stars'] ? Number(values['premium-min-stars']) : 1000,
       },
       new OverviewStore(db),
@@ -327,7 +326,6 @@ async function overview() {
 
 async function readme() {
   if (!config.databaseUrl) throw new Error('readme 需要 DATABASE_URL')
-  if (!config.anthropic.apiKey) throw new Error('readme 需要在 .env 中设置 ANTHROPIC_API_KEY')
   const kinds = parseKinds(values.kind, ENTITY_KINDS)
   const locales = (values.locale?.split(',').map((l) => l.trim()) ?? ['zh', 'ja']) as ReadmeLocale[]
   if (locales.some((l) => l !== 'zh' && l !== 'ja')) throw new Error('--locale 只支持 zh、ja（README 原文是英文）')
@@ -340,7 +338,7 @@ async function readme() {
 
   const { db, pool } = createDb(config.databaseUrl)
   try {
-    const claude = { apiKey: config.anthropic.apiKey, baseURL: config.anthropic.baseURL }
+    const llm = translateLlm()
     const { targets, skipped } = await collectReadmeTargets(db, kinds, {
       minStars: values['min-stars'] ? Number(values['min-stars']) : 0,
       licensedOnly: values['licensed-only'],
@@ -350,8 +348,8 @@ async function readme() {
     const premiumModel = values['premium-model'] ?? config.readmePremiumModel
     const runner = new ReadmeTranslateRunner(
       {
-        standard: new ClaudeReadmeTranslator({ ...claude, model }),
-        premium: premiumModel && premiumModel !== model ? new ClaudeReadmeTranslator({ ...claude, model: premiumModel }) : undefined,
+        standard: new LlmReadmeTranslator({ ...llm, model }),
+        premium: premiumModel && premiumModel !== model ? new LlmReadmeTranslator({ ...llm, model: premiumModel }) : undefined,
         premiumMinStars: values['premium-min-stars'] ? Number(values['premium-min-stars']) : 1000,
       },
       new TranslationMemory(db),
@@ -360,7 +358,7 @@ async function readme() {
     )
     const stats = await runner.run(targets, {
       locales,
-      concurrency: values.concurrency ? Number(values.concurrency) : 6,
+      concurrency: values.concurrency ? Number(values.concurrency) : (config.translateConcurrency ?? 6),
       limit: values.limit ? Number(values.limit) : undefined,
       stale: values.stale,
       force: values.force,
@@ -374,7 +372,6 @@ async function readme() {
 
 async function describe() {
   if (!config.databaseUrl) throw new Error('describe 需要 DATABASE_URL')
-  if (!config.anthropic.apiKey) throw new Error('describe 需要在 .env 中设置 ANTHROPIC_API_KEY')
   const kinds = parseKinds(values.kind, DESCRIBE_KINDS) as DescribeKind[]
 
   const controller = new AbortController()
@@ -385,11 +382,11 @@ async function describe() {
 
   const { db, pool } = createDb(config.databaseUrl)
   try {
-    const claude = { apiKey: config.anthropic.apiKey, baseURL: config.anthropic.baseURL }
-    const writers = new Map<string, ClaudeDescribeWriter>()
+    const llm = llmConfig(config.describeProvider)
+    const writers = new Map<string, LlmDescribeWriter>()
     const writerFor = (kind: DescribeKind) => {
       const model = values.model ?? (kind === 'loop' ? config.describeLoopModel : config.describeModel)
-      if (!writers.has(model)) writers.set(model, new ClaudeDescribeWriter({ ...claude, model }))
+      if (!writers.has(model)) writers.set(model, new LlmDescribeWriter({ ...llm, model }))
       return writers.get(model)!
     }
     const inputs = await collectDescribeInputs(db, kinds, FACT_EXTRACTORS)
@@ -454,6 +451,31 @@ async function mergePlan() {
     await pool.end()
   }
 }
+
+/** 按配置的模型服务取连接参数：openai / minimax 走各自的 OpenAI 兼容接口，claude 走 Anthropic */
+function llmConfig(provider: LlmProvider): LlmConfig {
+  if (provider === 'qwen') {
+    if (!config.qwen.apiKey) throw new Error('使用 qwen 模型服务需要 QWEN_API_KEY')
+    return { provider, apiKey: config.qwen.apiKey, baseURL: config.qwen.baseURL }
+  }
+  if (provider === 'opencode') {
+    if (!config.opencode.apiKey) throw new Error('使用 opencode 模型服务需要 OPENCODE_API_KEY')
+    return { provider, apiKey: config.opencode.apiKey, baseURL: config.opencode.baseURL }
+  }
+  if (provider === 'minimax') {
+    if (!config.minimax.apiKey) throw new Error('使用 minimax 模型服务需要 MINIMAX_API_KEY')
+    return { provider, apiKey: config.minimax.apiKey, baseURL: config.minimax.baseURL }
+  }
+  if (provider === 'openai') {
+    if (!config.openai.apiKey) throw new Error('使用 openai 模型服务需要 OPENAI_API_KEY（和 OPENAI_BASE_URL）')
+    return { provider: 'openai', apiKey: config.openai.apiKey, baseURL: config.openai.baseURL }
+  }
+  if (!config.anthropic.apiKey) throw new Error('使用 claude 模型服务需要 ANTHROPIC_API_KEY')
+  return { provider: 'claude', apiKey: config.anthropic.apiKey, baseURL: config.anthropic.baseURL }
+}
+
+/** 翻译（简介、README）用的模型服务：TRANSLATE_PROVIDER、TRANSLATE_REASONING_EFFORT */
+const translateLlm = (): LlmConfig => ({ ...llmConfig(config.translateProvider), reasoningEffort: config.translateReasoningEffort })
 
 async function stats() {
   if (!config.databaseUrl) throw new Error('stats 需要 DATABASE_URL')

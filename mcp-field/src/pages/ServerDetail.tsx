@@ -1,9 +1,9 @@
-import { CalendarBlank, ClockCounterClockwise, CloudArrowUp, Code, Desktop, PlugsConnected, Scales, Tag, User } from '@phosphor-icons/react'
+import { CalendarBlank, Certificate, ClockCounterClockwise, CloudArrowUp, Code, Desktop, PlugsConnected, Scales, Stack, Tag, User } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { Comments } from '../components/Comments'
 import { ConfigSection } from '../components/detail/ConfigSection'
 import {
-  AboutSection, Badge, DefaultActions, DetailBody, DetailError, DetailSeo, EntityHeader, InfoSection, ReadmeSection, RelatedSection, useDateFormat,
+  AboutSection, Badge, DefaultActions, DetailBody, DetailError, DetailSeo, EntityHeader, InfoSection, ReadmeSection, RelatedSection, sourcesValue, useDateFormat,
 } from '../components/detail/EntityDetail'
 import { InstallMenu } from '../components/detail/InstallMenu'
 import { SectionNav, type SectionId } from '../components/detail/SectionNav'
@@ -69,6 +69,8 @@ function Sidebar({ s, related }: { s: Detail; related: ServerItem[] }) {
           { icon: PlugsConnected, label: m.client.infoKeys.transports, value: s.transports.join(' · ') },
           { icon: CalendarBlank, label: k.added, value: fmt(s.source.sourceCreatedAt) },
           { icon: ClockCounterClockwise, label: k.updated, value: updated === null ? null : m.detail.ago(updated) },
+          { icon: Certificate, label: k.registry, value: s.registryName && <span className="font-mono text-xs" title={s.registryName}>{s.registryName}</span> },
+          { icon: Stack, label: k.sources, value: sourcesValue(s.allLinks, m.detail.sourceNames) },
         ]}
       />
     </>

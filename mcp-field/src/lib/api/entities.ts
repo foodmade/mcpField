@@ -84,6 +84,8 @@ export type ApiTool = { name: string; title: string | null; description: string 
 
 export type ServerDetail = ServerItem &
   DetailBase & {
+    /** 官方 MCP Registry 里登记的名称；没有登记时为 null */
+    registryName: string | null
     version: string | null
     authType: string | null
     packages: { registryType: string; identifier: string; version: string | null; runtimeHint: string | null; transport: string | null }[]
@@ -100,8 +102,17 @@ export type CliDetail = CliItem &
     examples: string[]
     aliases: string[]
   }
+/** 第三方安全审计：风险等级、摘要、行为类别、时间只有 skills.sh 收录的才有 */
+export type SkillAudit = { auditor: string; result: string; riskLevel?: string; summary?: string; categories?: string[]; auditedAt?: string }
 export type SkillDetail = SkillItem &
-  DetailBase & { canonicalKey: string | null; skillSlug: string | null; firstSeenOn: string | null; audits: { auditor: string; result: string }[] }
+  DetailBase & {
+    canonicalKey: string | null
+    skillSlug: string | null
+    firstSeenOn: string | null
+    audits: SkillAudit[]
+    /** SKILL.md 以外随 Skill 分发的文件路径 */
+    files: string[]
+  }
 /** Loop 的执行说明（我们自己撰写，按语言返回；请求的语言没有时是英文） */
 export type Playbook = {
   locale: Locale

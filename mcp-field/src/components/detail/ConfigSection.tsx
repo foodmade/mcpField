@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { FileCode, GithubLogo, Globe, Info, Key, Package, TerminalWindow } from '@phosphor-icons/react'
+import { ArrowSquareOut, FileCode, GithubLogo, Globe, Info, Key, LockKey, Package, TerminalWindow } from '@phosphor-icons/react'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
 import { useI18n } from '../../i18n/context'
@@ -158,10 +158,95 @@ function RemoteConfig({ configKey, url, transport }: { configKey: string; url: s
   )
 }
 
-/** 配置区块：远程服务给各平台的安装命令，本地服务给通用配置和启动命令，都没有时提示查看 README */
+const TRANSPORT_LABEL: Record<string, string> = { 'streamable-http': 'Streamable HTTP', sse: 'SSE', stdio: 'stdio' }
+/** 远程端点需要在请求头里带凭据（Authorization 或其他请求头） */
+const needsAuth = (r: ServerDetail['remotes'][number]) => r.authType === 'bearer' || r.authType === 'header'
+
+/** 远程端点：有多个（如同时提供 SSE 和 Streamable HTTP）或需要授权时逐个列出 */
+function Endpoints({ remotes }: { remotes: ServerDetail['remotes'] }) {
+  const { m } = useI18n()
+  if (remotes.length < 2 && !remotes.some(needsAuth)) return null
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-fg/[0.08] bg-surface">
+      <div className="flex items-center gap-1.5 border-b border-fg/[0.06] px-4 py-2.5 text-xs text-text3"><Globe size={13} />{m.detail.endpoints}</div>
+      {remotes.map((r, i) => (
+        <div key={r.url} className={clsx('flex items-center gap-3 px-4 py-2.5', i > 0 && 'border-t border-fg/[0.06]')}>
+          <span className="shrink-0 rounded bg-fg/[0.06] px-1.5 py-0.5 text-[11px] text-text2">{TRANSPORT_LABEL[r.transport] ?? r.transport}</span>
+          <code className="min-w-0 flex-1 truncate font-mono text-xs text-ink">{r.url}</code>
+          {needsAuth(r) && <span className="flex shrink-0 items-center gap-1 rounded bg-[#F2994A]/15 px-1.5 py-0.5 text-[11px] text-amber"><LockKey size={11} />{m.detail.authRequired}</span>}
+          <CopyButton text={r.url} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type Pkg = ServerDetail['packages'][number]
+
+/** 安装包的公开页面；Docker Hub 的镜像去掉 docker.io/ 前缀，MCPB 的标识本身就是下载地址 */
+function packageUrl(p: Pkg): string | null {
+  if (/^https?:\/\//.test(p.identifier)) return p.identifier
+  if (p.registryType === 'npm') return `https://www.npmjs.com/package/${p.identifier}`
+  if (p.registryType === 'pypi') return `https://pypi.org/project/${p.identifier}/`
+  if (p.registryType === 'nuget') return `https://www.nuget.org/packages/${p.identifier}`
+  if (p.registryType === 'cargo') return `https://crates.io/crates/${p.identifier}`
+  if (p.registryType === 'oci') {
+    const image = p.identifier.replace(/^(?:index\.)?docker\.io\//, '').split(/[:@]/)[0]!
+    return image.split('/')[0]!.includes('.') ? null : `https://hub.docker.com/r/${image.includes('/') ? image : `library/${image}`}`
+  }
+  return null
+}
+
+/** 同一个包常按不同传输方式登记多次（stdio / sse / streamable-http）：合并成一行，列出全部传输方式 */
+function groupPackages(packages: Pkg[]): (Pkg & { transports: string[] })[] {
+  const groups = new Map<string, Pkg & { transports: string[] }>()
+  for (const p of packages) {
+    const key = `${p.registryType}|${p.identifier}|${p.version ?? ''}`
+    const g = groups.get(key) ?? { ...p, transports: [] }
+    if (p.transport && !g.transports.includes(p.transport)) g.transports.push(p.transport)
+    groups.set(key, g)
+  }
+  return [...groups.values()]
+}
+
+/** 发布的安装包（npm / PyPI / Docker ……）、版本和支持的传输方式 */
+function Packages({ packages }: { packages: ServerDetail['packages'] }) {
+  const { m } = useI18n()
+  if (packages.length === 0) return null
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-fg/[0.08] bg-surface">
+      <div className="flex items-center gap-1.5 border-b border-fg/[0.06] px-4 py-2.5 text-xs text-text3"><Package size={13} />{m.detail.packages}</div>
+      {groupPackages(packages).map((p, i) => {
+        const url = packageUrl(p)
+        // 下载地址形式的标识（MCPB）只显示文件名
+        const label = /^https?:\/\//.test(p.identifier) ? decodeURIComponent(p.identifier.split('/').pop() ?? p.identifier) : p.identifier
+        return (
+          <div key={`${p.registryType}:${p.identifier}:${p.version}`} className={clsx('flex items-center gap-3 px-4 py-2.5', i > 0 && 'border-t border-fg/[0.06]')}>
+            <span className="shrink-0 rounded bg-fg/[0.06] px-1.5 py-0.5 text-[11px] uppercase text-text2">{p.registryType}</span>
+            <code className="min-w-0 truncate font-mono text-sm text-ink" title={p.identifier}>{label}</code>
+            {p.version && <span className="shrink-0 font-mono text-xs text-text3">{p.version}</span>}
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              {p.transports.map((t) => <span key={t} className="hidden rounded bg-fg/[0.04] px-1.5 py-0.5 text-[11px] text-text3 sm:inline">{TRANSPORT_LABEL[t] ?? t}</span>)}
+              {url && <a href={url} target="_blank" rel="noreferrer" className="grid size-7 place-items-center rounded-[7px] text-text3 hover:text-ink"><ArrowSquareOut size={14} /></a>}
+              <CopyButton text={p.identifier} />
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** 配置区块：远程服务给各平台的安装命令，本地服务给通用配置和启动命令，都没有时提示查看 README；之后列出全部端点和安装包 */
 export function ConfigSection({ configKey, d, glow }: { configKey: string; d: ServerDetail; glow: string }) {
   const remote = d.remotes[0]
-  if (remote) return <RemoteConfig configKey={configKey} url={remote.url} transport={remote.transport} />
   const spec = localSpec(d)
-  return spec ? <LocalConfig configKey={configKey} spec={spec} d={d} glow={glow} /> : <NoInstall d={d} />
+  const main = remote ? <RemoteConfig configKey={configKey} url={remote.url} transport={remote.transport} /> : spec ? <LocalConfig configKey={configKey} spec={spec} d={d} glow={glow} /> : <NoInstall d={d} />
+  return (
+    <div className="flex flex-col gap-3">
+      {main}
+      <Endpoints remotes={d.remotes} />
+      <Packages packages={d.packages} />
+    </div>
+  )
 }

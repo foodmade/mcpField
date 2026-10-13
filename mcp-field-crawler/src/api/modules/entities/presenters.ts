@@ -39,6 +39,8 @@ const server: EntityPresenter<'server'> = {
     toolsCount: d.detail.tools.length,
   }),
   detail: (d) => ({
+    /** 官方 MCP Registry 里登记的名称（命名空间经发布者验证） */
+    registryName: orNull(d.identity.registryName),
     version: orNull(d.detail.version),
     authType: orNull(d.detail.authType),
     packages: d.detail.packages.map((p) => ({ registryType: p.registryType, identifier: p.identifier, version: orNull(p.version), runtimeHint: orNull(p.runtimeHint), transport: orNull(p.transport) })),
@@ -82,6 +84,7 @@ const skill: EntityPresenter<'skill'> = {
     skillSlug: orNull(d.detail.skillSlug),
     firstSeenOn: orNull(d.detail.firstSeenOn),
     audits: d.detail.audits,
+    files: d.detail.files ?? [],
   }),
 }
 

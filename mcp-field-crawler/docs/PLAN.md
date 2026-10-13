@@ -148,6 +148,12 @@
 
 上线前要做：线上先 `db:migrate` 和 `publish`，再发布新的 API（否则网站读不到数据）；线上 crontab 的 `STEPS` 要加上 `publish`；Registry 的采集步骤按 2.6 的决定再加。
 
+| # | 任务 | 状态 |
+| --- | --- | --- |
+| 4a.6 | 搜索表 `ingest_search`（迁移 0008）与 `search-index` 命令；关键词搜索和热门列表改读搜索表，publish / github / translate / describe 结束时自动同步 | ✅ |
+
+上线：发布后（迁移会建空表，接口在没有数据时仍走旧查法）在线上运行一次 `search-index` 生成全量，之后由每日任务自动同步，crontab 不用改。
+
 ### 阶段 4：正式目录表 ⏳
 
 | # | 任务 |

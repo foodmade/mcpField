@@ -1,4 +1,4 @@
-import { boolean, foreignKey, index, int, json, mediumtext, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
+import { bigint, boolean, foreignKey, index, int, json, mediumtext, mysqlTable, primaryKey, smallint, text, tinyint, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
 import { entities } from './catalog.ts'
 import { at, kindCol, localeCol, pk, ref, sha256, sourceIdCol, timestamps } from './columns.ts'
 
@@ -398,6 +398,30 @@ export const ingestPublishedSlugs = mysqlTable(
     publishedId: ref('published_id').notNull().references(() => ingestPublished.id, cascade),
   },
   (t) => [primaryKey({ columns: [t.kind, t.slug] }), index('ix_ingest_published_slugs_published').on(t.publishedId)],
+)
+
+/**
+ * 搜索与热门列表用的窄表：一行 = 一个发布条目在一种语言下的搜索文本和排序键，由 search-index 生成
+ * （publish / github / translate / describe 结束时自动同步）。
+ * 主键按 类型 → 语言 → 热度 → 精选 → slug 排列，与列表 sort=popular 的顺序一致：热门列表和关键词搜索都按主键顺序扫描，
+ * 凑够一页就停，不用对整个类型现算排序键和译文指纹。发布层每次 publish 整体重建、id 会变，这里按 slug 关联。
+ */
+export const ingestSearch = mysqlTable(
+  'ingest_search',
+  {
+    kind: kindCol(),
+    locale: localeCol(),
+    /** 越小越靠前：-热度；没有热度指标时取最大值，排在最后 */
+    popRank: bigint('pop_rank', { mode: 'number' }).notNull(),
+    /** 精选为 0、其余为 1：热度相同时精选在前 */
+    featuredRank: tinyint('featured_rank').notNull(),
+    slug: varchar('slug', { length: 191 }).notNull(),
+    /** 能搜到的文字：名称、slug、英文简介、这种语言的简介译文、自撰简介，换行分隔 */
+    body: mediumtext('body').notNull(),
+    /** 排序键和 body 的指纹：同步时只改有变化的行 */
+    rowHash: sha256('row_hash').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.locale, t.popRank, t.featuredRank, t.slug] }), uniqueIndex('uq_ingest_search_slug').on(t.kind, t.locale, t.slug)],
 )
 
 /**

@@ -3,55 +3,47 @@ import type { EntityDraftOf } from '../../core/draft.ts'
 import type { EntityKind } from '../../core/types.ts'
 import type { Db } from '../../db/client.ts'
 import type { MetricName } from '../../core/draft.ts'
+import { FEATURED, metric, NAME, popularity, popularityNeedsRepo, REPO_STATS, STARS, TAGLINE, TEXTS, textAt } from '../../db/published-sql.ts'
 import type { ListQuery, Scope } from '../http/query.ts'
 import type { CategoryCount, EntityReadRepository, EntityRow, SitemapEntry, TypeCount, ViewCounts } from './types.ts'
 
-/* 从草稿 JSON 中取值的 SQL 片段（d 为 ingest_published 的别名） */
-const NAME = sql`JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.name'))`
-const metric = (name: MetricName) =>
-  sql`(SELECT m.value FROM JSON_TABLE(d.draft, '$.metrics[*]' COLUMNS (metric VARCHAR(32) PATH '$.metric', value BIGINT PATH '$.value')) m WHERE m.metric = ${name} LIMIT 1)`
-const TEXTS = sql`JSON_TABLE(d.draft, '$.texts[*]' COLUMNS (field VARCHAR(24) PATH '$.field', locale VARCHAR(8) PATH '$.locale', format VARCHAR(16) PATH '$.format', content LONGTEXT PATH '$.content')) t`
-/** 简介：优先 tagline，没有时用 description（Skill 只有 description） */
-const TAGLINE = sql`(SELECT t.content FROM ${TEXTS} WHERE t.field IN ('tagline', 'description') AND t.locale = 'en' ORDER BY t.field = 'tagline' DESC LIMIT 1)`
+/* 从草稿 JSON 中取值的 SQL 片段（d 为 ingest_published 的别名）；与搜索表同步共用的在 db/published-sql.ts */
 const PRIMARY_CATEGORY = sql`JSON_EXTRACT(d.draft, '$.categories[0].slug')`
 /** 列表用的草稿：去掉 README 等长文本，只保留简介类文本 */
 const LIST_DRAFT = sql`JSON_SET(d.draft, '$.texts', COALESCE((SELECT JSON_ARRAYAGG(JSON_OBJECT('field', t.field, 'locale', t.locale, 'format', t.format, 'content', t.content)) FROM ${TEXTS} WHERE t.field NOT IN ('readme', 'overview')), JSON_ARRAY()))`
 
 const flag = (path: string, value: boolean) => sql`JSON_EXTRACT(d.draft, ${path}) = ${value ? sql`TRUE` : sql`FALSE`}`
-/** JSON 里的字符串字段取成定长字符串；缺失或 JSON null 时为 SQL NULL */
-const textAt = (path: string, len: number) => sql`CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(d.draft, ${path})), 'null') AS CHAR(${sql.raw(String(len))}))`
-
-/** 关联 GitHub 仓库统计（g，规则同 github/repo.ts 的 repoRef：repo:github.com/owner/name） */
-const REPO_STATS = sql`LEFT JOIN ingest_enrichments g ON g.enricher = 'github_repo' AND g.status = 'ok'
-  AND JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.host')) = 'github.com'
-  AND g.subject_key = CONCAT('repo:github.com/', JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.owner')), '/', JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.name')))`
-/** 星数、最近提交时间：GitHub 的优先，没抓到时用源站的 */
-const STARS = sql`COALESCE(CAST(JSON_EXTRACT(g.data, '$.stars') AS SIGNED), ${metric('github_stars')})`
+/** 最近提交时间：GitHub 的优先，没抓到时用源站的 */
 const LAST_COMMIT = sql`COALESCE(CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(g.data, '$.lastCommitAt')), 'null') AS CHAR(40)), ${textAt('$.lastCommitAt', 40)})`
 
 /**
  * 排序键：先在派生表 k 里取成小字段再排序。直接对带草稿 JSON 的行排序时，
  * MySQL 会把整行（含几百 KB 的草稿）放进排序缓冲区，超出 sort_buffer_size 而报错。
+ * 派生表要对该类型的每一行求值，所以只算本次排序用到的键（v）；用到星数、最近提交时间时才关联 GitHub 统计表（repo）。
  */
-const sortKeys = (popularMetric: MetricName) => sql`d.id, d.slug,
-  ${textAt('$.name', 255)} AS name,
-  ${popularMetric === 'github_stars' ? STARS : metric(popularMetric)} AS popularity, ${STARS} AS stars, ${metric('skill_installs')} AS installs,
-  ${LAST_COMMIT} AS last_commit, ${textAt('$.sourceCreatedAt', 40)} AS created,
-  (JSON_EXTRACT(d.draft, '$.flags.featured') = TRUE) AS featured`
+type SortSpec = { keys: SQL; order: SQL; repo: boolean }
+const desc = (key: SQL, repo = false): SortSpec => ({ keys: sql`${key} AS v`, order: sql`k.v IS NULL, k.v DESC, k.slug`, repo })
 
-const ORDER_BY: Record<ListQuery['sort'], SQL> = {
+const SORTS: Record<ListQuery['sort'], (popularMetric: MetricName) => SortSpec> = {
   // 热度相同（包括都没有热度指标，例如 Agent）时精选排在前面
-  popular: sql`k.popularity IS NULL, k.popularity DESC, k.featured DESC, k.slug`,
-  stars: sql`k.stars IS NULL, k.stars DESC, k.slug`,
-  installs: sql`k.installs IS NULL, k.installs DESC, k.slug`,
-  name: sql`LOWER(k.name), k.slug`,
-  updated: sql`k.last_commit IS NULL, k.last_commit DESC, k.slug`,
-  newest: sql`k.created IS NULL, k.created DESC, k.slug`,
+  popular: (m) => ({
+    keys: sql`${popularity(m)} AS v, ${FEATURED} AS featured`,
+    order: sql`k.v IS NULL, k.v DESC, k.featured DESC, k.slug`,
+    repo: popularityNeedsRepo(m),
+  }),
+  stars: () => desc(STARS, true),
+  installs: () => desc(metric('skill_installs')),
+  name: () => ({ keys: sql`${textAt('$.name', 255)} AS v`, order: sql`LOWER(k.v), k.slug`, repo: false }),
+  updated: () => desc(LAST_COMMIT, true),
+  newest: () => desc(textAt('$.sourceCreatedAt', 40)),
 }
 
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&')
 }
+
+/** 关键词的 LIKE 模式：包含即命中 */
+const likeOf = (q: string) => `%${escapeLike(q.toLowerCase())}%`
 
 /** mysql2 对原生查询可能返回 Date 或 'YYYY-MM-DD HH:MM:SS.mmm'（UTC）字符串 */
 function toIso(value: unknown): string {
@@ -83,6 +75,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   private readonly sourceId: string | undefined
   private readonly popularMetric: MetricName
   private readonly typePath: string | undefined
+  private searchCheck: { at: number; ready: Promise<boolean> } | undefined
 
   constructor(
     private readonly db: Db,
@@ -111,14 +104,53 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     return { draft: parseJson<EntityDraftOf<K>>(row.draft), fetchedAt: toIso(row.fetched_at), mappedAt: toIso(row.mapped_at) }
   }
 
-  private where(query: ListQuery): SQL {
+  /** 搜索表里有没有这个类型（新部署还没跑过 search-index 时退回直接查发布层）；结果缓存一分钟 */
+  private searchReady(): Promise<boolean> {
+    if (!this.searchCheck || Date.now() - this.searchCheck.at > 60_000) {
+      const ready = this.rows(sql`SELECT 1 FROM ingest_search WHERE kind = ${this.kind} LIMIT 1`).then(
+        (r) => r.length > 0,
+        () => false,
+      )
+      this.searchCheck = { at: Date.now(), ready }
+    }
+    return this.searchCheck.ready
+  }
+
+  /** 热门排序、除关键词外没有别的筛选：顺序和条件都在搜索表里，不用碰发布层的草稿 */
+  private bySearchTable(query: ListQuery): boolean {
+    return (
+      query.sort === 'popular' &&
+      !this.sourceId &&
+      query.remote === undefined &&
+      !query.category &&
+      query.featured === undefined &&
+      query.verified === undefined &&
+      query.official === undefined &&
+      !(query.type && this.typePath)
+    )
+  }
+
+  /** 列表用的草稿（不含 README 等长文本） */
+  private listDrafts(condition: SQL): Promise<(RawRow & { id: number; slug: string })[]> {
+    return this.rows(sql`
+      SELECT d.id, d.slug, ${LIST_DRAFT} AS draft, r.fetched_at, d.mapped_at
+      FROM ingest_published d JOIN ingest_records r ON r.id = d.record_id
+      WHERE ${condition}`)
+  }
+
+  private where(query: ListQuery, search: boolean): SQL {
     const conditions = this.base(query)
-    if (query.q) {
-      const like = `%${escapeLike(query.q.toLowerCase())}%`
-      // 简介的译文也参与搜索：用与采集端相同的规范化规则算出原文指纹，关联翻译记忆库
-      const translated = sql`EXISTS (SELECT 1 FROM ingest_translations tr WHERE tr.source_hash = SHA2(TRIM(REGEXP_REPLACE(${TAGLINE}, '[[:space:]]+', ' ')), 256) AND LOWER(tr.content) LIKE ${like})`
+    if (query.q && search) {
+      // 名称、slug、英文简介、当前语言的简介译文、自撰简介都预先放进了搜索表的 body（search/rows.ts）
+      conditions.push(sql`d.slug IN (SELECT s.slug FROM ingest_search s WHERE s.kind = ${this.kind} AND s.locale = ${query.locale} AND s.body LIKE ${likeOf(query.q)})`)
+    } else if (query.q) {
+      // 搜索表还没生成时的旧查法（每行现算译文指纹，很慢）
+      const like = likeOf(query.q)
+      // 简介的译文也参与搜索：用与采集端相同的规范化规则算出原文指纹，关联翻译记忆库。
+      // 只匹配当前语言的译文（每行少比对两种语言）；content 列是 utf8mb4_unicode_ci，本身不区分大小写，不用 LOWER
+      const translated = sql`EXISTS (SELECT 1 FROM ingest_translations tr WHERE tr.source_hash = SHA2(TRIM(REGEXP_REPLACE(${TAGLINE}, '[[:space:]]+', ' ')), 256) AND tr.locale = ${query.locale} AND tr.content LIKE ${like})`
       // 我们自己撰写的简介（Loop / CLI / Agent）也参与搜索
-      const generated = sql`EXISTS (SELECT 1 FROM ingest_generated_texts g WHERE g.source_id = d.source_id AND g.kind = d.kind AND g.external_id = d.external_id AND g.field = 'tagline' AND LOWER(g.content) LIKE ${like})`
+      const generated = sql`EXISTS (SELECT 1 FROM ingest_generated_texts g WHERE g.source_id = d.source_id AND g.kind = d.kind AND g.external_id = d.external_id AND g.field = 'tagline' AND g.content LIKE ${like})`
       conditions.push(sql`(LOWER(${NAME}) LIKE ${like} OR d.slug LIKE ${like} OR LOWER(${TAGLINE}) LIKE ${like} OR ${translated} OR ${generated})`)
     }
     if (query.category === 'none') {
@@ -133,30 +165,59 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     return sql.join(conditions, sql` AND `)
   }
 
-  async list(query: ListQuery): Promise<{ rows: EntityRow<K>[]; total: number }> {
-    const where = this.where(query)
-    const offset = (query.page - 1) * query.pageSize
-    // 先在派生表里只取排序键排好序拿到 id（NO_MERGE 保证派生表单独物化），再按 id 回表取草稿
-    const [ids, [count]] = await Promise.all([
-      this.rows<{ id: number }>(sql`
-        SELECT /*+ NO_MERGE(k) */ k.id
-        FROM (SELECT ${sortKeys(this.popularMetric)} FROM ingest_published d ${REPO_STATS} WHERE ${where}) k
-        ORDER BY ${ORDER_BY[query.sort]}
-        LIMIT ${query.pageSize} OFFSET ${offset}`),
-      this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_published d WHERE ${where}`),
+  /** 按搜索表的主键（类型 → 语言 → 热度 → 精选 → slug）顺序取一页：不用排序，凑够一页就停 */
+  private async listFromSearch(query: ListQuery): Promise<{ rows: EntityRow<K>[]; total: number | null }> {
+    const from = sql`FROM ingest_search s WHERE s.kind = ${this.kind} AND s.locale = ${query.locale}${query.q ? sql` AND s.body LIKE ${likeOf(query.q)}` : sql``}`
+    const [page, count] = await Promise.all([
+      this.rows<{ slug: string }>(sql`SELECT s.slug ${from} ORDER BY s.pop_rank, s.featured_rank, s.slug LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}`),
+      query.withTotal ? this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total ${from}`) : undefined,
     ])
-    if (ids.length === 0) return { rows: [], total: Number(count?.total ?? 0) }
-    const rows = await this.rows<RawRow & { id: number }>(sql`
-      SELECT d.id, ${LIST_DRAFT} AS draft, r.fetched_at, d.mapped_at
-      FROM ingest_published d JOIN ingest_records r ON r.id = d.record_id
-      WHERE d.id IN (${sql.join(ids.map((r) => sql`${r.id}`), sql`, `)})`)
+    const total = count ? Number(count[0]?.total ?? 0) : null
+    if (page.length === 0) return { rows: [], total }
+    const drafts = await this.listDrafts(sql`d.kind = ${this.kind} AND d.slug IN (${sql.join(page.map((r) => sql`${r.slug}`), sql`, `)})`)
+    const bySlug = new Map(drafts.map((r) => [r.slug, r]))
+    return {
+      // 搜索表比发布层晚同步时，已下架的条目在这里跳过
+      rows: page.flatMap((r) => {
+        const row = bySlug.get(r.slug)
+        return row ? [this.toEntityRow(row)] : []
+      }),
+      total,
+    }
+  }
+
+  async list(query: ListQuery): Promise<{ rows: EntityRow<K>[]; total: number | null }> {
+    const search = await this.searchReady()
+    if (search && this.bySearchTable(query)) return this.listFromSearch(query)
+    const where = this.where(query, search)
+    const offset = (query.page - 1) * query.pageSize
+    const sort = SORTS[query.sort](this.popularMetric)
+    // 先在派生表里只取排序键排好序拿到 id（NO_MERGE 保证派生表单独物化），再按 id 回表取草稿。
+    // 总数用窗口函数在同一条查询里顺带算出：派生表本来就要对所有命中行求值，不必再单独跑一遍同样的过滤
+    const ids = await this.rows<{ id: number; total?: number | string }>(sql`
+      SELECT /*+ NO_MERGE(k) */ k.id${query.withTotal ? sql`, COUNT(*) OVER () AS total` : sql``}
+      FROM (SELECT d.id, d.slug, ${sort.keys} FROM ingest_published d ${sort.repo ? REPO_STATS : sql``} WHERE ${where}) k
+      ORDER BY ${sort.order}
+      LIMIT ${query.pageSize} OFFSET ${offset}`)
+    let total: number | null = null
+    if (query.withTotal) {
+      if (ids.length > 0) total = Number(ids[0]!.total)
+      else if (offset === 0) total = 0
+      else {
+        // 页码超出范围：这一页没有行、拿不到窗口函数的结果，才单独数一次
+        const [count] = await this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_published d WHERE ${where}`)
+        total = Number(count?.total ?? 0)
+      }
+    }
+    if (ids.length === 0) return { rows: [], total }
+    const rows = await this.listDrafts(sql`d.id IN (${sql.join(ids.map((r) => sql`${r.id}`), sql`, `)})`)
     const byId = new Map(rows.map((r) => [Number(r.id), r]))
     return {
       rows: ids.flatMap((r) => {
         const row = byId.get(Number(r.id))
         return row ? [this.toEntityRow(row)] : []
       }),
-      total: Number(count?.total ?? 0),
+      total,
     }
   }
 

@@ -35,6 +35,7 @@ import { LocalStorage, R2Storage } from '../assets/storage.ts'
 import { AssetStore } from '../assets/store.ts'
 import { runMergePlan } from '../merge/runner.ts'
 import { publish } from '../merge/publish.ts'
+import { syncSearchIndex } from '../search/sync.ts'
 import { LlmClassifier } from '../classify/classifier.ts'
 import { ClassifyRunner, collectClassifyInputs } from '../classify/runner.ts'
 import { ClassificationStore } from '../classify/store.ts'
@@ -65,6 +66,7 @@ MCP Field 数据采集
   merge-plan              合并预演：按身份键算出哪些草稿是同一个东西，只读，报告写到 data/merge-plan
   classify                给来源没有分类的条目分类（按 classify/taxonomy.ts 的分类体系），之后 publish 写入发布层
   publish                 发布：过滤凑数条目，把各来源的同一个东西合并成一条，重建 ingest_published（网站和各生成任务读它）
+  search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）；publish / github / translate / describe 结束时自动同步
   stats                   查看采集层统计（需要 MySQL）
 
 选项：
@@ -262,6 +264,8 @@ async function github() {
       signal: controller.signal,
     })
     logger.info(readmeStats, 'GitHub README 抓取完成')
+    // 星数变了，热门顺序跟着变
+    if (!controller.signal.aborted) await syncSearchIndex(db, kinds, logger)
   } finally {
     await pool.end()
   }
@@ -297,6 +301,8 @@ async function translate() {
       signal: controller.signal,
     })
     logger.info({ ...stats, model: translator.model }, '翻译完成')
+    // 新译文要能搜到
+    if (!controller.signal.aborted) await syncSearchIndex(db, kinds, logger)
   } finally {
     await pool.end()
   }
@@ -418,6 +424,8 @@ async function describe() {
       signal: controller.signal,
     })
     logger.info(stats, '内容生成完成')
+    // 新撰写的简介要能搜到
+    if (!controller.signal.aborted) await syncSearchIndex(db, kinds, logger)
   } finally {
     await pool.end()
   }
@@ -530,6 +538,18 @@ async function publishCommand() {
   try {
     const stats = await publish(db, kinds, logger)
     logger.info(stats, '发布完成')
+    await syncSearchIndex(db, kinds, logger)
+  } finally {
+    await pool.end()
+  }
+}
+
+async function searchIndex() {
+  if (!config.databaseUrl) throw new Error('search-index 需要 DATABASE_URL')
+  const kinds = parseKinds(values.kind, ENTITY_KINDS)
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    await syncSearchIndex(db, kinds, logger)
   } finally {
     await pool.end()
   }
@@ -582,6 +602,8 @@ async function main() {
       return classify()
     case 'publish':
       return publishCommand()
+    case 'search-index':
+      return searchIndex()
     case 'stats':
       return stats()
     default:

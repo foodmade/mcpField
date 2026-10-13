@@ -185,6 +185,11 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
   - 字段取舍（`merge/merge-drafts.ts`）：名称、简介、分类、标签、图标、作者按 mcp.so > Registry；安装包、远程端点、环境变量整组取自 Registry（发布者自己登记的；mcp.so 的配置可能被换成代理）；工具列表取最多的；仓库取最具体的（带子目录的）；指标取最大值；创建时间取最早、更新时间取最晚。源站收录的 README 文本不进入发布层（只用 GitHub 原文）。
   - 名称修正：映射时标为可疑、与仓库所有者和仓库名没有共同词，且是 README 小节标题（"Introduction""License"）、作者名或重复词（"Slack Slack"）的，换成其他来源的名称，没有时用仓库名。填成人名的（microsoft/vscode 叫"Geng"）规则分不出来，留给人工修正。
   - 地址：同类型内唯一；上一次发布过的沿用（按身份键，其次按主条目），新条目用主条目的 slug，mcp.so 的先分配，重名加 -2、-3。被合并进来的成员原来的地址记在 `ingest_published_slugs`，旧链接也能打开。
+- 搜索表 `ingest_search`（`search/`，`npm run crawler -- search-index`）：列表接口的关键词搜索和热门排序读这张窄表，不再对发布层每一行现算 JSON 字段和译文指纹（原来 skills 搜一次 2–6 秒，现在全站搜索取前几条 2–6 毫秒）。
+  - 一行 = 一个条目在一种语言下的 body（名称、slug、英文简介、这种语言的简介译文、自撰简介，换行分隔）和排序键；主键按 类型 → 语言 → 热度 → 精选 → slug 排列，与 `sort=popular` 的顺序一致，查询按主键顺序扫描、凑够一页就停。最坏情况是关键词搜不到、要扫完一整类（本地 skills 约 140 毫秒）。
+  - 匹配仍用 `LIKE '%关键词%'`，结果与原来一致。没有用 MySQL 全文索引（ngram）：英文常见词反而更慢（180–500 毫秒），索引另占约 400 MB，线上 MySQL 缓冲池只有 128 MB。
+  - 同步：publish / github / translate / describe 结束时自动执行，按指纹只改有变化的行（本地全量无变化时约 12 秒）；每个类型一个事务，并用 `GET_LOCK` 防止两个同步同时写。热度、名称、简介的算法与列表接口共用 `db/published-sql.ts`，热度指标共用 `POPULAR_METRIC`。
+  - 发布层按 slug 关联（publish 整体重建、id 会变）。接口在搜索表还没有某个类型的数据时（新部署还没跑 search-index）退回直接查发布层；热门排序以外的排序、带分类等筛选时，关键词条件也改为查搜索表。
 
 ## 7. mcp.so 数据源
 

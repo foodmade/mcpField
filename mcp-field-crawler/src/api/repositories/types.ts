@@ -39,8 +39,8 @@ export interface ViewCounts {
  * service 和路由不用改。
  */
 export interface EntityReadRepository<K extends EntityKind> {
-  /** 列表：返回的草稿不含 README 等大段文本 */
-  list(query: ListQuery): Promise<{ rows: EntityRow<K>[]; total: number }>
+  /** 列表：返回的草稿不含 README 等大段文本；query.withTotal 为 false 时不统计总数（total 为 null） */
+  list(query: ListQuery): Promise<{ rows: EntityRow<K>[]; total: number | null }>
   findBySlug(slug: string): Promise<EntityRow<K> | null>
   categoryCounts(scope?: Scope): Promise<CategoryCount[]>
   /** 官方、精选、已认证的数量 */

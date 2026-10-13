@@ -36,6 +36,16 @@ export type MetricName =
   | 'source_views'
 export type MetricPeriod = 'total' | 'day' | 'week' | 'month'
 
+/** 各类型 sort=popular 用的热度指标（列表排序和搜索表 ingest_search 共用，两边顺序必须一致） */
+export const POPULAR_METRIC: Record<EntityKind, MetricName> = {
+  server: 'github_stars',
+  client: 'github_stars',
+  cli: 'github_stars',
+  skill: 'skill_installs',
+  loop: 'source_views',
+  agent: 'github_stars',
+}
+
 export type MediaType = 'icon' | 'logo' | 'cover' | 'screenshot'
 export type AliasType = 'previous_slug' | 'name' | 'command' | 'canonical_key'
 export type ListName = 'capability' | 'summary' | 'use_case'

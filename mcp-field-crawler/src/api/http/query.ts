@@ -52,6 +52,8 @@ export const listQuerySchema = z.object({
   sort: z.enum(['popular', 'stars', 'installs', 'name', 'updated', 'newest']).default('popular'),
   /** 简介等文本的语言；没有译文时返回原文 */
   locale: z.enum(['zh', 'en', 'ja']).default('en'),
+  /** false = 不统计总数（meta.total 为 null）：只要前几条时用，例如全站搜索 */
+  withTotal: booleanFlag.transform((v) => v ?? true),
 })
 
 export type ListQuery = z.infer<typeof listQuerySchema>
@@ -59,12 +61,13 @@ export type ListQuery = z.infer<typeof listQuerySchema>
 export interface PageMeta {
   page: number
   pageSize: number
-  total: number
-  totalPages: number
+  /** 没有统计时（withTotal=false）为 null */
+  total: number | null
+  totalPages: number | null
 }
 
-export function pageMeta(query: Pick<ListQuery, 'page' | 'pageSize'>, total: number): PageMeta {
-  return { page: query.page, pageSize: query.pageSize, total, totalPages: Math.ceil(total / query.pageSize) }
+export function pageMeta(query: Pick<ListQuery, 'page' | 'pageSize'>, total: number | null): PageMeta {
+  return { page: query.page, pageSize: query.pageSize, total, totalPages: total === null ? null : Math.ceil(total / query.pageSize) }
 }
 
 /** sitemap 分页：单个 sitemap 文件最多 5 万条 */

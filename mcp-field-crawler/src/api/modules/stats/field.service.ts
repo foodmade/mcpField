@@ -76,7 +76,7 @@ export class FieldService {
 
   private async load(locale: Locale): Promise<FieldItem[]> {
     const pages = (['server', 'skill'] as const).flatMap((kind) =>
-      Array.from({ length: PAGES[kind] }, (_, i) => ({ kind, query: listQuerySchema.parse({ page: i + 1, pageSize: 100, sort: 'popular', locale }) })),
+      Array.from({ length: PAGES[kind] }, (_, i) => ({ kind, query: listQuerySchema.parse({ page: i + 1, pageSize: 100, sort: 'popular', locale, withTotal: 'false' }) })),
     )
     // 分页按顺序请求，避免一次压上五个排序查询
     const items: FieldItem[] = []

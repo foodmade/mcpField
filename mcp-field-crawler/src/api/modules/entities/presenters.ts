@@ -1,4 +1,4 @@
-import type { EntityDraftOf, MetricName, ToolDraft } from '../../../core/draft.ts'
+import { POPULAR_METRIC, type EntityDraftOf, type MetricName, type ToolDraft } from '../../../core/draft.ts'
 import type { EntityKind } from '../../../core/types.ts'
 
 /**
@@ -31,7 +31,7 @@ export function presentTool(t: ToolDraft) {
 }
 
 const server: EntityPresenter<'server'> = {
-  popularMetric: 'github_stars',
+  popularMetric: POPULAR_METRIC.server,
   list: (d) => ({
     isRemote: d.detail.isRemote,
     runtime: orNull(d.detail.runtime),
@@ -52,13 +52,13 @@ const server: EntityPresenter<'server'> = {
 }
 
 const client: EntityPresenter<'client'> = {
-  popularMetric: 'github_stars',
+  popularMetric: POPULAR_METRIC.client,
   list: () => ({}),
   detail: (d) => ({ clientType: orNull(d.detail.clientType), runtime: orNull(d.detail.runtime) }),
 }
 
 const cli: EntityPresenter<'cli'> = {
-  popularMetric: 'github_stars',
+  popularMetric: POPULAR_METRIC.cli,
   list: (d) => ({
     command: orNull(d.detail.command),
     installCommand: d.detail.installs[0]?.command ?? null,
@@ -74,7 +74,7 @@ const cli: EntityPresenter<'cli'> = {
 }
 
 const skill: EntityPresenter<'skill'> = {
-  popularMetric: 'skill_installs',
+  popularMetric: POPULAR_METRIC.skill,
   list: (d) => ({
     installs: metric(d, 'skill_installs'),
     installCommand: orNull(d.detail.installCommand),
@@ -89,13 +89,13 @@ const skill: EntityPresenter<'skill'> = {
 }
 
 const loop: EntityPresenter<'loop'> = {
-  popularMetric: 'source_views',
+  popularMetric: POPULAR_METRIC.loop,
   list: (d) => ({ loopType: orNull(d.detail.loopType), maxIterations: orNull(d.detail.maxIterations) }),
   detail: (d) => ({ supportedAgents: d.detail.supportedAgents, checkCommand: orNull(d.detail.checkCommand) }),
 }
 
 const agent: EntityPresenter<'agent'> = {
-  popularMetric: 'github_stars',
+  popularMetric: POPULAR_METRIC.agent,
   typePath: '$.detail.agentType',
   list: (d) => ({ agentType: orNull(d.detail.agentType) }),
   detail: () => ({}),

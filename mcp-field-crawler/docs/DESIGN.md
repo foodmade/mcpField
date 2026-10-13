@@ -320,7 +320,20 @@ README 只用 GitHub 上的原文。mcp.so 收录的 README（`item.description`
 - 名称只有大小写不同的（2026-10 实测 7 对，如 `io.github.SceneView/mcp` 与 `io.github.sceneview/mcp`，都是同一 GitHub 账号重复登记）：库表唯一键不区分大小写，存成一条，后抓到的覆盖先抓到的。
 - 规模（2026-10-12）：见 PLAN.md 阶段 2。
 
-## 15. 后续阶段
+## 16. skills.sh 数据源
+
+数据源 ID `skills-sh`，只有 Skill 一种类型。`npm run crawler -- crawl --source skills-sh`。
+
+- 接口：官方 API `https://skills.sh/api/v1`（文档 /docs/api），认证用 Vercel OIDC 令牌，每分钟 600 次（按 Vercel 团队 + 项目计）。robots.txt 的 `Disallow: /api/` 针对网页爬虫；文档化、需认证的 API 是网站提供的正式数据接口，使用条款写明合理使用、缓存到自己的服务器是被鼓励的。
+- 令牌：`SKILLS_SH_VERCEL_DIR`（默认 `~/.mcpfield/skills-sh`）是一个已 `vercel link` 的空 Vercel 项目（免费 Hobby 账号即可），令牌在它的 `.env.local` 里，有效期约 12 小时；快过期时自动在该目录运行 `vercel env pull` 换新（`sources/skills-sh/token.ts`），需要本机 Vercel CLI 已登录。新机器上：`vercel login`，然后在该目录 `vercel link` 和 `vercel env pull`。
+- 发现：全站排行榜（`view=all-time`，每页 500 条，最多前 10 万条；2026-10 共 93,019 条）。网站上显示的 "All Time (1,291,198)" 是被安装过的全部 skill 个数，排行榜之外的长尾只能按仓库查（`source=owner/repo`），以后配合 GitHub 指纹补。名称里带 `/` 的接口不支持，跳过。
+- 抓取：每个 skill 请求详情（含 SKILL.md 等文件、内容哈希）和安全审计两次，`SkillsShFetcher` 合成一份文档（排行榜条目 + 详情 + 审计）。列表没有更新时间，用"每周一个周期"代替：本周期内抓过的跳过。
+- 映射：名称、简介取 SKILL.md 元数据（作者自己写的）；身份键 `skill:owner/repo#skill`（well-known 来源是 `skill:域名#skill`），与 mcp.so 的 Skill 自动合并；安装量、安全审计（结论、风险等级、摘要、行为类别、时间）、随 Skill 分发的文件列表。源记录只存 SKILL.md 正文和其他文件的路径。
+- README：`github` 命令开始抓 README 前，先把 skills.sh 记录里的 SKILL.md 导入为对应 Skill 的 README（去掉 YAML 元数据，`sources/skills-sh/readme.ts`），这些 Skill 不再请求 GitHub（GitHub 额度 5,000 次/小时，与线上共用）。
+- 地址：Skill 重名很常见，发布时先用"名称-作者"（与 mcp.so 一致），再加序号。
+- 合并：Skill 的审计取信息最全的来源（skills.sh 的带风险等级和摘要），文件列表从有的来源补上。
+
+## 17. 后续阶段
 
 1. **补全**（Enricher）：GitHub GraphQL（每次 100 个仓库，星数等元数据）、npm / PyPI 下载量、远程服务实时探测（initialize + tools/list + prompts/list + resources/list）。
 2. **合并发布**（Publisher）：按身份键合并草稿 → 按字段优先级取值 → upsert 目录表 → 记录 `entity_sources` → 触发网站缓存刷新和 IndexNow 推送。

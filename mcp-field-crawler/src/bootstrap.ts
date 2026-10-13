@@ -5,6 +5,7 @@ import type { IngestStore } from './core/store.ts'
 import { createDb } from './db/client.ts'
 import { McpRegistryFactory } from './sources/mcp-registry/index.ts'
 import { McpSoFactory } from './sources/mcpso/index.ts'
+import { SkillsShFactory } from './sources/skills-sh/index.ts'
 import { mcpSoDescribeInput } from './sources/mcpso/describe-facts.ts'
 import type { FactExtractor } from './describe/runner.ts'
 import { FsBlobStore } from './store/blob-store.ts'
@@ -16,7 +17,7 @@ import { MySqlIngestStore } from './store/mysql-store.ts'
  * 新增数据源时，在 sources/ 下实现一个工厂，然后在这里加一行 register。
  */
 export function createRegistry(): SourceRegistry {
-  return new SourceRegistry().register(new McpSoFactory()).register(new McpRegistryFactory())
+  return new SourceRegistry().register(new McpSoFactory()).register(new McpRegistryFactory()).register(new SkillsShFactory())
 }
 
 /** 各数据源的事实整理器（生成 Loop / CLI / Agent 内容用），新增数据源时在这里登记 */

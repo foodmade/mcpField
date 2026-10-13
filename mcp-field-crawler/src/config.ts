@@ -1,4 +1,6 @@
 import { LLM_PROVIDERS, REASONING_EFFORTS, type LlmProvider, type ReasoningEffort } from './llm/providers.ts'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { z } from 'zod'
 
 const optionalString = z
@@ -49,6 +51,8 @@ const envSchema = z.object({
   QWEN_BASE_URL: z.string().trim().default('https://dashscope.aliyuncs.com/compatible-mode/v1'),
   /** 翻译（简介、README）的默认并发数；不设置时简介 4、README 6（适合 Claude 网关）。代理并发上限高时调大，命令行的 --concurrency 优先 */
   TRANSLATE_CONCURRENCY: z.coerce.number().int().positive().optional(),
+  /** skills.sh API 令牌所在目录：一个已 vercel link 的空项目，令牌在它的 .env.local 里（见 docs/DESIGN.md） */
+  SKILLS_SH_VERCEL_DIR: z.string().trim().default(join(homedir(), '.mcpfield', 'skills-sh')),
   R2_ACCOUNT_ID: optionalString,
   R2_BUCKET: optionalString,
   R2_PUBLIC_BASE_URL: optionalString,
@@ -81,6 +85,7 @@ export interface AppConfig {
   opencode: { apiKey?: string; baseURL: string }
   qwen: { apiKey?: string; baseURL: string }
   translateConcurrency?: number
+  skillsShVercelDir: string
   /** 五项都配置了才启用 R2 */
   r2?: { accountId: string; bucket: string; publicBaseUrl: string; accessKeyId: string; secretAccessKey: string }
 }
@@ -112,6 +117,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     opencode: { apiKey: parsed.OPENCODE_API_KEY, baseURL: parsed.OPENCODE_BASE_URL },
     qwen: { apiKey: parsed.QWEN_API_KEY, baseURL: parsed.QWEN_BASE_URL },
     translateConcurrency: parsed.TRANSLATE_CONCURRENCY,
+    skillsShVercelDir: parsed.SKILLS_SH_VERCEL_DIR,
     r2:
       parsed.R2_ACCOUNT_ID && parsed.R2_BUCKET && parsed.R2_PUBLIC_BASE_URL && parsed.R2_ACCESS_KEY_ID && parsed.R2_SECRET_ACCESS_KEY
         ? { accountId: parsed.R2_ACCOUNT_ID, bucket: parsed.R2_BUCKET, publicBaseUrl: parsed.R2_PUBLIC_BASE_URL, accessKeyId: parsed.R2_ACCESS_KEY_ID, secretAccessKey: parsed.R2_SECRET_ACCESS_KEY }

@@ -38,6 +38,7 @@ import { publish } from '../merge/publish.ts'
 import { LlmClassifier } from '../classify/classifier.ts'
 import { ClassifyRunner, collectClassifyInputs } from '../classify/runner.ts'
 import { ClassificationStore } from '../classify/store.ts'
+import { importSkillsShReadmes } from '../sources/skills-sh/readme.ts'
 import type { MediaType } from '../core/draft.ts'
 import { join } from 'node:path'
 import type { TextField } from '../core/draft.ts'
@@ -251,7 +252,10 @@ async function github() {
     const repoStats = await new GithubRepoRunner(new GithubRepoFetcher(client), new GithubRepoStore(db), logger).run(repos, { batchSize: 50, concurrency: 2, limit, signal: controller.signal })
     logger.info(repoStats, 'GitHub 仓库统计更新完成')
     if (controller.signal.aborted) return
-    const readmeStats = await new GithubReadmeRunner(new GithubReadmeFetcher(client), new GithubReadmeStore(db), logger).run(readmes, {
+    // skills.sh 已经给出 SKILL.md 的 Skill 直接导入，不再请求 GitHub
+    const readmeStore = new GithubReadmeStore(db)
+    logger.info(await importSkillsShReadmes(db, readmeStore, readmes), 'skills.sh 的 SKILL.md 已导入')
+    const readmeStats = await new GithubReadmeRunner(new GithubReadmeFetcher(client), readmeStore, logger).run(readmes, {
       concurrency: values.concurrency ? Number(values.concurrency) : 4,
       force: values.force,
       limit,

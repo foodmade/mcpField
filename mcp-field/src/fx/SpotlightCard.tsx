@@ -7,10 +7,12 @@ type Props = {
   className?: string
   children: ReactNode
   lift?: boolean
+  /** 角落的常驻渐变光；关掉后只在悬停时出现聚光 */
+  ambient?: boolean
 }
 
 // 卡片角落常驻渐变光 + 跟随指针的聚光与描边高亮
-export function SpotlightCard({ glow = '#3DDC97', className, children, lift = true }: Props) {
+export function SpotlightCard({ glow = '#3DDC97', className, children, lift = true, ambient = true }: Props) {
   const mx = useMotionValue(-400)
   const my = useMotionValue(-400)
   const spot = useMotionTemplate`radial-gradient(280px circle at ${mx}px ${my}px, ${glow}22, transparent 70%)`
@@ -29,7 +31,7 @@ export function SpotlightCard({ glow = '#3DDC97', className, children, lift = tr
       transition={{ type: 'spring', stiffness: 320, damping: 26 }}
       className={clsx('group relative isolate rounded-2xl border border-fg/[0.07]', className)}
       style={{
-        background: `radial-gradient(110% 130% at 100% 0%, ${glow}30, transparent 62%), var(--color-surface)`,
+        background: ambient ? `radial-gradient(110% 130% at 100% 0%, ${glow}30, transparent 62%), var(--color-surface)` : 'var(--color-surface)',
       }}
     >
       <motion.div

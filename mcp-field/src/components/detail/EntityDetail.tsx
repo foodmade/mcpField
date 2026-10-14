@@ -3,7 +3,7 @@ import {
   ArrowRight, ArrowUpRight, BookmarkSimple, BookOpen, CaretRight, ChatCenteredText, CheckCircle, ClockCounterClockwise,
   GithubLogo, Globe, ShareNetwork, ShieldCheck, Sparkle, WarningCircle, type Icon,
 } from '@phosphor-icons/react'
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import clsx from 'clsx'
 import { useEnterAnimation } from '../../fx/hydration'
@@ -21,7 +21,7 @@ import { ErrorPage } from '../ErrorPage'
 import { FaqSection } from '../Faq'
 import { Seo } from '../Seo'
 import { Stars } from '../directory/ServerItems'
-import { AiOverview } from './AiOverview'
+import { AiOverview, TagList } from './AiOverview'
 import { copyText } from './CopyButton'
 import { MarkdownReadme } from './MarkdownReadme'
 
@@ -77,7 +77,18 @@ export function DetailSeo({ kind, d, section }: { kind: Kind; d: BaseItem & Deta
   return <Seo title={`${d.name} · ${section} · MCP Field`} description={description} path={path} image={d.iconUrl} type="article" jsonLd={jsonLd} />
 }
 
-export const Badge = ({ tone, icon: I, children }: { tone: 'green' | 'gold' | 'blue' | 'violet' | 'gray'; icon: Icon; children: ReactNode }) => {
+const BADGE_ICON = { green: 'text-accent', gold: 'text-gold', blue: 'text-sky', violet: 'text-violet', gray: 'text-text3' }
+
+/** quiet：中性描边与文字，只给图标上色（用在头部，避免和主按钮抢颜色） */
+export const Badge = ({ tone, icon: I, quiet, children }: { tone: 'green' | 'gold' | 'blue' | 'violet' | 'gray'; icon: Icon; quiet?: boolean; children: ReactNode }) => {
+  if (quiet) {
+    return (
+      <span className="flex items-center gap-1 rounded-full border border-fg/[0.12] px-2.5 py-0.5 text-xs font-medium text-text2">
+        <I size={13} weight={tone === 'gold' ? 'fill' : 'regular'} className={BADGE_ICON[tone]} />
+        {children}
+      </span>
+    )
+  }
   const cls = {
     green: 'border-accent/25 bg-accent/10 text-mint',
     gold: 'border-[#F2C94C]/25 bg-[#F2C94C]/10 text-gold',
@@ -96,7 +107,7 @@ export const Badge = ({ tone, icon: I, children }: { tone: 'green' | 'gold' | 'b
 /** 头部右侧的外链按钮 */
 export function LinkButton({ href, icon: I, label }: { href: string; icon: Icon; label: string }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="group flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-fg/[0.12] bg-fg/[0.04] px-3 text-sm transition-colors hover:border-fg/25 hover:bg-fg/[0.07]">
+    <a href={href} target="_blank" rel="noreferrer" className="group flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-fg/[0.12] bg-fg/[0.04] px-3 text-sm transition-[color,background-color,border-color,transform] hover:border-fg/25 hover:bg-fg/[0.07] active:scale-[0.98]">
       <I size={15} className="text-text2" />{label}
       <ArrowUpRight size={12} className="text-text3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
     </a>
@@ -112,7 +123,7 @@ export function DefaultActions({ d }: { d: BaseItem }) {
       {docs && <LinkButton href={docs} icon={BookOpen} label={m.detail.links.docs} />}
       {website && repository && <LinkButton href={repository} icon={GithubLogo} label={m.detail.links.repo} />}
       {(website ?? repository) && (
-        <motion.a href={(website ?? repository)!} target="_blank" rel="noreferrer" whileTap={{ scale: 0.96 }} className="flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink shadow-[0_8px_24px_-6px_#3DDC9780]">
+        <motion.a href={(website ?? repository)!} target="_blank" rel="noreferrer" whileTap={{ scale: 0.96 }} className="flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_1px_2px_rgba(0,0,0,0.12)] transition-[filter] hover:brightness-110">
           {website ? <><Globe size={15} weight="bold" />{m.client.visit}</> : <><GithubLogo size={15} weight="bold" />{m.detail.links.repo}</>}
         </motion.a>
       )}
@@ -146,9 +157,10 @@ export function EntityHeader({
   const enter = useEnterAnimation()
   const cat = categoryOf(kind, d.category?.slug)
   const days = daysSince(d.lastCommitAt)
-  const sub = domainOf(d) ?? developerOf(d)
+  const domain = domainOf(d)
+  const dev = developerOf(d)
   return (
-    <section style={{ background: `radial-gradient(50% 240% at 15% 0%, ${cat.color}26, transparent 60%), radial-gradient(40% 200% at 70% 0%, #2B7FFF1F, transparent 60%)` }}>
+    <section style={{ background: `radial-gradient(60% 240% at 12% 0%, ${cat.color}1F, transparent 62%)` }}>
       <div className="mx-auto max-w-[1248px] px-6 pb-10 pt-7">
         <div className="flex items-center justify-between gap-4">
           <nav aria-label={m.dir.breadcrumb} className="flex min-w-0 items-center gap-1.5 text-sm text-text3">
@@ -158,31 +170,37 @@ export function EntityHeader({
             <CaretRight size={12} className="shrink-0" />
             <span className="truncate text-ink">{d.name}</span>
           </nav>
-          <a href="#" className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-fg/[0.12] px-3 text-sm text-text2 transition-colors hover:border-fg/25 hover:text-ink">
+          <a href="#" className="flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] border border-fg/[0.12] px-3 text-sm text-text2 transition-[color,border-color,transform] hover:border-fg/25 hover:text-ink active:scale-[0.98]">
             <ChatCenteredText size={14} />{m.detail.feedback}
           </a>
         </div>
-        <div className="mt-7 flex flex-wrap items-center gap-5">
-          <motion.div initial={enter ? { opacity: 0, scale: 0.6, rotate: -12 } : false} animate={{ opacity: 1, scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
-            {tile ?? <EntityIcon name={d.name} src={d.iconUrl} color={cat.color} size={72} className="!rounded-[18px] border border-fg/15 shadow-[0_12px_32px_rgba(255,255,255,0.08)]" />}
+        {/* 窄屏：图标和名称同一行，元信息与按钮各占整行；sm 以上恢复为图标 / 名称与元信息 / 按钮三栏 */}
+        <div className="mt-6 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:mt-7 sm:flex sm:flex-wrap sm:gap-5">
+          <motion.div
+            className="max-sm:size-14 max-sm:[&>*]:origin-top-left max-sm:[&>*]:scale-[0.7778]"
+            initial={enter ? { opacity: 0, scale: 0.6, rotate: -12 } : false}
+            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+          >
+            {tile ?? <EntityIcon name={d.name} src={d.iconUrl} color={cat.color} size={72} className="!rounded-[18px] border border-fg/15" />}
           </motion.div>
-          <motion.div className="min-w-0 flex-1" initial={enter ? { opacity: 0, y: 12 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.05 }}>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-[30px] font-bold leading-tight tracking-[-0.02em]">{d.name}</h1>
-              {d.official && <Badge tone="blue" icon={ShieldCheck}>{m.dir.official}</Badge>}
-              {d.verified && <Badge tone="green" icon={CheckCircle}>{m.dir.verified}</Badge>}
-              {d.featured && <Badge tone="gold" icon={Sparkle}>{m.dir.featured}</Badge>}
+          <div className="contents sm:block sm:min-w-0 sm:flex-1">
+            <motion.div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5" initial={enter ? { opacity: 0, y: 12 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.05 }}>
+              <h1 className="break-words text-2xl font-bold leading-tight tracking-[-0.02em] sm:text-[30px]">{d.name}</h1>
+              {d.official && <Badge quiet tone="blue" icon={ShieldCheck}>{m.dir.official}</Badge>}
+              {d.verified && <Badge quiet tone="green" icon={CheckCircle}>{m.dir.verified}</Badge>}
+              {d.featured && <Badge quiet tone="gold" icon={Sparkle}>{m.dir.featured}</Badge>}
               {badges}
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-2 text-sm text-text2">
-              {sub && <><span>@{sub}</span><span className="h-3.5 w-px bg-fg/[0.12]" /></>}
+            </motion.div>
+            <motion.div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-text2 sm:mt-2" initial={enter ? { opacity: 0, y: 12 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.08 }}>
+              {domain ? <span>{domain}</span> : dev && <span>@{dev}</span>}
               <Link to={to(`/${ROUTE[kind]}?category=${cat.slug}`)} className="flex items-center gap-1 hover:text-ink"><cat.icon size={14} style={{ color: cat.color }} />{tr(cat.name)}</Link>
               <Stars n={d.stars} />
               {meta}
               {days !== null && <span className="flex items-center gap-1"><ClockCounterClockwise size={14} />{m.dir.updated(days)}</span>}
-            </div>
-          </motion.div>
-          <motion.div className="flex flex-wrap items-center gap-2" initial={enter ? { opacity: 0, y: 12 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.12 }}>
+            </motion.div>
+          </div>
+          <motion.div className="col-span-2 flex flex-wrap items-center gap-2" initial={enter ? { opacity: 0, y: 12 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.12 }}>
             {actions ?? <DefaultActions d={d} />}
           </motion.div>
         </div>
@@ -201,14 +219,12 @@ export function AboutSection({ d, summaryOnly }: { d: BaseItem & DetailBase; sum
     <section>
       <h2 className="text-xl font-bold tracking-tight">{m.detail.about(d.name)}</h2>
       {d.overview ? (
-        <AiOverview overview={d.overview} summaryOnly={summaryOnly} />
+        <AiOverview overview={d.overview} summaryOnly={summaryOnly} tags={d.tags} />
       ) : (
-        <p className={clsx('mt-4 text-[15px] leading-[1.75]', d.tagline ? 'text-text2' : 'text-text3')}>{d.tagline ?? m.client.noTagline}</p>
-      )}
-      {d.tags.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {d.tags.map((t) => <span key={t} className="rounded-lg border border-fg/[0.08] bg-fg/[0.04] px-2.5 py-1 text-xs text-text2">#{t}</span>)}
-        </div>
+        <>
+          <p className={clsx('mt-4 text-[15px] leading-[1.75]', d.tagline ? 'text-text2' : 'text-text3')}>{d.tagline ?? m.client.noTagline}</p>
+          {d.tags.length > 0 && <div className="mt-4"><TagList tags={d.tags} /></div>}
+        </>
       )}
     </section>
   )
@@ -229,11 +245,12 @@ export function ReadmeSection({ d, empty }: { d: BaseItem & DetailBase; empty?: 
 }
 
 /** 侧栏"同类推荐"：同分类按热度取前几个（由详情页 loader 一并取回） */
-export function RelatedSection<T extends BaseItem>({ kind, items, title, allLabel, footer }: { kind: Kind; items: T[]; title: string; allLabel: string; footer?: (r: T) => ReactNode }) {
+export function RelatedSection<T extends BaseItem>({ kind, items, title, allLabel, footer, stat }: { kind: Kind; items: T[]; title: string; allLabel: string; footer?: (r: T) => ReactNode; stat?: (r: T) => ReactNode }) {
   const { to } = useI18n()
   if (items.length === 0) return null
   return (
-    <section>
+    // 推荐放在侧栏最后，跟随滚动；有页内导航时（--detail-nav-h）再往下让出导航的高度
+    <section className="lg:sticky lg:top-[calc(var(--nav-h,110px)+var(--detail-nav-h,0px)+24px)]">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold tracking-wide text-text2"><Sparkle size={14} weight="fill" className="text-accent" />{title}</h2>
         <Link to={to(`/${ROUTE[kind]}`)} className="group flex items-center gap-1 text-xs text-text3 hover:text-ink">{allLabel}<ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" /></Link>
@@ -243,7 +260,7 @@ export function RelatedSection<T extends BaseItem>({ kind, items, title, allLabe
           const cat = categoryOf(kind, r.category?.slug)
           return (
             <RevealItem key={r.slug}>
-              <SpotlightCard glow={cat.color} className="flex flex-col gap-2.5 p-[18px]">
+              <SpotlightCard glow={cat.color} ambient={false} className="flex flex-col gap-2.5 p-[18px]">
                 <Link to={to(`/${ROUTE[kind]}/${r.slug}`)} className="absolute inset-0 z-10 rounded-[inherit]" aria-label={r.name} />
                 <div className="flex items-center gap-3">
                   <EntityIcon name={r.name} src={r.iconUrl} color={cat.color} size={38} />
@@ -251,7 +268,7 @@ export function RelatedSection<T extends BaseItem>({ kind, items, title, allLabe
                     <div className="flex items-center gap-1.5 font-semibold"><span className="truncate">{r.name}</span>{r.verified && <CheckCircle size={14} className="shrink-0 text-accent" />}</div>
                     <div className="truncate text-xs text-text3">{domainOf(r) ?? developerOf(r)}</div>
                   </div>
-                  <Stars n={r.stars} />
+                  {stat ? stat(r) : <Stars n={r.stars} />}
                 </div>
                 {r.tagline && <p className="line-clamp-2 text-sm leading-relaxed text-text2">{r.tagline}</p>}
                 {footer?.(r)}
@@ -298,7 +315,7 @@ export function InfoSection({ kind, d, rows }: { kind: Kind; d: BaseItem; rows: 
     setRaw(JSON.stringify([...list]))
   }
   const visible = rows.filter((r) => r.value !== null && r.value !== undefined && r.value !== '')
-  const btn = 'flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] border text-xs transition-colors'
+  const btn = 'flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] border text-xs transition-[color,border-color,transform] active:scale-[0.98]'
   const report = d.links.repository ? `${d.links.repository}/issues` : 'mailto:hello@mcpfield.dev'
   return (
     <section>
@@ -306,8 +323,8 @@ export function InfoSection({ kind, d, rows }: { kind: Kind; d: BaseItem; rows: 
       {visible.length > 0 && (
         <dl className="rounded-2xl border border-fg/[0.08] bg-surface px-[18px] py-1">
           {visible.map(({ icon: I, label, value }, i) => (
-            <div key={label} className={clsx('flex items-center gap-3 py-3', i > 0 && 'border-t border-fg/[0.06]')}>
-              <span className="grid size-[30px] shrink-0 place-items-center rounded-lg bg-fg/[0.04] text-text2"><I size={15} /></span>
+            <div key={label} className={clsx('flex items-center gap-2.5 py-2.5', i > 0 && 'border-t border-fg/[0.06]')}>
+              <I size={15} className="shrink-0 text-text3" />
               <dt className="shrink-0 text-sm text-text3">{label}</dt>
               <dd className="min-w-0 flex-1 truncate text-right text-sm font-medium tabular-nums">{value}</dd>
             </div>
@@ -321,8 +338,8 @@ export function InfoSection({ kind, d, rows }: { kind: Kind; d: BaseItem; rows: 
         <button onClick={toggleSave} aria-pressed={saved} className={clsx(btn, saved ? 'border-[#F2C94C]/40 text-gold' : 'border-fg/10 text-text2 hover:text-ink')}>
           <BookmarkSimple size={14} weight={saved ? 'fill' : 'regular'} />{saved ? m.detail.bookmarked : m.detail.bookmark}
         </button>
-        <a href={report} target="_blank" rel="noreferrer" className={clsx(btn, 'border-fg/10 text-text2 hover:text-ink')}><WarningCircle size={14} />{m.detail.report}</a>
       </div>
+      <a href={report} target="_blank" rel="noreferrer" className="mt-3 flex w-fit items-center gap-1 text-xs text-text3 transition-colors hover:text-ink"><WarningCircle size={13} />{m.detail.report}</a>
     </section>
   )
 }
@@ -333,19 +350,25 @@ export function useDateFormat() {
   return (iso: string | null) => (iso ? new Intl.DateTimeFormat(LOCALE_META[locale].htmlLang, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(iso)) : null)
 }
 
-/** 详情页主体：左侧内容 + 右侧栏，底部 FAQ */
-export function DetailBody({ main, aside }: { main: ReactNode; aside: ReactNode }) {
+/**
+ * 详情页主体：吸顶的页内导航（可选）+ 左侧内容 + 右侧栏，底部 FAQ（faq=false 时不显示）。
+ * 侧栏先放基本信息，最后放推荐（RelatedSection 会跟随滚动）。
+ */
+export function DetailBody({ nav, main, aside, faq = true }: { nav?: ReactNode; main: ReactNode; aside: ReactNode; faq?: boolean }) {
   return (
-    <>
-      <div className="border-t border-line">
+    <div style={nav ? ({ '--detail-nav-h': '56px' } as CSSProperties) : undefined}>
+      {nav}
+      <div className={clsx(!nav && 'border-t border-line')}>
         <div className="mx-auto grid max-w-[1248px] gap-12 px-6 pb-24 pt-10 lg:grid-cols-[1fr_340px] [&>*]:min-w-0">
           <div className="flex flex-col gap-14">{main}</div>
           <aside className="flex flex-col gap-9">{aside}</aside>
         </div>
       </div>
-      <div className="border-t border-line">
-        <FaqSection />
-      </div>
-    </>
+      {faq && (
+        <div className="border-t border-line">
+          <FaqSection />
+        </div>
+      )}
+    </div>
   )
 }

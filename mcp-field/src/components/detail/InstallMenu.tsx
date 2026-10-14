@@ -20,7 +20,7 @@ export function InstallMenu({ name, url, transport }: { name: string; url: strin
       <DropdownMenu.Trigger asChild>
         <motion.button
           whileTap={{ scale: 0.96 }}
-          className="flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink shadow-[0_8px_24px_-6px_#3DDC9780] outline-none"
+          className="flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_1px_2px_rgba(0,0,0,0.12)] transition-[filter] hover:brightness-110 outline-none"
         >
           <Lightning size={15} weight="fill" />
           {m.detail.install}

@@ -1,48 +1,65 @@
-import { Lightning, PlugsConnected, Sparkle, Target, type Icon } from '@phosphor-icons/react'
+import { PlugsConnected } from '@phosphor-icons/react'
+import clsx from 'clsx'
 import { useI18n } from '../../i18n/context'
 import type { ApiOverview } from '../../lib/api/entities'
 
-function ItemList({ title, icon: I, items }: { title: string; icon: Icon; items: string[] }) {
-  if (items.length === 0) return null
+/** 标签列表（#标签） */
+export function TagList({ tags }: { tags: string[] }) {
   return (
-    <section className="rounded-2xl border border-fg/[0.08] bg-surface p-4">
-      <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink"><I size={15} className="text-accent" />{title}</h3>
-      <ul className="flex flex-col gap-2">
+    <div className="flex flex-wrap gap-2">
+      {tags.map((t) => <span key={t} className="rounded-lg border border-fg/[0.08] bg-fg/[0.04] px-2.5 py-1 text-xs text-text2">#{t}</span>)}
+    </div>
+  )
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** 一栏条目：小号标题，下面是带序号、用细线分隔的列表（不加卡片外框） */
+function ItemList({ title, items, className }: { title: string; items: string[]; className?: string }) {
+  return (
+    <section className={clsx('min-w-0 py-5', className)}>
+      <h3 className="mb-2 text-xs font-medium tracking-wide text-text3">{title}</h3>
+      <ol>
         {items.map((item, i) => (
-          <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-text2">
-            <span className="mt-[9px] size-[5px] shrink-0 rounded-full bg-accent" />
-            {item}
+          <li key={i} className="group flex gap-4 border-t border-fg/[0.06] py-2.5 first:border-0">
+            <span className="w-5 shrink-0 pt-[3px] font-mono text-xs tabular-nums text-text3 transition-colors group-hover:text-accent">{pad(i + 1)}</span>
+            <span className="text-[15px] leading-relaxed text-text2 transition-colors group-hover:text-ink">{item}</span>
           </li>
         ))}
-      </ul>
+      </ol>
     </section>
   )
 }
 
-/** AI 根据 README 生成的介绍：概述、主要功能、适用场景、MCP 相关，并注明由 AI 整理；summaryOnly 时不显示功能与场景 */
-export function AiOverview({ overview, summaryOnly }: { overview: ApiOverview; summaryOnly?: boolean }) {
+/** AI 根据 README 生成的介绍：概述、主要功能、适用场景、MCP 相关，末尾是标签；summaryOnly 时不显示功能与场景 */
+export function AiOverview({ overview, summaryOnly, tags = [] }: { overview: ApiOverview; summaryOnly?: boolean; tags?: string[] }) {
   const { m, locale } = useI18n()
   const t = m.detail.aiOverview
+  const lists = summaryOnly
+    ? []
+    : [
+        { title: t.features, items: overview.features },
+        { title: t.useCases, items: overview.useCases },
+      ].filter((l) => l.items.length > 0)
   return (
     <div className="mt-4 flex flex-col gap-5">
       {overview.locale !== locale && <p className="text-xs text-text3">{t.notTranslated}</p>}
       <p className="text-[15px] leading-[1.75] text-text2">{overview.summary}</p>
-      {!summaryOnly && (
-        <div className="grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
-          <ItemList title={t.features} icon={Lightning} items={overview.features} />
-          <ItemList title={t.useCases} icon={Target} items={overview.useCases} />
+      {lists.length > 0 && (
+        // 上下各一条细线，两栏之间一条竖线；窄屏上下排列，栏间改为横线
+        <div className={clsx('grid border-y border-line', lists.length === 2 && 'max-sm:divide-y max-sm:divide-line sm:grid-cols-2 sm:divide-x sm:divide-line')}>
+          {lists.map((l, i) => (
+            <ItemList key={l.title} title={l.title} items={l.items} className={clsx(lists.length === 2 && (i === 0 ? 'sm:pr-8' : 'sm:pl-8'))} />
+          ))}
         </div>
       )}
       {overview.mcp && (
-        <div className="flex gap-3 rounded-2xl border border-accent/20 bg-accent/[0.06] p-4">
-          <PlugsConnected size={18} className="mt-0.5 shrink-0 text-accent" />
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-ink">{t.mcp}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-text2">{overview.mcp}</p>
-          </div>
+        <div className="border-l-2 border-accent/60 pl-4">
+          <h3 className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-text3"><PlugsConnected size={14} className="text-accent" />{t.mcp}</h3>
+          <p className="mt-1.5 text-[15px] leading-relaxed text-text2">{overview.mcp}</p>
         </div>
       )}
-      <p className="flex items-start gap-1.5 text-xs leading-relaxed text-text3"><Sparkle size={12} className="mt-0.5 shrink-0" />{t.note}</p>
+      {tags.length > 0 && <TagList tags={tags} />}
     </div>
   )
 }

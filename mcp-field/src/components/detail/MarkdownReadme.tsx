@@ -1,4 +1,4 @@
-import { CaretDown, GithubLogo, Sparkle, WarningCircle } from '@phosphor-icons/react'
+import { CaretDown, GithubLogo, WarningCircle } from '@phosphor-icons/react'
 import { motion } from 'motion/react'
 import type React from 'react'
 import { useMemo, useState } from 'react'
@@ -92,11 +92,8 @@ export function MarkdownReadme({ content, format, base, translation }: { content
         )}
       </div>
 
-      {showTranslated && (
-        <div className="mb-5 flex flex-col gap-1.5 text-xs leading-relaxed text-text3">
-          <p className="flex items-start gap-1.5"><Sparkle size={12} className="mt-0.5 shrink-0" />{t.note}</p>
-          {translation.outdated && <p className="flex items-start gap-1.5 text-gold"><WarningCircle size={12} className="mt-0.5 shrink-0" />{t.outdated}</p>}
-        </div>
+      {showTranslated && translation.outdated && (
+        <p className="mb-5 flex items-start gap-1.5 text-xs leading-relaxed text-gold"><WarningCircle size={12} className="mt-0.5 shrink-0" />{t.outdated}</p>
       )}
       {englishOnly && t.englishHint && <p className="mb-5 text-xs leading-relaxed text-text3">{t.englishHint}</p>}
 

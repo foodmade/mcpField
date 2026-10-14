@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowBendUpLeft, ChatsCircle, Confetti, FileText, GithubLogo, Heart, RocketLaunch, Smiley, ThumbsUp, type Icon } from '@phosphor-icons/react'
+import { ArrowBendUpLeft, Confetti, FileText, GithubLogo, Heart, RocketLaunch, Smiley, ThumbsUp, type Icon } from '@phosphor-icons/react'
 import { Fragment, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useI18n } from '../i18n/context'
@@ -125,10 +125,10 @@ export function Comments({ target }: { target: CommentTarget }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
-          <ChatsCircle size={22} className="text-accent" />{t.title}
-          <span className="rounded-full bg-fg/10 px-2 py-0.5 tabular-nums text-xs font-normal text-text2">{count}</span>
+          {t.title}
+          {count > 0 && <span className="rounded-full bg-fg/10 px-2 py-0.5 tabular-nums text-xs font-normal text-text2">{count}</span>}
         </h2>
-        <span className="text-sm text-text3">{t.newest}</span>
+        {comments.length > 0 && <span className="text-sm text-text3">{t.newest}</span>}
       </div>
 
       <div className="overflow-hidden rounded-[14px] border border-fg/10 bg-surface focus-within:border-fg/25">
@@ -141,7 +141,7 @@ export function Comments({ target }: { target: CommentTarget }) {
           ))}
         </div>
         {tab === 'edit' ? (
-          <textarea ref={area} value={text} onChange={(e) => setText(e.target.value)} placeholder={t.placeholder} rows={3} className="block min-h-[88px] w-full resize-y bg-transparent px-4 py-3.5 text-sm outline-none placeholder:text-text3" />
+          <textarea ref={area} value={text} onChange={(e) => setText(e.target.value)} placeholder={comments.length ? t.placeholder : t.empty} rows={3} className="block min-h-[88px] w-full resize-y bg-transparent px-4 py-3.5 text-sm outline-none placeholder:text-text3" />
         ) : (
           <div className="min-h-[88px] whitespace-pre-wrap px-4 py-3.5 text-sm text-text2">{text.trim() ? <InlineMd text={text} /> : <span className="text-text3">{t.nothing}</span>}</div>
         )}
@@ -153,11 +153,7 @@ export function Comments({ target }: { target: CommentTarget }) {
         </div>
       </div>
 
-      {comments.length ? (
-        <div>{comments.map((c) => <CommentItem key={c.id} c={c} target={target} onReply={reply} />)}</div>
-      ) : (
-        <p className="rounded-[14px] border border-dashed border-fg/15 px-6 py-10 text-center text-sm text-text3">{t.empty}</p>
-      )}
+      {comments.length > 0 && <div>{comments.map((c) => <CommentItem key={c.id} c={c} target={target} onReply={reply} />)}</div>}
     </div>
   )
 }

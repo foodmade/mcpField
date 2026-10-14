@@ -1,12 +1,13 @@
 import { motion } from 'motion/react'
-import { Buildings, CalendarCheck, Check, ClockCounterClockwise, Code, Copy, DownloadSimple, Info, Robot, Scales, Terminal, TerminalWindow } from '@phosphor-icons/react'
+import { BookOpen, Buildings, CalendarCheck, ClockCounterClockwise, Code, GithubLogo, Globe, Info, Robot, Scales, Terminal } from '@phosphor-icons/react'
 import { useState } from 'react'
 import clsx from 'clsx'
 import { Comments } from '../components/Comments'
-import { CopyButton, copyText } from '../components/detail/CopyButton'
+import { CopyButton, PrimaryCopyButton } from '../components/detail/CopyButton'
 import {
-  AboutSection, Badge, DefaultActions, DetailBody, DetailError, DetailSeo, EntityHeader, InfoSection, ReadmeSection, RelatedSection, useDateFormat,
+  AboutSection, Badge, DefaultActions, DetailBody, DetailError, DetailSeo, EntityHeader, InfoSection, LinkButton, ReadmeSection, RelatedSection, useDateFormat,
 } from '../components/detail/EntityDetail'
+import { SectionNav, useActiveSection, type SectionItem } from '../components/detail/SectionNav'
 import { EntityIcon } from '../components/EntityIcon'
 import { useHydrated } from '../fx/hydration'
 import { RevealGroup, RevealItem } from '../fx/Reveal'
@@ -14,6 +15,7 @@ import { useI18n } from '../i18n/context'
 import type { CliDetail as Detail, CliItem } from '../lib/api/entities'
 import { loadDetail } from '../lib/api/loaders'
 import { categoryOf } from '../lib/categories'
+import { commentCount } from '../lib/comments'
 import { daysSince, developerOf } from '../lib/entity'
 import type { Route } from './+types/CliDetail'
 
@@ -28,28 +30,8 @@ function Cmd({ cmd, className }: { cmd: string; className?: string }) {
   )
 }
 
-/** 头部主按钮：复制首选安装命令 */
-function CopyInstall({ cmd }: { cmd: string }) {
-  const { m } = useI18n()
-  const [copied, setCopied] = useState(false)
-  return (
-    <motion.button
-      whileTap={{ scale: 0.96 }}
-      onClick={() => {
-        copyText(cmd)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1600)
-      }}
-      className="flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink shadow-[0_8px_24px_-6px_#3DDC9780]"
-    >
-      {copied ? <Check size={15} weight="bold" /> : <Copy size={15} weight="bold" />}
-      {copied ? m.detail.copied : m.cli.copyInstall}
-    </motion.button>
-  )
-}
-
 /** 安装方式：多种包管理器 / 平台时可切换 */
-function InstallSection({ c, glow }: { c: Detail; glow: string }) {
+function InstallSection({ c }: { c: Detail }) {
   const { m } = useI18n()
   // 首屏直接显示命令；切换安装方式时（水合之后）才播放过渡
   const enter = useHydrated()
@@ -58,8 +40,8 @@ function InstallSection({ c, glow }: { c: Detail; glow: string }) {
   const install = c.installs[Math.min(method, c.installs.length - 1)]!
   const label = (i: Detail['installs'][number]) => (i.platform === 'any' ? i.manager : `${i.manager} · ${i.platform}`)
   return (
-    <section>
-      <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight"><DownloadSimple size={22} className="text-accent" />{m.cli.install}</h2>
+    <>
+      <h2 className="text-xl font-bold tracking-tight">{m.cli.install}</h2>
       <p className="mb-4 mt-1.5 text-sm text-text2">{m.cli.installSub}</p>
       {c.installs.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-1.5" role="tablist">
@@ -71,7 +53,7 @@ function InstallSection({ c, glow }: { c: Detail; glow: string }) {
           ))}
         </div>
       )}
-      <div className="flex items-center gap-3 rounded-[14px] border border-fg/10 py-3.5 pl-[18px] pr-3" style={{ background: `radial-gradient(80% 250% at 100% 0%, ${glow}1F, transparent 60%), var(--color-code-bg)` }}>
+      <div className="flex items-center gap-3 rounded-[14px] border border-fg/10 bg-code-bg py-3.5 pl-[18px] pr-3">
         <span className="font-mono text-sm text-fg/30">$</span>
         <motion.div key={install.command} initial={enter ? { opacity: 0, x: 6 } : false} animate={{ opacity: 1, x: 0 }} className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
           <Cmd cmd={install.command} className="text-sm" />
@@ -85,7 +67,7 @@ function InstallSection({ c, glow }: { c: Detail; glow: string }) {
           {m.cli.verifyAfter}
         </p>
       )}
-    </section>
+    </>
   )
 }
 
@@ -93,21 +75,19 @@ function ExamplesSection({ c }: { c: Detail }) {
   const { m } = useI18n()
   if (c.examples.length === 0) return null
   return (
-    <section>
-      <h2 className="flex items-center gap-2.5 text-xl font-bold tracking-tight"><TerminalWindow size={22} className="text-accent" />{m.cli.examples}</h2>
+    <>
+      <h2 className="text-xl font-bold tracking-tight">{m.cli.examples}</h2>
       <p className="mb-4 mt-1.5 text-sm text-text2">{m.cli.examplesSub}</p>
-      <RevealGroup className="flex flex-col gap-3" stagger={0.05}>
+      <RevealGroup className="divide-y divide-fg/[0.06] overflow-hidden rounded-[14px] border border-fg/10 bg-code-bg" stagger={0.04}>
         {c.examples.map((cmd, i) => (
-          <RevealItem key={cmd}>
-            <div className="flex items-center gap-4 rounded-[14px] border border-fg/[0.08] bg-surface py-3.5 pl-[18px] pr-3.5 transition-colors hover:border-fg/15">
-              <span className="grid size-7 shrink-0 place-items-center rounded-full border border-fg/[0.12] bg-fg/[0.06] tabular-nums text-sm font-semibold">{i + 1}</span>
-              <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"><Cmd cmd={cmd} className="text-sm" /></div>
-              <CopyButton text={cmd} />
-            </div>
+          <RevealItem key={cmd} className="group flex items-center gap-4 py-2.5 pl-[18px] pr-3 transition-colors hover:bg-fg/[0.025]">
+            <span className="w-5 shrink-0 font-mono text-xs tabular-nums text-text3 transition-colors group-hover:text-accent">{String(i + 1).padStart(2, '0')}</span>
+            <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"><Cmd cmd={cmd} className="text-sm" /></div>
+            <CopyButton text={cmd} />
           </RevealItem>
         ))}
       </RevealGroup>
-    </section>
+    </>
   )
 }
 
@@ -118,7 +98,6 @@ function Sidebar({ c, related }: { c: Detail; related: CliItem[] }) {
   const updated = daysSince(c.lastCommitAt)
   return (
     <>
-      <RelatedSection kind="cli" title={m.cli.related} items={related} allLabel={m.cli.all} />
       <InfoSection
         kind="cli"
         d={c}
@@ -130,6 +109,24 @@ function Sidebar({ c, related }: { c: Detail; related: CliItem[] }) {
           { icon: ClockCounterClockwise, label: k.updated, value: updated === null ? null : m.detail.ago(updated) },
         ]}
       />
+      <RelatedSection kind="cli" title={m.cli.related} items={related} allLabel={m.cli.all} />
+    </>
+  )
+}
+
+type CliSection = 'overview' | 'install' | 'examples' | 'readme' | 'comments'
+
+/** 头部按钮：有安装命令时"复制安装命令"是唯一的主按钮，文档、仓库、官网都是次要按钮；没有时沿用默认按钮 */
+function Actions({ c, primary }: { c: Detail; primary?: string }) {
+  const { m } = useI18n()
+  if (!primary) return <DefaultActions d={c} />
+  const { docs, repository, website } = c.links
+  return (
+    <>
+      {docs && <LinkButton href={docs} icon={BookOpen} label={m.detail.links.docs} />}
+      {repository && <LinkButton href={repository} icon={GithubLogo} label={m.detail.links.repo} />}
+      {website && <LinkButton href={website} icon={Globe} label={m.client.visit} />}
+      <PrimaryCopyButton text={primary} label={m.cli.copyInstall} />
     </>
   )
 }
@@ -138,6 +135,14 @@ function Page({ c, related }: { c: Detail; related: CliItem[] }) {
   const { m } = useI18n()
   const cat = categoryOf('cli', c.category?.slug)
   const primary = c.installs[0]?.command
+  const sections: SectionItem<CliSection>[] = [
+    { id: 'overview', label: m.detail.sections.overview },
+    ...(c.installs.length ? [{ id: 'install' as const, label: m.cli.install }] : []),
+    ...(c.examples.length ? [{ id: 'examples' as const, label: m.cli.examples }] : []),
+    ...(c.readme ? [{ id: 'readme' as const, label: m.detail.sections.readme }] : []),
+    { id: 'comments', label: m.comments.title, count: commentCount(`cli:${c.slug}`) },
+  ]
+  const { active, jump, reg } = useActiveSection(sections.map((x) => x.id), c.slug)
   return (
     <>
       <DetailSeo kind="cli" d={c} section={m.dirs.cli.title} />
@@ -151,23 +156,20 @@ function Page({ c, related }: { c: Detail; related: CliItem[] }) {
             <span className="absolute -bottom-1.5 -right-1.5 grid size-7 place-items-center rounded-lg border border-fg/20 bg-bg text-ink"><Terminal size={15} /></span>
           </span>
         }
-        badges={c.agentReady ? <Badge tone="gray" icon={Robot}>{m.cli.agentReady}</Badge> : undefined}
+        badges={c.agentReady ? <Badge quiet tone="gray" icon={Robot}>{m.cli.agentReady}</Badge> : undefined}
         meta={c.command && <span className="flex items-center gap-1 font-mono text-code"><Code size={14} />{c.command}</span>}
-        actions={
-          <>
-            <DefaultActions d={c} />
-            {primary && <CopyInstall cmd={primary} />}
-          </>
-        }
+        actions={<Actions c={c} primary={primary} />}
       />
       <DetailBody
+        nav={<SectionNav items={sections} active={active} onJump={jump} />}
+        faq={false}
         main={
           <>
-            <AboutSection d={c} />
-            <InstallSection c={c} glow={cat.color} />
-            <ExamplesSection c={c} />
-            {c.readme && <section><ReadmeSection d={c} /></section>}
-            <section><Comments key={c.slug} target={`cli:${c.slug}`} /></section>
+            <section ref={reg('overview')}><AboutSection d={c} /></section>
+            {c.installs.length > 0 && <section ref={reg('install')}><InstallSection c={c} /></section>}
+            {c.examples.length > 0 && <section ref={reg('examples')}><ExamplesSection c={c} /></section>}
+            {c.readme && <section ref={reg('readme')}><ReadmeSection d={c} /></section>}
+            <section ref={reg('comments')}><Comments key={c.slug} target={`cli:${c.slug}`} /></section>
           </>
         }
         aside={<Sidebar c={c} related={related} />}

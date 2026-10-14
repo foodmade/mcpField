@@ -33,3 +33,27 @@ export function CopyButton({ text, className }: { text: string; className?: stri
     </button>
   )
 }
+
+/** 头部主按钮：复制安装命令或提示词，复制后图标与文字切换为"已复制" */
+export function PrimaryCopyButton({ text, label }: { text: string; label: string }) {
+  const { m } = useI18n()
+  const [done, setDone] = useState(false)
+  return (
+    <motion.button
+      whileTap={{ scale: 0.96 }}
+      onClick={() => {
+        copyText(text)
+        setDone(true)
+        setTimeout(() => setDone(false), 1600)
+      }}
+      className="flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_1px_2px_rgba(0,0,0,0.12)] transition-[filter] hover:brightness-110"
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={String(done)} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}>
+          {done ? <Check size={15} weight="bold" /> : <Copy size={15} weight="bold" />}
+        </motion.span>
+      </AnimatePresence>
+      {done ? m.detail.copied : label}
+    </motion.button>
+  )
+}

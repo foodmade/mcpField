@@ -7,6 +7,7 @@ import type { ApiTool } from '../../lib/api/entities'
 import { apiGet } from '../../lib/api/http'
 import { daysSince } from '../../lib/entity'
 import { parseJson, useStorage } from '../../lib/storage'
+import { EmptyState } from './EmptyState'
 
 const PREVIEW = 5
 type FetchError = 'auth' | 'network' | 'protocol' | 'unsupported' | 'blocked'
@@ -180,11 +181,7 @@ export function ToolsSection({ slug, remote, stored, storedAt }: Props) {
       {pending && list.length === 0 ? (
         <Skeleton />
       ) : !list.length ? (
-        <div className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-fg/15 px-6 py-12 text-center">
-          <Wrench size={24} className="text-text3" />
-          <div className="text-sm font-medium">{m.detail.noTools}</div>
-          {!remote && <div className="max-w-[420px] text-xs text-text3">{m.detail.noToolsLocal}</div>}
-        </div>
+        <EmptyState icon={Wrench} title={m.detail.noTools} hint={remote ? undefined : m.detail.noToolsLocal} />
       ) : (
         <>
           <div className="flex flex-col gap-3">

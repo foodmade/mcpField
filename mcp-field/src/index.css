@@ -130,6 +130,10 @@ body {
 .md > * + * {
   margin-top: 0.9em;
 }
+/* 正文段落限制行长（中文约 45 字一行），代码块、表格、图片仍占满整栏 */
+.md :is(p, ul, ol, blockquote) {
+  max-width: 46em;
+}
 .md :is(.md-h1, .md-h2, .md-h3, .md-h4, .md-h5, .md-h6) {
   @apply font-bold tracking-tight text-ink;
   margin-top: 1.6em;
@@ -139,13 +143,13 @@ body {
   margin-top: 0;
 }
 .md .md-h1 {
-  @apply text-[22px];
+  @apply text-[18px];
 }
 .md .md-h2 {
-  @apply border-b border-line pb-2 text-[19px];
+  @apply text-[17px];
 }
 .md .md-h3 {
-  @apply text-[17px];
+  @apply text-[16px];
 }
 .md :is(.md-h4, .md-h5, .md-h6) {
   @apply text-[15px];
@@ -174,9 +178,19 @@ body {
 }
 .md :not(pre) > code {
   @apply rounded-md border border-fg/[0.08] bg-fg/[0.07] px-1.5 py-0.5 font-mono text-[0.86em] text-ink;
+  /* 跨行时每一段都带完整的圆角和内边距 */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .md pre {
-  @apply overflow-x-auto rounded-xl border border-fg/[0.08] bg-code-bg p-4 font-mono text-[13px] leading-[1.7] text-ink;
+  @apply overflow-x-auto rounded-xl border border-fg/[0.08] p-4 font-mono text-[13px] leading-[1.7] text-ink;
+  /* 内容可以横向滚动时，左右边缘出现阴影提示（滚到头时被 local 背景盖住） */
+  background:
+    linear-gradient(to right, var(--color-code-bg) 30%, transparent) left / 40px 100% no-repeat local,
+    linear-gradient(to left, var(--color-code-bg) 30%, transparent) right / 40px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, color-mix(in oklab, var(--color-fg) 16%, transparent), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, color-mix(in oklab, var(--color-fg) 16%, transparent), transparent) right / 12px 100% no-repeat scroll,
+    var(--color-code-bg);
 }
 .md blockquote {
   @apply border-l-2 border-accent/50 pl-4 text-text3;

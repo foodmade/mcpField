@@ -7,11 +7,12 @@ import type { ServerDetail } from '../../lib/api/entities'
 import { buildLocalConfig, buildRemoteConfig, CLIENT_META, highlight, installLinks, localSpec, runCommand, type ClientKey, type LocalSpec } from '../../lib/config'
 import { ClaudeCodeIcon, ClaudeIcon, CursorIcon, VSCodeIcon, WindsurfIcon } from '../BrandIcons'
 import { CopyButton } from './CopyButton'
+import { EmptyState } from './EmptyState'
 
-function CodeBlock({ file, code, kind, glow, animKey }: { file: string; code: string; kind: 'json' | 'shell'; glow: string; animKey: string }) {
+function CodeBlock({ file, code, kind, animKey }: { file: string; code: string; kind: 'json' | 'shell'; animKey: string }) {
   const lines = highlight(code, kind)
   return (
-    <div className="overflow-hidden rounded-[14px] border border-fg/10" style={{ background: `radial-gradient(90% 140% at 100% 0%, ${glow}1F, transparent 60%), var(--color-code-bg)` }}>
+    <div className="overflow-hidden rounded-[14px] border border-fg/10 bg-code-bg">
       <div className="flex items-center justify-between border-b border-fg/[0.08] py-2 pl-4 pr-3">
         <span className="flex items-center gap-2 font-mono text-xs text-text2">
           {kind === 'shell' ? <TerminalWindow size={14} className="text-text3" /> : <FileCode size={14} className="text-text3" />}
@@ -73,11 +74,11 @@ function EnvVars({ vars }: { vars: ServerDetail['envVars'] }) {
   )
 }
 
-function LocalConfig({ configKey, spec, d, glow }: { configKey: string; spec: LocalSpec; d: ServerDetail; glow: string }) {
+function LocalConfig({ configKey, spec, d }: { configKey: string; spec: LocalSpec; d: ServerDetail }) {
   const { m } = useI18n()
   return (
     <div className="flex flex-col gap-3">
-      <CodeBlock file={`mcp.json · ${m.detail.genericConfig}`} code={buildLocalConfig(configKey, spec)} kind="json" glow={glow} animKey="local" />
+      <CodeBlock file={`mcp.json · ${m.detail.genericConfig}`} code={buildLocalConfig(configKey, spec)} kind="json" animKey="local" />
       <CopyField label={m.detail.runCmd} value={runCommand(spec)} icon={<TerminalWindow size={14} />} />
       <EnvVars vars={d.envVars} />
       <Tip>{m.detail.localTip}</Tip>
@@ -89,16 +90,16 @@ function LocalConfig({ configKey, spec, d, glow }: { configKey: string; spec: Lo
 function NoInstall({ d }: { d: ServerDetail }) {
   const { m } = useI18n()
   return (
-    <div className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-fg/15 px-6 py-10 text-center">
-      <Package size={24} className="text-text3" />
-      <div className="text-sm font-medium">{m.detail.noInstall}</div>
-      <div className="max-w-[440px] text-xs leading-relaxed text-text3">{m.detail.noInstallHint}</div>
-      {d.links.repository && (
-        <a href={d.links.repository} target="_blank" rel="noreferrer" className="mt-2 flex h-9 items-center gap-1.5 rounded-full border border-fg/15 px-4 text-sm text-text2 hover:border-fg/30 hover:text-ink">
+    <EmptyState
+      icon={Package}
+      title={m.detail.noInstall}
+      hint={m.detail.noInstallHint}
+      action={d.links.repository && (
+        <a href={d.links.repository} target="_blank" rel="noreferrer" className="flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] border border-fg/[0.12] px-3 text-sm text-text2 transition-[color,border-color,transform] hover:border-fg/25 hover:text-ink active:scale-[0.98]">
           <GithubLogo size={14} />{m.detail.links.repo}
         </a>
       )}
-    </div>
+    />
   )
 }
 
@@ -238,10 +239,10 @@ function Packages({ packages }: { packages: ServerDetail['packages'] }) {
 }
 
 /** 配置区块：远程服务给各平台的安装命令，本地服务给通用配置和启动命令，都没有时提示查看 README；之后列出全部端点和安装包 */
-export function ConfigSection({ configKey, d, glow }: { configKey: string; d: ServerDetail; glow: string }) {
+export function ConfigSection({ configKey, d }: { configKey: string; d: ServerDetail }) {
   const remote = d.remotes[0]
   const spec = localSpec(d)
-  const main = remote ? <RemoteConfig configKey={configKey} url={remote.url} transport={remote.transport} /> : spec ? <LocalConfig configKey={configKey} spec={spec} d={d} glow={glow} /> : <NoInstall d={d} />
+  const main = remote ? <RemoteConfig configKey={configKey} url={remote.url} transport={remote.transport} /> : spec ? <LocalConfig configKey={configKey} spec={spec} d={d} /> : <NoInstall d={d} />
   return (
     <div className="flex flex-col gap-3">
       {main}

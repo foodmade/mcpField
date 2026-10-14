@@ -116,7 +116,7 @@ function LiveCard({ entry, pick, departing, cardRef, iconRef }: { entry: FieldIt
       data-fx-solid
       aria-live="polite"
       className="fx-card relative flex h-[352px] flex-col rounded-2xl border border-fg/[0.07] px-[22px] pb-[18px] pt-[22px] backdrop-blur-[9px]"
-      style={{ '--tint': cat.color, background: 'linear-gradient(180deg, #0c1118c7, #0c11189e)' } as CSSProperties}
+      style={{ '--tint': cat.color, background: 'linear-gradient(180deg, color-mix(in srgb, var(--hero-card) 78%, transparent), color-mix(in srgb, var(--hero-card) 62%, transparent))' } as CSSProperties}
     >
       <motion.div key={keyOf(entry)} variants={content} initial={animateIn ? 'hidden' : false} animate={departing ? 'dim' : 'show'} className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-[42px] items-center gap-3">
@@ -280,11 +280,7 @@ export function Hero({ slides, total }: { slides: ServerItem[]; total: number | 
       ref={bannerRef}
       // 首屏横幅在两种主题下都保持深色
       data-theme="dark"
-      className="relative isolate overflow-hidden rounded-[22px] border border-fg/[0.08] [touch-action:pan-y]"
-      style={{
-        background:
-          'radial-gradient(55% 75% at 2% 0%, #1d4ed838, transparent 62%), radial-gradient(45% 65% at 100% 100%, #0f6b5240, transparent 60%), linear-gradient(135deg, #0b1430 0%, #0a1620 52%, #0a1f1b 100%)',
-      }}
+      className="hero-banner relative isolate overflow-hidden rounded-[22px] border border-fg/[0.08] [touch-action:pan-y]"
     >
       <canvas ref={canvasRef} aria-hidden className="absolute inset-0 -z-10 size-full" />
       <p className="sr-only">{m.hero.fieldAria}</p>
@@ -309,8 +305,8 @@ export function Hero({ slides, total }: { slides: ServerItem[]; total: number | 
             </span>
             {tag}
           </motion.div>
-          <SplitText key={locale} text={m.hero.title} className="mt-5 text-4xl font-bold leading-[1.15] tracking-[-0.02em] [text-shadow:0_2px_24px_#0a0f1a] md:text-[52px]" delay={0.1} />
-          <motion.p initial={enter ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={{ delay: 0.7, duration: 0.8 }} className="mt-5 text-base text-fg/70 [text-shadow:0_1px_12px_#0a0f1a]">
+          <SplitText key={locale} text={m.hero.title} className="mt-5 text-4xl font-bold leading-[1.15] tracking-[-0.02em] [text-shadow:0_2px_24px_var(--hero-shade)] md:text-[52px]" delay={0.1} />
+          <motion.p initial={enter ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={{ delay: 0.7, duration: 0.8 }} className="mt-5 text-base text-fg/70 [text-shadow:0_1px_12px_var(--hero-shade)]">
             {m.hero.sub}
           </motion.p>
           <motion.div className="mt-6 flex flex-wrap gap-2.5" initial={enter ? 'h' : false} animate="s" variants={{ h: {}, s: { transition: { staggerChildren: 0.06, delayChildren: 0.85 } } }}>
@@ -337,7 +333,7 @@ export function Hero({ slides, total }: { slides: ServerItem[]; total: number | 
           {current ? (
             <LiveCard entry={current.entry} pick={current.pick} departing={departing} cardRef={cardRef} iconRef={iconRef} />
           ) : (
-            <div ref={cardRef as React.Ref<HTMLDivElement>} className="h-[352px] rounded-2xl border border-fg/[0.07] bg-[#0c1118a6]" />
+            <div ref={cardRef as React.Ref<HTMLDivElement>} className="h-[352px] rounded-2xl border border-fg/[0.07] bg-[color-mix(in_srgb,var(--hero-card)_65%,transparent)]" />
           )}
           {picks.length > 1 && (
             <div className="mt-4 flex items-center justify-between px-1">

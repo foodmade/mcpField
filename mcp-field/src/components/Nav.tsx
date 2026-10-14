@@ -1,6 +1,6 @@
 import { motion, useMotionValueEvent, useScroll, useSpring } from 'motion/react'
 import {
-  AppWindow, ArrowsClockwise, Compass, Globe, Lightning, Megaphone, MagnifyingGlass, Moon, PlugsConnected, Robot, Rss, Sun, TerminalWindow, type Icon,
+  AppWindow, ArrowsClockwise, Compass, Globe, Lightning, MagnifyingGlass, Moon, PlugsConnected, Robot, Rss, Sun, TerminalWindow, type Icon,
 } from '@phosphor-icons/react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
@@ -91,7 +91,6 @@ export function Nav() {
           </button>
           <div className="flex shrink-0 items-center justify-end gap-1.5 lg:w-[340px]">
             <button onClick={() => setOpen(true)} aria-label={m.nav.searchAria} className="grid size-9 place-items-center rounded-lg text-text2 hover:bg-fg/[0.06] md:hidden"><MagnifyingGlass size={18} /></button>
-            <a href="#" className="hidden h-[34px] items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm transition-colors hover:bg-fg/[0.06] lg:flex"><Megaphone size={15} />{m.nav.ad}</a>
             <LanguageMenu />
             <ThemeToggle label={m.nav.theme} />
             <AccountMenu />

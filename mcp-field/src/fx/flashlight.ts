@@ -594,7 +594,7 @@ export class Flashlight {
   private bubble(e: FieldEntry) {
     const el = document.createElement('div')
     el.className = 'fx-bubble'
-    el.style.background = `linear-gradient(${e.color}47, ${e.color}47), #0c1118`
+    el.style.background = `linear-gradient(${e.color}47, ${e.color}47), var(--hero-card, #0c1118)`
     el.style.border = `1px solid ${e.color}80`
     el.style.boxShadow = `0 0 0 4px ${e.color}1f, 0 10px 30px ${e.color}55`
     el.style.color = e.color

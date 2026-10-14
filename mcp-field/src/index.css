@@ -262,6 +262,32 @@ body {
 }
 
 /*
+ * 首屏横幅：两种主题下都是深色（手电筒效果要靠暗底）。
+ * 明亮主题下换成与主色同系的墨绿、亮度略提，外圈加投影，像放在纸上的一张深色卡片。
+ * --hero-card 是推荐卡与气泡的底色，--hero-shade 是标题文字阴影色。
+ */
+.hero-banner {
+  --hero-card: #0c1118;
+  --hero-shade: #0a0f1a;
+  background:
+    radial-gradient(55% 75% at 2% 0%, #1d4ed838, transparent 62%),
+    radial-gradient(45% 65% at 100% 100%, #0f6b5240, transparent 60%),
+    linear-gradient(135deg, #0b1430 0%, #0a1620 52%, #0a1f1b 100%);
+}
+[data-theme='light'] .hero-banner {
+  --hero-card: #0a1915;
+  --hero-shade: #06120e;
+  border-color: #0e7a5c33;
+  background:
+    radial-gradient(55% 75% at 2% 0%, #3ddc9726, transparent 62%),
+    radial-gradient(45% 65% at 100% 100%, #0e7a5c4d, transparent 60%),
+    linear-gradient(135deg, #10261f 0%, #0e2a23 52%, #143229 100%);
+  box-shadow:
+    0 1px 2px #10261f14,
+    0 22px 44px -20px #10261f66;
+}
+
+/*
  * 首屏推荐卡（fx/flashlight.ts）：薄玻璃；手电筒靠近或新条目飞入时，朝向光的一段边框亮起。
  * --mx / --my / --edge 由画布每帧更新，--tint 是当前条目的分类色。
  */

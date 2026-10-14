@@ -10,8 +10,11 @@ import { DescribeStore } from '../describe/store.ts'
 import { GithubReadmeStore, GithubRepoStore } from '../github/store.ts'
 import { TranslationMemory } from '../translate/memory.ts'
 import { createApp, type ApiDeps } from './app.ts'
+import { SupabaseAuth } from './auth/supabase-auth.ts'
 import { loadApiConfig } from './config.ts'
 import { listRemoteTools } from '../probe/mcp-remote.ts'
+import { MysqlCommentRepository } from './modules/comments/comment.repository.ts'
+import { CommentService } from './modules/comments/comment.service.ts'
 import { EntityService } from './modules/entities/entity.service.ts'
 import { LiveToolsService } from './modules/entities/live-tools.ts'
 import { PRESENTERS } from './modules/entities/presenters.ts'
@@ -49,12 +52,16 @@ const app = createApp({
   liveTools: new LiveToolsService(entities.server!, listRemoteTools),
   stats: new StatsService(new PublishedStatsReader(db)),
   field: new FieldService({ server: entities.server!, skill: entities.skill! }),
+  comments: new CommentService(new MysqlCommentRepository(db)),
+  auth: config.supabaseUrl ? new SupabaseAuth(config.supabaseUrl) : undefined,
   logger,
   corsOrigins: config.corsOrigins,
   ping: async () => {
     await db.execute(sql`SELECT 1`)
   },
 })
+
+if (!config.supabaseUrl) logger.warn('没有设置 SUPABASE_URL，评论只能读取，不能发表')
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
   logger.info(`API 已启动：http://${config.host}:${info.port}/api/health`)

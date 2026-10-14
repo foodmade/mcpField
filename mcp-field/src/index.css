@@ -221,6 +221,44 @@ body {
   @apply mr-1.5 accent-accent;
 }
 
+/* 评论正文（用户写的 Markdown），比 README 紧凑 */
+.comment-md {
+  @apply text-sm leading-relaxed text-text2;
+  overflow-wrap: anywhere;
+}
+.comment-md > * + * {
+  margin-top: 0.5em;
+}
+.comment-md :is(h1, h2, h3, h4, h5, h6) {
+  @apply text-sm font-semibold text-ink;
+}
+.comment-md a {
+  @apply text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent;
+}
+.comment-md strong {
+  @apply font-semibold text-ink;
+}
+.comment-md :is(ul, ol) {
+  padding-left: 1.3em;
+}
+.comment-md ul {
+  list-style: disc;
+}
+.comment-md ol {
+  list-style: decimal;
+}
+.comment-md :not(pre) > code {
+  @apply mx-0.5 rounded-[5px] border border-fg/[0.08] bg-fg/[0.07] px-1.5 py-px font-mono text-xs text-ink;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.comment-md pre {
+  @apply overflow-x-auto rounded-lg border border-fg/[0.08] bg-code-bg p-3 font-mono text-xs leading-[1.7] text-ink;
+}
+.comment-md blockquote {
+  @apply border-l-2 border-fg/15 pl-3 text-text3;
+}
+
 /* GitHub 提示块：> [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION] */
 .md blockquote.md-alert {
   @apply rounded-r-lg border-l-[3px] bg-fg/[0.03] py-2.5 pr-4 text-text2;

@@ -11,7 +11,7 @@ import { useI18n } from '../i18n/context'
 import type { ServerDetail as Detail, ServerItem } from '../lib/api/entities'
 import { loadDetail } from '../lib/api/loaders'
 import { categoryOf } from '../lib/categories'
-import { commentCount } from '../lib/comments'
+import { useCommentCount } from '../lib/comments'
 import { daysSince, developerOf } from '../lib/entity'
 import type { Route } from './+types/ServerDetail'
 
@@ -50,6 +50,7 @@ function Sidebar({ s, related }: { s: Detail; related: ServerItem[] }) {
 function Page({ s, related }: { s: Detail; related: ServerItem[] }) {
   const { m } = useI18n()
   const { active, jump, reg } = useActiveSection(IDS, s.slug)
+  const commentTotal = useCommentCount(`server:${s.slug}`)
   const remote = s.remotes[0]
   const key = configKey(s.slug)
   return (
@@ -75,7 +76,7 @@ function Page({ s, related }: { s: Detail; related: ServerItem[] }) {
               { id: 'config', label: m.detail.sections.config },
               { id: 'tools', label: m.detail.sections.tools, count: s.tools.length },
               { id: 'readme', label: m.detail.sections.readme },
-              { id: 'comments', label: m.comments.title, count: commentCount(`server:${s.slug}`) },
+              { id: 'comments', label: m.comments.title, count: commentTotal },
             ]}
             active={active}
             onJump={jump}

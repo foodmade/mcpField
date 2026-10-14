@@ -15,7 +15,7 @@ import { useI18n } from '../i18n/context'
 import type { CliDetail as Detail, CliItem } from '../lib/api/entities'
 import { loadDetail } from '../lib/api/loaders'
 import { categoryOf } from '../lib/categories'
-import { commentCount } from '../lib/comments'
+import { useCommentCount } from '../lib/comments'
 import { daysSince, developerOf } from '../lib/entity'
 import type { Route } from './+types/CliDetail'
 
@@ -140,7 +140,7 @@ function Page({ c, related }: { c: Detail; related: CliItem[] }) {
     ...(c.installs.length ? [{ id: 'install' as const, label: m.cli.install }] : []),
     ...(c.examples.length ? [{ id: 'examples' as const, label: m.cli.examples }] : []),
     ...(c.readme ? [{ id: 'readme' as const, label: m.detail.sections.readme }] : []),
-    { id: 'comments', label: m.comments.title, count: commentCount(`cli:${c.slug}`) },
+    { id: 'comments', label: m.comments.title, count: useCommentCount(`cli:${c.slug}`) },
   ]
   const { active, jump, reg } = useActiveSection(sections.map((x) => x.id), c.slug)
   return (

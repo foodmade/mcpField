@@ -39,7 +39,7 @@ const DOCS: Record<Locale, Doc> = {
         title: '保存在你浏览器里的数据',
         blocks: [
           '下面这些设置和记录只保存在你自己的浏览器里（localStorage / sessionStorage），不会发送给我们，清除浏览器数据即可删除：',
-          ['界面语言、明暗主题，以及是否关闭过语言提示', '你收藏的项目、对评论的表情回应', '为加快页面加载而临时缓存的工具列表', '登录后的会话凭据，用于保持登录状态，退出登录时清除'],
+          ['界面语言、明暗主题，以及是否关闭过语言提示', '你收藏的项目', '为加快页面加载而临时缓存的工具列表', '登录后的会话凭据，用于保持登录状态，退出登录时清除'],
           'Cloudflare 可能会设置防范恶意流量所必需的 Cookie。我们自己不使用广告或追踪类 Cookie。',
         ],
       },
@@ -141,7 +141,7 @@ const DOCS: Record<Locale, Doc> = {
         title: 'Data stored in your browser',
         blocks: [
           "The following settings and records stay in your own browser (localStorage / sessionStorage). They aren't sent to us, and clearing your browser data removes them:",
-          ['Interface language, light or dark theme, and whether you dismissed the language notice', 'Projects you bookmark and your emoji reactions to comments', 'Tool lists cached temporarily to make pages load faster', 'Your sign-in session, which keeps you signed in and is cleared when you log out'],
+          ['Interface language, light or dark theme, and whether you dismissed the language notice', 'Projects you bookmark', 'Tool lists cached temporarily to make pages load faster', 'Your sign-in session, which keeps you signed in and is cleared when you log out'],
           "Cloudflare may set cookies that are strictly necessary to block malicious traffic. We don't use advertising or tracking cookies ourselves.",
         ],
       },
@@ -243,7 +243,7 @@ const DOCS: Record<Locale, Doc> = {
         title: 'ブラウザに保存されるデータ',
         blocks: [
           '次の設定や記録はお使いのブラウザ内（localStorage / sessionStorage）にのみ保存され、当サイトには送信されません。ブラウザのデータを消去すると削除されます：',
-          ['表示言語、ライト／ダークテーマ、言語案内を閉じたかどうか', 'ブックマークしたプロジェクト、コメントへのリアクション', 'ページの表示を速くするために一時的に保存したツール一覧', 'ログイン後のセッション情報（ログイン状態を保つためのもので、ログアウト時に消去されます）'],
+          ['表示言語、ライト／ダークテーマ、言語案内を閉じたかどうか', 'ブックマークしたプロジェクト', 'ページの表示を速くするために一時的に保存したツール一覧', 'ログイン後のセッション情報（ログイン状態を保つためのもので、ログアウト時に消去されます）'],
           'Cloudflare が悪意あるトラフィックを防ぐために必要な Cookie を設定する場合があります。当サイト自身は広告やトラッキング目的の Cookie を使用しません。',
         ],
       },

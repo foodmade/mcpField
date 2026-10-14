@@ -13,7 +13,7 @@ import { useI18n } from '../i18n/context'
 import type { SkillDetail as Detail, SkillItem } from '../lib/api/entities'
 import { loadDetail } from '../lib/api/loaders'
 import { categoryOf, compactNumber } from '../lib/categories'
-import { commentCount } from '../lib/comments'
+import { useCommentCount } from '../lib/comments'
 import { developerOf, repoPath } from '../lib/entity'
 import type { Route } from './+types/SkillDetail'
 
@@ -315,7 +315,7 @@ function Page({ s, related }: { s: Detail; related: SkillItem[] }) {
     ...(cmd ? [{ id: 'install' as const, label: m.skill.install }] : []),
     ...(showFiles ? [{ id: 'files' as const, label: m.skill.files, count: s.files.length }] : []),
     ...(s.readme ? [{ id: 'readme' as const, label: m.detail.sections.readme }] : []),
-    { id: 'comments', label: m.comments.title, count: commentCount(`skill:${s.slug}`) },
+    { id: 'comments', label: m.comments.title, count: useCommentCount(`skill:${s.slug}`) },
   ]
   const { active, jump, reg } = useActiveSection(sections.map((x) => x.id), s.slug)
   return (

@@ -8,7 +8,7 @@ import { useI18n } from '../i18n/context'
 import type { ClientDetail as Detail, ClientItem } from '../lib/api/entities'
 import { loadDetail } from '../lib/api/loaders'
 import { categoryOf } from '../lib/categories'
-import { commentCount } from '../lib/comments'
+import { useCommentCount } from '../lib/comments'
 import { daysSince, developerOf } from '../lib/entity'
 import type { Route } from './+types/ClientDetail'
 
@@ -51,6 +51,7 @@ export default function ClientDetail({ loaderData }: Route.ComponentProps) {
   const { m } = useI18n()
   const { d: c, related } = loaderData
   const { active, jump, reg } = useActiveSection(IDS, c.slug)
+  const commentTotal = useCommentCount(`client:${c.slug}`)
   return (
     <>
       <DetailSeo kind="client" d={c} section={m.dirs.clients.title} />
@@ -61,7 +62,7 @@ export default function ClientDetail({ loaderData }: Route.ComponentProps) {
             items={[
               { id: 'overview', label: m.detail.sections.overview },
               { id: 'readme', label: m.detail.sections.readme },
-              { id: 'comments', label: m.comments.title, count: commentCount(`client:${c.slug}`) },
+              { id: 'comments', label: m.comments.title, count: commentTotal },
             ]}
             active={active}
             onJump={jump}

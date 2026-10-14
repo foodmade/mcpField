@@ -2,8 +2,11 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Logger } from '../core/logger.ts'
 import type { EntityKind } from '../core/types.ts'
+import type { AuthVerifier } from './auth/supabase-auth.ts'
 import { ApiError } from './http/errors.ts'
 import { localeQuerySchema, parseQuery, sitemapQuerySchema } from './http/query.ts'
+import { commentRoutes } from './modules/comments/comment.routes.ts'
+import type { CommentService } from './modules/comments/comment.service.ts'
 import { entityRoutes } from './modules/entities/entity.routes.ts'
 import type { EntityService } from './modules/entities/entity.service.ts'
 import type { LiveToolsService } from './modules/entities/live-tools.ts'
@@ -21,6 +24,10 @@ export interface ApiDeps {
   stats?: StatsService
   /** 首屏背景流动的名字 */
   field?: FieldService
+  /** 评论；没有 auth 时只能读，写接口返回 503 */
+  comments?: CommentService
+  /** Supabase 登录令牌校验 */
+  auth?: AuthVerifier
   logger: Logger
   corsOrigins?: string[]
   /** 数据库连通性检查 */
@@ -30,7 +37,7 @@ export interface ApiDeps {
 export function createApp(deps: ApiDeps) {
   const app = new Hono()
 
-  app.use('/api/*', cors({ origin: deps.corsOrigins ?? [], allowMethods: ['GET'] }))
+  app.use('/api/*', cors({ origin: deps.corsOrigins ?? [], allowMethods: ['GET', 'POST', 'PUT', 'DELETE'] }))
   app.use('*', async (c, next) => {
     const started = Date.now()
     await next()
@@ -57,6 +64,7 @@ export function createApp(deps: ApiDeps) {
   // GET /api/stats/field?locale —— 首屏背景里流动的名字（最热门的服务与 Skill，精简字段）
   const field = deps.field
   if (field) app.get('/api/stats/field', async (c) => c.json({ data: await field.get(parseQuery(c, localeQuerySchema).locale) }))
+  if (deps.comments) app.route('/api/comments', commentRoutes(deps.comments, deps.auth))
   const services = Object.entries(deps.entities) as [EntityKind, EntityService<EntityKind>][]
   // GET /api/sitemap —— 各类型的条目总数；GET /api/sitemap/:kind?page&pageSize —— 分页列出 slug 与最后更新时间
   app.get('/api/sitemap', async (c) => {

@@ -11,7 +11,7 @@ import { useI18n } from '../i18n/context'
 import type { LoopDetail as Detail, Playbook, LoopItem } from '../lib/api/entities'
 import { loadDetail } from '../lib/api/loaders'
 import { categoryOf } from '../lib/categories'
-import { commentCount } from '../lib/comments'
+import { useCommentCount } from '../lib/comments'
 import { buildLoopPrompt } from '../lib/loopPrompt'
 import type { Route } from './+types/LoopDetail'
 
@@ -149,7 +149,7 @@ function Page({ l, related }: { l: Detail; related: LoopItem[] }) {
     ...(prompt ? [{ id: 'prompt' as const, label: m.loop.prompt }] : []),
     ...(steps ? [{ id: 'steps' as const, label: m.loop.stepsTitle }] : []),
     ...(l.supportedAgents.length ? [{ id: 'agents' as const, label: m.loop.agents }] : []),
-    { id: 'comments', label: m.comments.title, count: commentCount(`loop:${l.slug}`) },
+    { id: 'comments', label: m.comments.title, count: useCommentCount(`loop:${l.slug}`) },
   ]
   const { active, jump, reg } = useActiveSection(sections.map((x) => x.id), l.slug)
   return (

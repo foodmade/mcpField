@@ -7,6 +7,8 @@ const envSchema = z.object({
   API_HOST: z.string().trim().default('127.0.0.1'),
   /** 允许跨域访问的前端地址，逗号分隔 */
   API_CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:5288'),
+  /** Supabase 项目地址：用它公开的 JWKS 校验登录令牌；不设置时评论只能读，不能发表 */
+  SUPABASE_URL: z.string().trim().url().optional().or(z.literal('').transform(() => undefined)),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
 })
 
@@ -15,6 +17,7 @@ export interface ApiConfig {
   port: number
   host: string
   corsOrigins: string[]
+  supabaseUrl?: string
   logLevel: string
 }
 
@@ -25,6 +28,7 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     port: parsed.API_PORT,
     host: parsed.API_HOST,
     corsOrigins: parsed.API_CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
+    supabaseUrl: parsed.SUPABASE_URL,
     logLevel: parsed.LOG_LEVEL,
   }
 }

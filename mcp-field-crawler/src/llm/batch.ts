@@ -22,6 +22,8 @@ export interface BatchJob<I, R> {
   validate(item: I, result: R): Problem[]
   save(item: I, result: R, problems: Problem[]): Promise<void>
   describe(item: I): string
+  /** 内容上多次重做仍不合格时调用（校验不过、没有结构化结果、输出被截断；超时、限流等请求错误不算），用来记下难处理的条目 */
+  fail?(item: I, reason: string): Promise<void>
 }
 
 export interface BatchOptions {
@@ -72,6 +74,15 @@ export async function runBatches<I, R>(items: I[], job: BatchJob<I, R>, options:
   const maxAttempts = options.maxAttempts ?? 3
   const retrySize = options.retryBatchSize ?? 5
 
+  // 记录失败只是辅助信息，写不进去不影响任务
+  const fail = async (item: I, reason: string) => {
+    try {
+      await job.fail?.(item, reason)
+    } catch (error) {
+      logger.warn({ item: job.describe(item), err: (error as Error).message.slice(0, 200) }, '记录失败条目时出错')
+    }
+  }
+
   const process = async (batch: I[], attempt: number): Promise<void> => {
     if (options.signal?.aborted) return
     let response
@@ -93,6 +104,7 @@ export async function runBatches<I, R>(items: I[], job: BatchJob<I, R>, options:
       }
       stats.failed += batch.length
       logger.error({ size: batch.length, err: (error as Error).message.slice(0, 300) }, '请求失败')
+      if (splittable) for (const item of batch) await fail(item, (error as Error).name)
       return
     }
 
@@ -113,6 +125,7 @@ export async function runBatches<I, R>(items: I[], job: BatchJob<I, R>, options:
         else {
           stats.failed++
           logger.warn({ item: job.describe(item), problems }, '多次重做仍不合格，已跳过')
+          await fail(item, [...new Set(problems.filter((p) => p.hard).map((p) => p.code))].join(','))
         }
         continue
       }

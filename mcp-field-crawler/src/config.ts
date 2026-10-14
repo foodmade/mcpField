@@ -24,6 +24,9 @@ const envSchema = z.object({
   README_MODEL: z.string().trim().default('claude-haiku-5-5'),
   /** 同上：不设置时所有 README 都用 README_MODEL */
   README_PREMIUM_MODEL: optionalString,
+  /** README 翻译的后备模型：主模型被限流（429，例如订阅额度用完）时改用它，可以是另一个模型服务（例如 openai + gpt-6-luna） */
+  README_FALLBACK_PROVIDER: z.enum(LLM_PROVIDERS).optional(),
+  README_FALLBACK_MODEL: optionalString,
   /** Loop 内容要写步骤，用更强的模型；CLI / Agent 用快速模型 */
   DESCRIBE_LOOP_MODEL: z.string().trim().default('claude-sonnet-5-5'),
   DESCRIBE_MODEL: z.string().trim().default('claude-haiku-5-5'),
@@ -72,6 +75,7 @@ export interface AppConfig {
   overviewPremiumModel: string | undefined
   readmeModel: string
   readmePremiumModel: string | undefined
+  readmeFallback?: { provider: LlmProvider; model: string }
   describeLoopModel: string
   describeModel: string
   classifyModel: string
@@ -104,6 +108,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     overviewPremiumModel: parsed.OVERVIEW_PREMIUM_MODEL,
     readmeModel: parsed.README_MODEL,
     readmePremiumModel: parsed.README_PREMIUM_MODEL,
+    readmeFallback: parsed.README_FALLBACK_PROVIDER && parsed.README_FALLBACK_MODEL ? { provider: parsed.README_FALLBACK_PROVIDER, model: parsed.README_FALLBACK_MODEL } : undefined,
     describeLoopModel: parsed.DESCRIBE_LOOP_MODEL,
     describeModel: parsed.DESCRIBE_MODEL,
     classifyModel: parsed.CLASSIFY_MODEL,

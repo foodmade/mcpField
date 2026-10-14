@@ -4,6 +4,7 @@ import type { Db } from '../db/client.ts'
 import { readmeSubject } from '../github/readme.ts'
 import type { GithubReadmeReader } from '../github/store.ts'
 import { runBatches, type BatchJob } from '../llm/batch.ts'
+import type { TranslationFailures } from '../translate/failures.ts'
 import type { TranslationMemory } from '../translate/memory.ts'
 import { prepareReadmeChunks, readmeHash, restoreCode, textLocale, type ReadmeChunk } from './chunk.ts'
 import type { ReadmeLocale } from './prompt.ts'
@@ -67,6 +68,8 @@ export interface ReadmeOptions {
   force?: boolean
   /** 每片处理的 README 数，默认 2,000 */
   sliceSize?: number
+  /** 也翻之前内容上多次失败过的片段（默认跳过，见 ingestTranslationFailures）；整个任务跑完后用它专门补跑 */
+  retryFailed?: boolean
   signal?: AbortSignal
 }
 
@@ -84,8 +87,10 @@ export interface ReadmeStats {
   /** README 本身就是目标语言，不需要译文 */
   sameLanguage: number
   incomplete: number
-  /** 热门档模型被限流、改用普通档翻译的片段数 */
-  premiumFallback: number
+  /** 模型被限流、改用下一个模型（热门档 → 普通档 → 后备模型）翻译的片段数 */
+  fallback: number
+  /** 之前内容上多次失败过、这次跳过的片段数（retryFailed 时不跳过） */
+  deferred: number
   requests: number
   inputTokens: number
   outputTokens: number
@@ -97,15 +102,18 @@ export interface ReadmeRouting {
   standard: ReadmeTranslator
   premium?: ReadmeTranslator
   premiumMinStars: number
+  /** 后备模型：普通档（或热门档）被限流时改用它，可以是另一个模型服务 */
+  fallback?: ReadmeTranslator
 }
 
 type ChunkMemory = Pick<TranslationMemory, 'lookupDetailed' | 'saveSingle'>
 
 /**
- * 热门档模型被限流（429，多半是订阅额度用完）后暂停多久再试，期间热门片段改用普通档模型。
- * 额度按时间窗恢复（OpenCode Go 每 5 小时一个窗口），暂停到期后再试一次，仍被限流就继续暂停
+ * 模型被限流（429）后暂停，期间改用下一个模型（热门档 → 普通档 → 后备模型）。暂停到期后再试，仍被限流就加倍暂停，最长 15 分钟；
+ * 恢复后重新从 1 分钟算。高并发下的瞬时限流（例如 DeepSeek 上游的每分钟限额）只切走一会儿，订阅额度用完（按 5 小时窗口恢复）则稳定切走
  */
-const PREMIUM_PAUSE_MS = 15 * 60_000
+const PAUSE_MIN_MS = 60_000
+const PAUSE_MAX_MS = 15 * 60_000
 
 const isRateLimited = (error: unknown) => (error as { status?: number } | null)?.status === 429
 
@@ -115,7 +123,8 @@ const isRateLimited = (error: unknown) => (error as { status?: number } | null)?
  * → 逐段校验（占位符、链接、语言等）→ 写入翻译记忆库 → 拼回整篇、还原代码块 → 存整篇译文
  */
 export class ReadmeTranslateRunner {
-  private premiumPausedUntil = 0
+  /** 被限流而暂停的模型：到 until 再试，ms 是这次暂停的时长（再被限流时加倍） */
+  private readonly paused = new Map<ReadmeTranslator, { until: number; ms: number }>()
 
   constructor(
     private readonly routing: ReadmeRouting,
@@ -124,6 +133,8 @@ export class ReadmeTranslateRunner {
     private readonly logger: Logger,
     /** 目标没带正文时（collectReadmeTargets 收集的），处理到所在的那一片再读出来 */
     private readonly load?: (targets: ReadmeTarget[]) => Promise<void>,
+    /** 记录内容上多次失败的片段；之后的运行跳过它们，等 retryFailed 时再补 */
+    private readonly failures?: Pick<TranslationFailures, 'lookup' | 'record'>,
   ) {}
 
   async run(targets: ReadmeTarget[], options: ReadmeOptions): Promise<ReadmeStats> {
@@ -149,7 +160,8 @@ export class ReadmeTranslateRunner {
       assembled: 0,
       sameLanguage: 0,
       incomplete: 0,
-      premiumFallback: 0,
+      fallback: 0,
+      deferred: 0,
       requests: 0,
       inputTokens: 0,
       outputTokens: 0,
@@ -178,9 +190,12 @@ export class ReadmeTranslateRunner {
 
     // 找出需要翻译的片段：按 内容指纹 × 语言 去重
     const work = new Map<string, ChunkWork>()
+    // 之前内容上多次失败过的片段：放到整个任务最后（retryFailed）再补，免得每次运行都在开头反复重试
+    const deferred = new Set<string>()
     for (const locale of options.locales) {
       const hashes = prepared.flatMap((p) => p.chunks.filter((c) => c.prose).map((c) => c.hash))
       const known = await this.memory.lookupDetailed(hashes, locale)
+      const failed = this.failures && !options.retryFailed ? await this.failures.lookup(hashes, locale) : new Set<string>()
       for (const p of prepared) {
         for (const chunk of p.chunks) {
           // 已经是目标语言的片段（例如本来就是中文写的 README）直接沿用原文
@@ -189,6 +204,10 @@ export class ReadmeTranslateRunner {
           const redo = !prev || (prev.origin !== 'manual' && (options.force || (options.stale && prev.promptVersion < version)))
           if (!redo) continue
           const key = `${chunk.hash}:${locale}`
+          if (!prev && failed.has(chunk.hash)) {
+            deferred.add(key)
+            continue
+          }
           work.set(key, { hash: chunk.hash, text: chunk.text, locale, premium: (work.get(key)?.premium ?? false) || isPremium(p.target) })
         }
       }
@@ -196,12 +215,13 @@ export class ReadmeTranslateRunner {
 
     stats.chunks += prepared.reduce((n, p) => n + p.chunks.length, 0)
     stats.work += work.size
+    stats.deferred += deferred.size
     const items = [...work.values()]
     const groups: [ReadmeTranslator, ChunkWork[]][] = [
       [this.routing.standard, items.filter((w) => !w.premium || !this.routing.premium)],
       ...(this.routing.premium ? [[this.routing.premium, items.filter((w) => w.premium)] as [ReadmeTranslator, ChunkWork[]]] : []),
     ]
-    this.logger.info({ slice: label, targets: pending.length, chunks: stats.chunks, work: items.length, groups: groups.map(([t, list]) => `${t.model}: ${list.length}`) }, '开始翻译 README')
+    this.logger.info({ slice: label, targets: pending.length, chunks: stats.chunks, work: items.length, deferred: deferred.size, groups: groups.map(([t, list]) => `${t.model}: ${list.length}`) }, '开始翻译 README')
 
     for (const [translator, list] of groups) {
       if (list.length === 0) continue
@@ -219,6 +239,9 @@ export class ReadmeTranslateRunner {
         validate: (w, text) => validateReadmeChunk(w.text, text, w.locale),
         save: (w, text, problems) => this.memory.saveSingle({ hash: w.hash, text: w.text }, w.locale, text, problems, usedBy.get(`${w.hash}:${w.locale}`) ?? translator),
         describe: (w) => `${w.locale} ${w.text.slice(0, 60).replace(/\n/g, ' ')}`,
+        fail: async (w, reason) => {
+          await this.failures?.record(w.hash, w.locale, reason, (usedBy.get(`${w.hash}:${w.locale}`) ?? translator).model)
+        },
       }
       const s = await runBatches(list, job, { batchSize: 1, maxBatchChars: Number.MAX_SAFE_INTEGER, concurrency: options.concurrency, retryBatchSize: 1, signal: options.signal }, this.logger)
       for (const k of ['ok', 'review', 'failed', 'requests', 'inputTokens', 'outputTokens'] as const) stats[k] += s[k]
@@ -243,24 +266,32 @@ export class ReadmeTranslateRunner {
     }
   }
 
-  /** 热门档模型被限流时改用普通档，并暂停热门档一段时间 */
+  /** 按 热门档 → 普通档 → 后备模型 的顺序翻译：被限流的模型暂停一段时间，期间直接用下一个；最后一个模型的错误照常抛出 */
   private async translateWithFallback(translator: ReadmeTranslator, w: ChunkWork, stats: ReadmeStats, signal?: AbortSignal) {
-    const { standard } = this.routing
-    const premium = translator !== standard
-    if (!premium || Date.now() >= this.premiumPausedUntil) {
+    const { standard, fallback } = this.routing
+    const chain = [translator, ...(translator !== standard ? [standard] : []), ...(fallback ? [fallback] : [])]
+    for (const [i, t] of chain.entries()) {
+      const next = chain[i + 1]
+      const pause = this.paused.get(t)
+      if (next && pause && Date.now() < pause.until) continue
       try {
-        return { ...(await translator.translate(w.text, w.locale, signal)), used: translator }
+        const result = await t.translate(w.text, w.locale, signal)
+        // 暂停到期后的请求成功了：已恢复，下次被限流重新从最短暂停算（暂停前发出、暂停中才返回的请求不算）
+        if (pause && Date.now() >= pause.until) this.paused.delete(t)
+        if (t !== translator) stats.fallback++
+        return { ...result, used: t }
       } catch (error) {
-        if (!premium || !isRateLimited(error)) throw error
+        if (!next || !isRateLimited(error)) throw error
         // 并发的请求会同时被拒，只在开始暂停时记一次
-        if (Date.now() >= this.premiumPausedUntil) {
-          this.logger.warn({ model: translator.model, fallback: standard.model, minutes: PREMIUM_PAUSE_MS / 60_000 }, '热门档模型被限流（可能额度用完），暂停期间改用普通档')
+        const current = this.paused.get(t)
+        if (!current || Date.now() >= current.until) {
+          const ms = current ? Math.min(current.ms * 2, PAUSE_MAX_MS) : PAUSE_MIN_MS
+          this.paused.set(t, { until: Date.now() + ms, ms })
+          this.logger.warn({ model: t.model, next: next.model, minutes: ms / 60_000 }, '模型被限流，暂停期间改用下一个模型')
         }
-        this.premiumPausedUntil = Date.now() + PREMIUM_PAUSE_MS
       }
     }
-    stats.premiumFallback++
-    return { ...(await standard.translate(w.text, w.locale, signal)), used: standard }
+    throw new Error('没有可用的翻译模型')
   }
 
   private assemble(chunks: ReadmeChunk[], codeBlocks: string[], known: Map<string, { content: string; status: string; model: string | null }>, locale: ReadmeLocale) {

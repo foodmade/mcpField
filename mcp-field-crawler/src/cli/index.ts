@@ -21,6 +21,7 @@ import { collectGithubTargets, GithubReadmeRunner, GithubRepoRunner } from '../g
 import { GithubReadmeStore, GithubRepoStore } from '../github/store.ts'
 import { LlmTranslator } from '../translate/claude-translator.ts'
 import type { LlmConfig, LlmProvider } from '../llm/provider.ts'
+import { TranslationFailures } from '../translate/failures.ts'
 import { TranslationMemory } from '../translate/memory.ts'
 import { collectSources, TranslateRunner } from '../translate/runner.ts'
 import { collectOverviewInputs, OverviewRunner } from '../overview/runner.ts'
@@ -115,6 +116,7 @@ readme 选项：
   --model / --premium-model / --premium-min-stars   同 overview，默认 Haiku 5.5 / 不分档 / 1000
   --concurrency <n>       并发请求数，默认 TRANSLATE_CONCURRENCY，没有设置时 6
   --stale / --force       重翻旧版提示词的片段 / 全部重翻（人工译文保留）
+  --retry-failed          也翻之前内容上多次失败过的片段（默认跳过，整个任务跑完后用它补跑）
 
 describe 选项：
   --kind <loop,cli,agent> 要生成的类型，默认三种都生成
@@ -164,6 +166,7 @@ const { positionals, values } = parseArgs({
     'min-stars': { type: 'string' },
     'premium-model': { type: 'string' },
     'premium-min-stars': { type: 'string' },
+    'retry-failed': { type: 'boolean' },
     locale: { type: 'string' },
     'licensed-only': { type: 'boolean', default: false },
     media: { type: 'string' },
@@ -369,7 +372,10 @@ async function readme() {
 
   const { db, pool } = createDb(config.databaseUrl)
   try {
-    const llm = translateLlm()
+    // 每片 README 要等所有请求结束才进入下一片：单个请求卡住会拖住整个任务（默认超时 5 分钟 × 重试 4 次，最坏 25 分钟）。
+    // 片段通常 10–30 秒译完，超时 2 分钟、重试 2 次足够；超时的片段下次运行再补。被限流时少重试几次，交给后备模型
+    const requestLimits = { timeoutMs: 120_000, maxRetries: 2 }
+    const llm = { ...translateLlm(), ...requestLimits }
     const { targets, skipped } = await collectReadmeTargets(db, kinds, {
       minStars: values['min-stars'] ? Number(values['min-stars']) : 0,
       licensedOnly: values['licensed-only'],
@@ -382,14 +388,18 @@ async function readme() {
         standard: new LlmReadmeTranslator({ ...llm, model }),
         premium: premiumModel && premiumModel !== model ? new LlmReadmeTranslator({ ...llm, model: premiumModel }) : undefined,
         premiumMinStars: values['premium-min-stars'] ? Number(values['premium-min-stars']) : 1000,
+        // 后备模型用它自己模型服务的默认推理强度（TRANSLATE_REASONING_EFFORT 是给主模型的，例如 gpt-6.1-sol 不接受 none）
+        fallback: config.readmeFallback ? new LlmReadmeTranslator({ ...llmConfig(config.readmeFallback.provider), ...requestLimits, model: config.readmeFallback.model }) : undefined,
       },
       new TranslationMemory(db),
       new ReadmeTranslationStore(db),
       logger,
       (slice) => loadReadmes(new GithubReadmeStore(db), slice),
+      new TranslationFailures(db),
     )
     const stats = await runner.run(targets, {
       locales,
+      retryFailed: values['retry-failed'],
       concurrency: values.concurrency ? Number(values.concurrency) : (config.translateConcurrency ?? 6),
       limit: values.limit ? Number(values.limit) : undefined,
       stale: values.stale,

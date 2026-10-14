@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Logger } from '../src/core/logger.ts'
+import { NoToolOutputError } from '../src/llm/claude.ts'
 import { hasProse, prepareReadmeChunks, protectCode, restoreCode, splitChunks, textLocale } from '../src/readme/chunk.ts'
 import { ReadmeTranslateRunner } from '../src/readme/runner.ts'
 import type { ReadmeTarget } from '../src/readme/store.ts'
@@ -162,9 +163,107 @@ describe('ReadmeTranslateRunner', () => {
 
     // 第一次被拒后暂停热门档，后面的片段不再请求它
     expect(calls.filter((c) => c === 'haiku')).toHaveLength(1)
-    expect(stats.premiumFallback).toBe(stats.work)
+    expect(stats.fallback).toBe(stats.work)
     expect(stats.failed).toBe(0)
     expect([...memory.values()].every((t) => t.model === 'mimo')).toBe(true)
+  })
+
+  it('普通档被限流时改用后备模型（可以是另一个模型服务），暂停期间不再请求普通档', async () => {
+    const calls: string[] = []
+    const fake = (model: string, fail?: boolean): ReadmeTranslator => ({
+      provider: model === 'gpt-6-luna' ? 'openai' : 'opencode',
+      model,
+      promptVersion: 1,
+      async translate(chunk, locale) {
+        calls.push(model)
+        if (fail) throw Object.assign(new Error('Go usage limit exceeded'), { status: 429 })
+        const prose = locale === 'zh' ? '这是一段译文内容。' : 'これは翻訳された文章です。'
+        const text = chunk
+          .split('\n')
+          .map((line) => (!line.trim() || line.includes('](') || line.includes('⟦') || line.startsWith('|') ? line : /^#{1,6}\s/.test(line) ? `## ${prose}` : prose))
+          .join('\n')
+        return { text, usage: { requests: 1, inputTokens: 1, outputTokens: 1 } }
+      },
+    })
+    const memory: Memory = new Map()
+    const runner = new ReadmeTranslateRunner(
+      { standard: fake('deepseek-v4.1-flash', true), premiumMinStars: 1000, fallback: fake('gpt-6-luna') },
+      fakeMemory(memory),
+      { existing: async () => new Map(), save: async () => {} },
+      silent,
+    )
+    const stats = await runner.run([target('a', 10)], { locales: ['zh'], concurrency: 1 })
+
+    expect(calls.filter((c) => c === 'deepseek-v4.1-flash')).toHaveLength(1)
+    expect(stats.fallback).toBe(stats.work)
+    expect(stats.failed).toBe(0)
+    expect([...memory.values()].every((t) => t.model === 'gpt-6-luna')).toBe(true)
+  })
+
+  it('限流以外的错误不切换模型', async () => {
+    const calls: string[] = []
+    const failing: ReadmeTranslator = { provider: 'opencode', model: 'deepseek', promptVersion: 1, translate: async () => (calls.push('deepseek'), Promise.reject(Object.assign(new Error('bad request'), { status: 400 }))) }
+    const backup: ReadmeTranslator = { provider: 'openai', model: 'gpt', promptVersion: 1, translate: async () => (calls.push('gpt'), Promise.reject(new Error('不应调用'))) }
+    const runner = new ReadmeTranslateRunner({ standard: failing, premiumMinStars: 1000, fallback: backup }, fakeMemory(new Map()), { existing: async () => new Map(), save: async () => {} }, silent)
+    const stats = await runner.run([target('a', 10)], { locales: ['zh'], concurrency: 1 })
+    expect(calls.every((c) => c === 'deepseek')).toBe(true)
+    expect(stats.fallback).toBe(0)
+    expect(stats.failed).toBe(stats.work)
+  })
+
+  describe('内容上多次失败的片段', () => {
+    const translateLines = (chunk: string, locale: string) => {
+      const prose = locale === 'zh' ? '这是一段译文内容。' : 'これは翻訳された文章です。'
+      return chunk
+        .split('\n')
+        .map((line) => (!line.trim() || line.includes('](') || line.includes('⟦') || line.startsWith('|') ? line : /^#{1,6}\s/.test(line) ? `## ${prose}` : prose))
+        .join('\n')
+    }
+    const fakeFailures = (failed: Set<string>) => {
+      const recorded: { hash: string; locale: string; reason: string; model: string }[] = []
+      return { recorded, lookup: async (hashes: string[]) => new Set(hashes.filter((h) => failed.has(h))), record: async (hash: string, locale: string, reason: string, model: string) => void recorded.push({ hash, locale, reason, model }) }
+    }
+    const allHashes = () => prepareReadmeChunks(README).chunks.filter((c) => c.prose).map((c) => c.hash)
+
+    it('默认跳过失败过的片段（记为 deferred），--retry-failed 时照常翻译', async () => {
+      const calls: string[] = []
+      const translator: ReadmeTranslator = { provider: 'fake', model: 'm', promptVersion: 1, translate: async (chunk, locale) => (calls.push(locale), { text: translateLines(chunk, locale), usage: { requests: 1, inputTokens: 1, outputTokens: 1 } }) }
+      const failures = fakeFailures(new Set(allHashes()))
+      const make = () => new ReadmeTranslateRunner({ standard: translator, premiumMinStars: 1000 }, fakeMemory(new Map()), { existing: async () => new Map(), save: async () => {} }, silent, undefined, failures)
+
+      const skipped = await make().run([target('a', 10)], { locales: ['zh'], concurrency: 1 })
+      expect(calls).toHaveLength(0)
+      expect(skipped.work).toBe(0)
+      expect(skipped.deferred).toBe(allHashes().length)
+
+      const retried = await make().run([target('a', 10)], { locales: ['zh'], concurrency: 1, retryFailed: true })
+      expect(calls).toHaveLength(allHashes().length)
+      expect(retried.deferred).toBe(0)
+      expect(retried.ok).toBe(allHashes().length)
+    })
+
+    it('校验多次不合格、没按格式返回时记下来；503 这类请求错误不记', async () => {
+      const run = async (translate: ReadmeTranslator['translate']) => {
+        const failures = fakeFailures(new Set())
+        const runner = new ReadmeTranslateRunner({ standard: { provider: 'fake', model: 'deepseek', promptVersion: 1, translate }, premiumMinStars: 1000 }, fakeMemory(new Map()), { existing: async () => new Map(), save: async () => {} }, silent, undefined, failures)
+        const stats = await runner.run([target('a', 10)], { locales: ['zh'], concurrency: 1 })
+        return { stats, recorded: failures.recorded }
+      }
+      const usage = { requests: 1, inputTokens: 1, outputTokens: 1 }
+
+      // 原样返回英文：校验不通过，重做 3 次仍不合格
+      const invalid = await run(async (chunk) => ({ text: chunk, usage }))
+      expect(invalid.stats.failed).toBe(allHashes().length)
+      expect(invalid.recorded).toHaveLength(allHashes().length)
+      expect(invalid.recorded.every((r) => r.model === 'deepseek' && r.locale === 'zh' && r.reason.length > 0)).toBe(true)
+
+      const noTag = await run(async () => Promise.reject(new NoToolOutputError()))
+      expect(noTag.recorded.map((r) => r.reason)).toEqual(allHashes().map(() => 'NoToolOutputError'))
+
+      const unavailable = await run(async () => Promise.reject(Object.assign(new Error('Service temporarily unavailable'), { status: 503 })))
+      expect(unavailable.stats.failed).toBe(allHashes().length)
+      expect(unavailable.recorded).toHaveLength(0)
+    })
   })
 
   it('目标不带正文时按片读出、处理完释放；读不到正文的跳过', async () => {

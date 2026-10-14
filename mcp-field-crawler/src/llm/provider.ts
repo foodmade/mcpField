@@ -12,6 +12,10 @@ export interface LlmConfig {
   baseURL?: string
   /** 推理强度（只对 OpenAI 兼容接口生效）；翻译不需要推理，DeepSeek 设为 none 后长片段从约 99 秒降到 8 秒 */
   reasoningEffort?: ReasoningEffort
+  /** 单次请求超时（毫秒），默认 5 分钟 */
+  timeoutMs?: number
+  /** SDK 自动重试次数，默认 4 */
+  maxRetries?: number
 }
 
 /** 与模型服务无关的两种调用方式；翻译器只依赖它 */
@@ -46,7 +50,7 @@ function createOpencodeLlm(config: LlmConfig): Llm {
   const headers = opencodeHeaders()
   const openai = createOpenAI({ ...config, headers })
   // OPENCODE_BASE_URL 是 OpenAI 兼容地址（…/go/v1），Anthropic SDK 会自己拼上 /v1/messages
-  const claude = createClaude({ apiKey: config.apiKey, baseURL: config.baseURL?.replace(/\/v1\/?$/, ''), headers })
+  const claude = createClaude({ apiKey: config.apiKey, baseURL: config.baseURL?.replace(/\/v1\/?$/, ''), headers, timeoutMs: config.timeoutMs, maxRetries: config.maxRetries })
   const options = { reasoningEffort: config.reasoningEffort }
   const isClaude = (model: string) => model.startsWith('claude-')
   return {

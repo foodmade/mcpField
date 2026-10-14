@@ -230,6 +230,25 @@ export const ingestTranslations = mysqlTable(
   ],
 )
 
+/**
+ * 翻译失败记录：内容上多次重做仍不合格的片段（校验不过、没按格式返回、输出被截断；超时、限流等请求错误不算）。
+ * README 翻译默认跳过这些片段，免得每次运行都在开头反复重试；整个任务跑完后用 readme --retry-failed 专门重跑
+ */
+export const ingestTranslationFailures = mysqlTable(
+  'ingest_translation_failures',
+  {
+    id: pk(),
+    sourceHash: sha256('source_hash').notNull(),
+    locale: varchar('locale', { length: 8 }).notNull(),
+    failures: smallint('failures', { unsigned: true }).notNull().default(1),
+    /** 最近一次失败的原因：校验问题代码或错误名 */
+    reason: varchar('reason', { length: 255 }),
+    model: varchar('model', { length: 64 }),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex('uq_ingest_translation_failures').on(t.sourceHash, t.locale)],
+)
+
 /* ========== AI 生成的三语介绍：根据 README 和项目信息生成，每个条目每种语言一行 ========== */
 
 export const ingestOverviews = mysqlTable(

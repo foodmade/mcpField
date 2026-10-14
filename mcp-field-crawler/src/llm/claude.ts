@@ -6,6 +6,8 @@ export interface ClaudeConfig {
   /** 可指向兼容 Anthropic Messages API 的代理 */
   baseURL?: string
   timeoutMs?: number
+  /** SDK 自动重试次数（超时、429、5xx），默认 4 */
+  maxRetries?: number
   /** 每个请求都带上的额外请求头 */
   headers?: Record<string, string>
 }
@@ -51,7 +53,7 @@ export const capRetryAfter: typeof fetch = async (input, init) => {
 }
 
 export function createClaude(config: ClaudeConfig): Anthropic {
-  return new Anthropic({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: 4, timeout: config.timeoutMs ?? 300_000, defaultHeaders: config.headers, fetch: capRetryAfter })
+  return new Anthropic({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: config.maxRetries ?? 4, timeout: config.timeoutMs ?? 300_000, defaultHeaders: config.headers, fetch: capRetryAfter })
 }
 
 /** 不支持强制指定工具的模型（例如默认开启推理的模型），首次被拒后记住，之后直接用 auto */

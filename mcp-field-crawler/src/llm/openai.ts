@@ -12,12 +12,14 @@ export interface OpenAIConfig {
   /** OpenAI 兼容接口地址，例如 https://host/v1 */
   baseURL?: string
   timeoutMs?: number
+  /** SDK 自动重试次数（超时、429、5xx），默认 4 */
+  maxRetries?: number
   /** 每个请求都带上的额外请求头 */
   headers?: Record<string, string>
 }
 
 export function createOpenAI(config: OpenAIConfig): OpenAI {
-  return new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: 4, timeout: config.timeoutMs ?? 300_000, defaultHeaders: config.headers })
+  return new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL, maxRetries: config.maxRetries ?? 4, timeout: config.timeoutMs ?? 300_000, defaultHeaders: config.headers })
 }
 
 /**

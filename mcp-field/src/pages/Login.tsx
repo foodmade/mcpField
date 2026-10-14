@@ -1,6 +1,6 @@
 import { CircleNotch, EnvelopeSimple, GithubLogo, GoogleLogo } from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { data, Link, useSearchParams } from 'react-router'
 import clsx from 'clsx'
 import { LanguageMenu } from '../components/LanguageMenu'
@@ -154,6 +154,7 @@ function LoginPage() {
     setCooldown(RESEND_AFTER)
   }
 
+  // 只负责校验；成功后的跳转等验证码格子的动画播完，由 CodeStep 调 onDone
   const verify = async (email: string, otp: string) => {
     setError(null)
     setBusy('verify')
@@ -164,8 +165,6 @@ function LoginPage() {
       return false
     }
     setBusy('email')
-    await wait(650)
-    window.location.assign(redirect)
     return true
   }
 
@@ -202,8 +201,8 @@ function LoginPage() {
                   busy={busy}
                   error={error}
                   cooldown={cooldown}
-                  hoverProps={hoverProps}
                   onVerify={(otp) => verify(step.email, otp)}
+                  onDone={() => window.location.assign(redirect)}
                   onResend={() => sendCode(step.email)}
                   onBack={() => {
                     setError(null)
@@ -319,51 +318,127 @@ function ChooseStep({ t, busy, error, status, hoverProps, onSocial, onEmail, onI
   )
 }
 
-function CodeStep({ t, email, busy, error, cooldown, hoverProps, onVerify, onResend, onBack }: { t: T; email: string; busy: Busy; error: string | null; cooldown: number; hoverProps: HoverProps; onVerify: (otp: string) => Promise<boolean>; onResend: () => void; onBack: () => void }) {
+/*
+ * 验证码格子的几个阶段：
+ * input 正常输入 → 填满自动提交，waiting 等结果（格子边框转着炫光）→ 结果回来后 gather 收拢（固定红色）：
+ * 各格依次飞向中间、叠成一叠错开倾斜的卡片，停一下再压成一张
+ * → 合成一个方块显示 ✓（success）或 ✗（fail）→ 成功就跳转，失败就散开清空、重新输入
+ */
+type CodePhase = 'input' | 'waiting' | 'gather' | 'success' | 'fail'
+
+/** 炫光至少转这么久，结果回来得太快也看得到 */
+const MIN_WAIT = 900
+/** 单个格子收拢用时（秒），以及相邻格子依次出发的间隔 */
+const GATHER_DUR = 0.95
+const GATHER_STAGGER = 0.06
+/** 收拢动画总时长（毫秒） */
+const GATHER_MS = (GATHER_DUR + GATHER_STAGGER * (OTP_LENGTH - 1)) * 1000
+/** 叠成一叠时最多露出几层，再往后的完全藏在后面 */
+const FAN_DEPTH = 3
+/** 显示 ✓ 后停多久再跳转 */
+const SUCCESS_HOLD = 900
+/** 显示 ✗ 后停多久再散开 */
+const FAIL_HOLD = 1000
+/** 格子间距，和下面的 gap-2.5 一致 */
+const CELL_GAP = 10
+
+function CodeStep({ t, email, busy, error, cooldown, onVerify, onDone, onResend, onBack }: { t: T; email: string; busy: Busy; error: string | null; cooldown: number; onVerify: (otp: string) => Promise<boolean>; onDone: () => void; onResend: () => void; onBack: () => void }) {
   const [code, setCode] = useState('')
+  const [phase, setPhase] = useState<CodePhase>('input')
   const [focused, setFocused] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
-  const working = busy !== null
+  const rowRef = useRef<HTMLLabelElement>(null)
+  // 相邻两格中心的距离，收拢开始时量一次
+  const [pitch, setPitch] = useState(0)
+  const working = busy !== null || phase !== 'input'
   const sent = t.codeSent(maskEmail(email), OTP_MINUTES)
-  const ready = code.length === OTP_LENGTH && !working
+  const gathered = phase === 'gather' || phase === 'success' || phase === 'fail'
+  const result = phase === 'success' || phase === 'fail' ? phase : null
+  const center = (OTP_LENGTH - 1) / 2
+
+  // 失败散开后输入框重新可用，这时再把焦点放回去
+  useEffect(() => {
+    if (phase === 'input' && !code) inputRef.current?.focus()
+  }, [phase, code])
 
   const submit = async (value: string) => {
     if (value.length !== OTP_LENGTH || working) return
-    const ok = await onVerify(value)
-    if (!ok) {
-      setCode('')
-      inputRef.current?.focus()
-    }
+    setPhase('waiting')
+    const [ok] = await Promise.all([onVerify(value), wait(MIN_WAIT)])
+    setPitch(((rowRef.current?.offsetWidth ?? 0) + CELL_GAP) / OTP_LENGTH)
+    setPhase('gather')
+    await wait(GATHER_MS)
+    setPhase(ok ? 'success' : 'fail')
+    await wait(ok ? SUCCESS_HOLD : FAIL_HOLD)
+    if (ok) return onDone()
+    setCode('')
+    setPhase('input')
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="mb-1.5 flex flex-col gap-2.5">
-        <h1 className={TITLE}>{t.codeTitle}</h1>
-        <p className="text-center text-[14px] leading-[1.7] text-white/55">
-          {sent[0]}
-          <br />
-          {sent[1]}
-        </p>
+      <div aria-live="polite" className="mb-1.5 flex flex-col gap-2.5">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={phase === 'success' ? 'ok' : 'code'} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }} className="flex flex-col gap-2.5">
+            {phase === 'success' ? (
+              <>
+                <h1 className={clsx(TITLE, 'text-accent!')}>{t.codeVerified}</h1>
+                <p className="text-center text-[14px] leading-[1.7] text-white/55">{t.entering}</p>
+              </>
+            ) : (
+              <>
+                <h1 className={TITLE}>{t.codeTitle}</h1>
+                <p className="text-center text-[14px] leading-[1.7] text-white/55">
+                  {sent[0]}
+                  <br />
+                  {sent[1]}
+                </p>
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
-      <label className="relative grid grid-cols-6 gap-2.5">
+      <label ref={rowRef} className="relative grid grid-cols-6 gap-2.5">
         <span className="sr-only">{t.codeLabel}</span>
         {Array.from({ length: OTP_LENGTH }, (_, i) => {
           const digit = code[i]
-          const active = focused && !working && i === Math.min(code.length, OTP_LENGTH - 1)
+          const active = focused && phase === 'input' && !working && i === Math.min(code.length, OTP_LENGTH - 1)
+          // 最左边一格压在最上面，往右依次垫在下面，越靠后越往右偏、转得越多
+          const depth = Math.min(i, FAN_DEPTH)
+          const toCenter = (center - i) * pitch
+          const fan = { x: toCenter + depth * 5, y: depth * 1.5, rotate: -6 + depth * 7, scale: 1 - depth * 0.03 }
           return (
-            <span
+            <motion.span
               key={i}
               aria-hidden
+              initial={false}
+              animate={
+                phase === 'gather'
+                  ? { x: [0, fan.x, fan.x, toCenter], y: [0, fan.y, fan.y, 0], rotate: [0, fan.rotate, fan.rotate, 0], scale: [1, fan.scale, fan.scale, 1] }
+                  : { x: gathered ? toCenter : 0, y: 0, rotate: 0, scale: 1 }
+              }
+              transition={
+                phase === 'gather'
+                  ? { duration: GATHER_DUR, delay: i * GATHER_STAGGER, times: [0, 0.55, 0.78, 1], ease: ['easeInOut', 'linear', 'easeOut'] }
+                  : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }
+              }
+              style={{ '--i': i, zIndex: gathered ? OTP_LENGTH - i : undefined, transformOrigin: '30% 90%' } as CSSProperties}
               className={clsx(
-                'grid h-14 place-items-center rounded-[12px] border bg-[#0A0D16]/60 font-mono text-[22px] font-medium text-white/90 backdrop-blur-md transition-[border-color,box-shadow]',
-                active ? 'border-accent/70 shadow-[0_0_16px_rgba(61,220,151,0.18)]' : digit ? 'border-white/20' : 'border-white/[0.1]',
+                'relative grid h-14 place-items-center rounded-[12px] border bg-[#0A0D16]/60 font-mono text-[22px] font-medium text-white/90 backdrop-blur-md transition-[opacity,border-color,box-shadow] duration-300 motion-reduce:transition-none',
+                phase === 'input' && (active ? 'border-accent/70 shadow-[0_0_16px_rgba(61,220,151,0.18)]' : digit ? 'border-white/20' : 'border-white/[0.1]'),
+                phase === 'waiting' && 'otp-glow border-white/[0.12]',
+                // 叠起来时底色不透明，后面的格子不会透出来
+                gathered && 'border-[#ff6b5e]/80 bg-[#0d1019] shadow-[0_0_18px_rgba(255,107,94,0.35)]',
+                result && 'opacity-0',
               )}
             >
-              {digit ?? (active && <span className="h-[22px] w-px animate-pulse bg-accent" />)}
-            </span>
+              <span className={clsx('transition-opacity duration-150', gathered && 'opacity-0')}>{digit ?? (active && <span className="block h-[22px] w-px animate-pulse bg-accent" />)}</span>
+            </motion.span>
           )
         })}
+        <AnimatePresence>
+          {result && <ResultMark key={result} ok={result === 'success'} />}
+        </AnimatePresence>
         <input
           ref={inputRef}
           autoFocus
@@ -382,19 +457,9 @@ function CodeStep({ t, email, busy, error, cooldown, hoverProps, onVerify, onRes
           className="absolute inset-0 size-full cursor-text bg-transparent text-transparent caret-transparent opacity-0 outline-none"
         />
       </label>
-      <button
-        type="button"
-        disabled={!ready}
-        onClick={() => void submit(code)}
-        {...hoverProps}
-        // 没填完时用浅色底，不显示成一块灰色
-        className={clsx(BUTTON, ready || busy === 'verify' || busy === 'email' ? PRIMARY : 'bg-white/[0.07] text-white/40')}
-      >
-        {busy === 'verify' && <CircleNotch size={16} className="animate-spin" />}
-        {busy === 'verify' || busy === 'email' ? t.verifying : t.verify}
-      </button>
-      <ErrorLine text={error} />
-      <div className="flex items-center justify-between px-0.5 text-[13px]">
+      {/* 收拢、出结果的过程中先不出错误提示，等 ✗ 出现再显示 */}
+      <ErrorLine text={phase === 'input' || phase === 'fail' ? error : null} />
+      <div className={clsx('flex items-center justify-between px-0.5 text-[13px] transition-opacity', phase === 'success' && 'opacity-0')}>
         {cooldown > 0 ? (
           <span className="text-white/40">{t.resendIn(cooldown)}</span>
         ) : (
@@ -407,6 +472,36 @@ function CodeStep({ t, email, busy, error, cooldown, hoverProps, onVerify, onRes
         </LinkButton>
       </div>
     </div>
+  )
+}
+
+/** 收拢后中间那个方块：绿底 ✓ 或红底 ✗，图标一笔画出来 */
+function ResultMark({ ok }: { ok: boolean }) {
+  const draw = { initial: { pathLength: 0 }, animate: { pathLength: 1 }, transition: { duration: 0.32, delay: 0.1, ease: [0.65, 0, 0.35, 1] as const } }
+  return (
+    <motion.span
+      aria-hidden
+      initial={{ opacity: 0, scale: 0.86 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+      transition={{ type: 'spring', stiffness: 520, damping: 26 }}
+      style={{ width: `calc((100% - ${(OTP_LENGTH - 1) * CELL_GAP}px) / ${OTP_LENGTH})` }}
+      className={clsx(
+        'pointer-events-none absolute inset-y-0 left-1/2 z-10 grid -translate-x-1/2 place-items-center rounded-[12px] border backdrop-blur-md',
+        ok ? 'border-accent/80 bg-accent/[0.12] text-accent shadow-[0_0_22px_rgba(61,220,151,0.35)]' : 'border-[#ff6b5e]/80 bg-[#ff6b5e]/[0.12] text-[#ff7b6f] shadow-[0_0_22px_rgba(255,107,94,0.3)]',
+      )}
+    >
+      <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+        {ok ? (
+          <motion.path d="M5.5 12.5l4.2 4.2L18.5 7.8" {...draw} />
+        ) : (
+          <>
+            <motion.path d="M7 7l10 10" {...draw} />
+            <motion.path d="M17 7L7 17" {...draw} transition={{ ...draw.transition, delay: 0.24 }} />
+          </>
+        )}
+      </svg>
+    </motion.span>
   )
 }
 

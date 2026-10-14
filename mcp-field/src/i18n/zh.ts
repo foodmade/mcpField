@@ -430,8 +430,9 @@ export const zh = {
     /** 两行：发到哪里、多久有效 */
     codeSent: (email: string, minutes: number) => [`验证码已经发到 ${email}`, `${minutes} 分钟内有效`] as [string, string],
     codeLabel: '6 位验证码',
-    verify: '登录',
-    verifying: '正在登录…',
+    /** 验证码通过后，标题和副标题换成这两句 */
+    codeVerified: '登录成功',
+    entering: '正在进入…',
     resendIn: (s: number) => `没收到？${s} 秒后可以重发`,
     resend: '没收到？重新发送',
     otherEmail: '换个邮箱',

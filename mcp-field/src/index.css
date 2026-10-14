@@ -450,3 +450,46 @@ body {
     transform: var(--from, translateY(6px));
   }
 }
+
+/*
+ * 登录页验证码格子等待校验结果时的边框炫光：一段亮光沿边框转圈，外圈跟着明暗起伏。
+ * 每个格子按 --i 错开一点相位，连起来像一道光在格子间流动。
+ */
+@property --otp-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.otp-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--otp-angle), transparent 0 52%, #ff6b5e66 68%, #ffb4a8 80%, #ff6b5e66 88%, transparent 96%);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: otp-spin 1.2s linear infinite;
+  animation-delay: calc(var(--i, 0) * -0.12s);
+}
+.otp-glow {
+  animation: otp-pulse 1.2s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.12s);
+}
+@keyframes otp-spin {
+  to {
+    --otp-angle: 360deg;
+  }
+}
+@keyframes otp-pulse {
+  50% {
+    box-shadow: 0 0 18px -2px #ff6b5e59;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .otp-glow,
+  .otp-glow::before {
+    animation: none;
+  }
+}

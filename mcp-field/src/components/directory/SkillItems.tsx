@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/context'
 import type { SkillItem } from '../../lib/api/entities'
 import { categoryOf, compactNumber } from '../../lib/categories'
 import { repoPath } from '../../lib/entity'
+import { EntityIcon } from '../EntityIcon'
 import { Chip } from '../ui'
 import { Tagline } from './ServerItems'
 
@@ -16,18 +17,23 @@ function Official() {
 const Installs = ({ n }: { n: number | null }) =>
   n === null ? null : <span className="flex shrink-0 items-center gap-1 text-xs tabular-nums text-text3"><DownloadSimple size={12} />{compactNumber(n)}</span>
 
-/** Skill 卡片：无图标，名称 + 官方标识、仓库、三行简介、分类与安装数 */
+/** Skill 卡片：图标（仓库所有者头像）、名称 + 官方标识、仓库、三行简介、分类与安装数 */
 export function SkillCard({ s }: { s: SkillItem }) {
   const { tr, to } = useI18n()
   const cat = categoryOf('skill', s.category?.slug)
   return (
     <SpotlightCard glow={cat.color} className="flex h-full flex-col gap-2 px-[18px] py-4">
       <Link to={to(`/skills/${s.slug}`)} className="absolute inset-0 z-10 rounded-[inherit]" aria-label={s.name} />
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-[15px] font-semibold">{s.name}</span>
-        {s.official && <Official />}
+      <div className="flex items-center gap-3">
+        <EntityIcon name={s.name} src={s.iconUrl} color={cat.color} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-[15px] font-semibold">{s.name}</span>
+            {s.official && <Official />}
+          </div>
+          <div className="truncate text-xs text-text3">{repoPath(s.links.repository)?.replace('/', ' / ')}</div>
+        </div>
       </div>
-      <div className="truncate text-xs text-text3">{repoPath(s.links.repository)?.replace('/', ' / ')}</div>
       <Tagline text={s.tagline} className="line-clamp-3 text-[13px] leading-[1.6]" />
       <div className="mt-auto flex items-center justify-between gap-2 pt-1">
         <Chip className="truncate">{tr(cat.name)}</Chip>
@@ -43,6 +49,7 @@ export function SkillRow({ s }: { s: SkillItem }) {
   return (
     <SpotlightCard glow={cat.color} lift={false} className="flex items-center gap-4 px-5 py-3.5">
       <Link to={to(`/skills/${s.slug}`)} className="absolute inset-0 z-10 rounded-[inherit]" aria-label={s.name} />
+      <EntityIcon name={s.name} src={s.iconUrl} color={cat.color} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-[15px] font-semibold">{s.name}</span>

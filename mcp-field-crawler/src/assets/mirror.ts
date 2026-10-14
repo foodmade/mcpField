@@ -70,9 +70,10 @@ export class AssetMirror {
     const started = Date.now()
     const states = await this.store.states(items.map((i) => i.url))
     let pending = items.filter((i) => due(states.get(i.url), options))
+    const done = items.length - pending.length
     if (options.limit !== undefined) pending = pending.slice(0, options.limit)
     const stats: MirrorStats = { total: items.length, pending: pending.length, ok: 0, reused: 0, failed: 0, skipped: 0, gone: 0, uploadedBytes: 0, seconds: 0 }
-    this.logger.info({ total: items.length, done: items.length - pending.length, pending: pending.length, storage: this.storage.name }, '开始转存图片')
+    this.logger.info({ total: items.length, done, pending: pending.length, storage: this.storage.name }, '开始转存图片')
 
     const limit = pLimit(options.concurrency)
     let finished = 0

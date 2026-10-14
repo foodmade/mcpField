@@ -59,6 +59,6 @@ mcpfield nginx
   否则用 http 访问的请求会回源到 80 端口的别的应用。站点配置只通过 `mcpfield nginx` 修改：先 `nginx -t` 校验，通过才重新加载。
 - 与 sub2api 同机：mysqld 的 systemd 配置里限了内存（MemoryHigh 2G / MemoryMax 2.5G），CPU、磁盘 IO 的权重减半，
   紧张时 sub2api 优先；采集命令（`mcpfield run` / `data` / 每日任务）用 `nice -n 10` 运行；pm2 的两个服务超过 350MB 自动重启。不要在服务器上构建前端。
-- 每日任务跑抓取、发布、图标、GitHub 星数与 README、简介翻译、自撰内容（crontab 里 `STEPS="crawl publish assets github translate describe"`，
+- 每日任务跑抓取、发布、图标、Skill 图标补全、GitHub 星数与 README、简介翻译、自撰内容（crontab 里 `STEPS="crawl publish assets skill-icons github translate describe"`，
   cron 的 PATH 要带 `/usr/local/bin`）；AI 介绍、README 翻译、分类费用较高，需要时用 `mcpfield run readme`、`mcpfield run classify` 等手动触发。
 - `deploy/docker-compose.yml` 是旧服务器上 MySQL 容器的配置，新服务器不用 Docker。

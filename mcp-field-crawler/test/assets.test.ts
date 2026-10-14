@@ -2,8 +2,11 @@ import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import { AssetMirror } from '../src/assets/mirror.ts'
 import { AssetError, download, downloadUrl, storageKey, toWebp, type ProcessedImage } from '../src/assets/processor.ts'
+import { applyOwnerIcon, mirroredOwnerAvatars, ownerAvatarUrl } from '../src/assets/skill-icons.ts'
 import type { AssetStorage } from '../src/assets/storage.ts'
 import type { AssetState } from '../src/assets/store.ts'
+import { DraftBuilder } from '../src/core/draft-builder.ts'
+import { parseRepositoryUrl } from '../src/core/identity.ts'
 import type { Logger } from '../src/core/logger.ts'
 
 const silent: Logger = { debug() {}, info() {}, warn() {}, error() {}, child: () => silent }
@@ -85,5 +88,40 @@ describe('AssetMirror', () => {
     expect(saved['https://x/a.png']).toBe(saved['https://x/b.png'])
     expect(saved['https://x/missing.png']).toBe('gone')
     expect(saved['https://x/done.png']).toBeUndefined()
+  })
+})
+
+describe('Skill 图标', () => {
+  const skill = (repo: string | undefined, icon?: string) =>
+    new DraftBuilder({ kind: 'skill', sourceId: 'skills-sh', externalId: 'x', sourceUrl: 'https://skills.sh/x', slug: 'pdf', name: 'pdf' }, { skillSlug: 'pdf', audits: [], files: [] })
+      .identity({ repository: parseRepositoryUrl(repo) })
+      .media('icon', icon)
+      .build()
+
+  it('按 GitHub 仓库所有者生成头像地址，其他托管平台不处理', () => {
+    expect(ownerAvatarUrl({ repository: parseRepositoryUrl('https://github.com/Anthropics/skills') })).toBe('https://github.com/anthropics.png')
+    expect(ownerAvatarUrl({ repository: parseRepositoryUrl('https://gitlab.com/acme/skills') })).toBeNull()
+    expect(ownerAvatarUrl({})).toBeNull()
+  })
+
+  it('只给没有图标的 Skill 补上已转存的头像', () => {
+    const mirrored = new Set(['https://github.com/anthropics.png'])
+    const missing = skill('https://github.com/anthropics/skills')
+    expect(applyOwnerIcon(missing, mirrored)).toBe(true)
+    expect(missing.media).toEqual([{ type: 'icon', url: 'https://github.com/anthropics.png' }])
+
+    const own = skill('https://github.com/anthropics/skills', 'https://acme.dev/icon.png')
+    expect(applyOwnerIcon(own, mirrored)).toBe(false)
+    expect(own.media).toEqual([{ type: 'icon', url: 'https://acme.dev/icon.png' }])
+    expect(applyOwnerIcon(skill('https://github.com/acme/skills'), mirrored)).toBe(false)
+    expect(applyOwnerIcon(skill(undefined), mirrored)).toBe(false)
+  })
+
+  it('发布时按所有者去重查询已转存的头像', async () => {
+    const asked: string[][] = []
+    const reader = { lookup: async (urls: string[]) => (asked.push(urls), new Map([['https://github.com/acme.png', 'https://assets.test/a.webp']])) }
+    const identities = ['acme/a', 'ACME/b', 'other/c'].map((r) => ({ repository: parseRepositoryUrl(`https://github.com/${r}`) }))
+    expect(await mirroredOwnerAvatars(reader, [...identities, {}])).toEqual(new Set(['https://github.com/acme.png']))
+    expect(asked).toEqual([['https://github.com/acme.png', 'https://github.com/other.png']])
   })
 })

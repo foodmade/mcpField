@@ -33,6 +33,7 @@ import { LlmReadmeTranslator } from '../readme/translator.ts'
 import { AssetMirror, collectMediaUrls } from '../assets/mirror.ts'
 import { LocalStorage, R2Storage } from '../assets/storage.ts'
 import { AssetStore } from '../assets/store.ts'
+import { applySkillIcons, skillsWithoutIcon } from '../assets/skill-icons.ts'
 import { runMergePlan } from '../merge/runner.ts'
 import { publish } from '../merge/publish.ts'
 import { syncSearchIndex } from '../search/sync.ts'
@@ -62,6 +63,7 @@ MCP Field 数据采集
   overview                根据 README 生成三语介绍（概述、主要功能、适用场景、MCP 相关）；Loop / CLI / Agent 由 describe 撰写
   readme                  把 README 整篇翻译成中文、日文（代码块不变，按片段去重、增量翻译）
   assets                  把图标等图片转存到 Cloudflare R2（转成 WebP），数据库只记录链接
+  skill-icons             补全 Skill 图标：GitHub 仓库所有者的头像转存到 R2，写入发布层（之后 publish 也会保留）
   describe                为没有 README 的 Loop / CLI / Agent 撰写我们自己的三语内容
   merge-plan              合并预演：按身份键算出哪些草稿是同一个东西，只读，报告写到 data/merge-plan
   classify                给来源没有分类的条目分类（按 classify/taxonomy.ts 的分类体系），之后 publish 写入发布层
@@ -139,6 +141,9 @@ assets 选项：
   --store <r2|local>      存储位置；默认配置了 R2 就用 R2，否则写到 data/assets
   --force                 已转存的也重新处理
   --retry-all             不支持的格式、原图不存在的也重试
+
+skill-icons 选项：
+  --limit / --concurrency / --store / --force / --retry-all   同 assets（--limit 按头像张数计）
 `
 
 const { positionals, values } = parseArgs({
@@ -432,13 +437,28 @@ async function describe() {
   }
 }
 
+/** 图片存储：--store 指定，默认配置了 R2 就用 R2，否则写到 data/assets */
+function assetStorage() {
+  const target = values.store ?? (config.r2 ? 'r2' : 'local')
+  if (target === 'r2' && !config.r2) throw new Error('使用 R2 需要在 .env 中配置 R2_ACCOUNT_ID、R2_BUCKET、R2_PUBLIC_BASE_URL、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY')
+  return target === 'r2' ? new R2Storage(config.r2!) : new LocalStorage(join(config.dataDir, 'assets'))
+}
+
+function mirrorOptions(signal: AbortSignal) {
+  return {
+    concurrency: values.concurrency ? Number(values.concurrency) : 8,
+    limit: values.limit ? Number(values.limit) : undefined,
+    force: values.force,
+    retryAll: values['retry-all'],
+    signal,
+  }
+}
+
 async function assets() {
   if (!config.databaseUrl) throw new Error('assets 需要 DATABASE_URL')
   const kinds = parseKinds(values.kind, ENTITY_KINDS)
   const media = (values.media?.split(',').map((m) => m.trim()) ?? ['icon']) as MediaType[]
-  const target = values.store ?? (config.r2 ? 'r2' : 'local')
-  if (target === 'r2' && !config.r2) throw new Error('使用 R2 需要在 .env 中配置 R2_ACCOUNT_ID、R2_BUCKET、R2_PUBLIC_BASE_URL、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY')
-  const storage = target === 'r2' ? new R2Storage(config.r2!) : new LocalStorage(join(config.dataDir, 'assets'))
+  const storage = assetStorage()
 
   const controller = new AbortController()
   process.once('SIGINT', () => {
@@ -449,14 +469,36 @@ async function assets() {
   const { db, pool } = createDb(config.databaseUrl)
   try {
     const items = await collectMediaUrls(db, kinds, media, values.source)
-    const stats = await new AssetMirror(storage, new AssetStore(db), logger, config.userAgent).run(items, {
-      concurrency: values.concurrency ? Number(values.concurrency) : 8,
-      limit: values.limit ? Number(values.limit) : undefined,
-      force: values.force,
-      retryAll: values['retry-all'],
-      signal: controller.signal,
-    })
+    const stats = await new AssetMirror(storage, new AssetStore(db), logger, config.userAgent).run(items, mirrorOptions(controller.signal))
     logger.info({ ...stats, uploadedMB: +(stats.uploadedBytes / 1024 / 1024).toFixed(1) }, '图片转存完成')
+  } finally {
+    await pool.end()
+  }
+}
+
+async function skillIcons() {
+  if (!config.databaseUrl) throw new Error('skill-icons 需要 DATABASE_URL')
+  const storage = assetStorage()
+
+  const controller = new AbortController()
+  process.once('SIGINT', () => {
+    logger.warn('收到中断信号，等待进行中的任务完成后退出……')
+    controller.abort()
+  })
+
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const store = new AssetStore(db)
+    const skills = await skillsWithoutIcon(db)
+    const avatars = [...new Set(skills.map((s) => s.url))]
+    logger.info({ skills: skills.length, owners: avatars.length }, '没有图标的 Skill')
+    const stats = await new AssetMirror(storage, store, logger, config.userAgent).run(
+      avatars.map((url) => ({ url, type: 'icon' as const })),
+      mirrorOptions(controller.signal),
+    )
+    // 中断时也写入：已经转存成功的头像不白做
+    const applied = await applySkillIcons(db, store, skills)
+    logger.info({ ...stats, uploadedMB: +(stats.uploadedBytes / 1024 / 1024).toFixed(1), applied }, 'Skill 图标补全完成')
   } finally {
     await pool.end()
   }
@@ -595,6 +637,8 @@ async function main() {
       return readme()
     case 'assets':
       return assets()
+    case 'skill-icons':
+      return skillIcons()
     case 'describe':
       return describe()
     case 'merge-plan':

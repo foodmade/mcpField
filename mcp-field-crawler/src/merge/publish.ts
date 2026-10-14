@@ -1,4 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm'
+import { applyOwnerIcon, mirroredOwnerAvatars } from '../assets/skill-icons.ts'
+import { AssetStore } from '../assets/store.ts'
 import type { EntityDraft } from '../core/draft.ts'
 import { repoKey } from '../core/identity.ts'
 import type { Logger } from '../core/logger.ts'
@@ -14,7 +16,7 @@ import { planMerge, type MergeGroup, type MergeItem, type MergeMember } from './
 import { collectMergeItems } from './runner.ts'
 
 /*
- * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类 → 整体重建 ingest_published。
+ * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类、Skill 的所有者头像 → 整体重建 ingest_published。
  * 在一个事务里先删后写：网站在重建期间读到的仍是旧数据，提交后一次切换。
  */
 
@@ -128,6 +130,8 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
     .where(inArray(ingestPublished.kind, [...kinds]))
   const slugs = assignSlugs(jobs, previous)
   const classifications = await new ClassificationStore(db).all(kinds)
+  // skill-icons 转存过的所有者头像（见 assets/skill-icons.ts）
+  const avatars = await mirroredOwnerAvatars(new AssetStore(db), all.filter((item) => item.kind === 'skill').map((item) => item.identity))
   const canonical = new Set([...slugs].map(([job, slug]) => `${job.kind}:${slug}`))
   logger.info({ drafts: all.length, bulk: bulk.size, groups: jobs.length }, '开始发布')
 
@@ -154,6 +158,7 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
           const slug = slugs.get(job)!
           const draft = mergeDrafts(members, { primary, slug, identityKey: job.key })
           applyClassification(draft, classifications.get(classifyKey({ ...job.primary, kind })))
+          applyOwnerIcon(draft, avatars)
           const sources = [...job.group.sources].sort().join(',')
           bySources[sources] = (bySources[sources] ?? 0) + 1
           return {

@@ -188,7 +188,11 @@ function HomeSkillCard({ s }: { s: SkillItem }) {
     <SpotlightCard glow={cat.color} className="flex h-full min-h-[180px] flex-col gap-3 p-5">
       <Link to={to(`/skills/${s.slug}`)} className="absolute inset-0 z-10 rounded-[inherit]" aria-label={s.name} />
       <div className="flex items-center gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-[10px] border" style={{ background: cat.color + '29', borderColor: cat.color + '4D', color: cat.color }}><cat.icon size={20} /></span>
+        {s.iconUrl ? (
+          <EntityIcon name={s.name} src={s.iconUrl} color={cat.color} />
+        ) : (
+          <span className="grid size-10 shrink-0 place-items-center rounded-[10px] border" style={{ background: cat.color + '29', borderColor: cat.color + '4D', color: cat.color }}><cat.icon size={20} /></span>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-[15px] font-semibold"><span className="truncate">{s.name}</span>{s.official && <CheckCircle size={15} className="shrink-0 text-accent" />}</div>
           <div className="truncate text-xs text-text3">{repoPath(s.links.repository)}</div>

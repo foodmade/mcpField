@@ -11,7 +11,8 @@ type Props = {
   ambient?: boolean
 }
 
-// 卡片角落常驻渐变光 + 跟随指针的聚光与描边高亮
+// 卡片角落常驻渐变光 + 跟随指针的聚光与描边高亮。
+// 悬停由不动的外层感知，浮起的是内层卡面：命中区域若跟着上移，指针停在底边附近会反复离开、再进入，卡片一直抖
 export function SpotlightCard({ glow = '#3DDC97', className, children, lift = true, ambient = true }: Props) {
   const mx = useMotionValue(-400)
   const my = useMotionValue(-400)
@@ -25,31 +26,32 @@ export function SpotlightCard({ glow = '#3DDC97', className, children, lift = tr
   }
 
   return (
-    <motion.div
-      onPointerMove={onMove}
-      whileHover={lift ? { y: -4 } : undefined}
-      transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-      className={clsx('group relative isolate rounded-2xl border border-fg/[0.07]', className)}
-      style={{
-        background: ambient ? `radial-gradient(110% 130% at 100% 0%, ${glow}30, transparent 62%), var(--color-surface)` : 'var(--color-surface)',
-      }}
-    >
+    <motion.div className="group relative h-full" initial="rest" animate="rest" whileHover="hover" onPointerMove={onMove}>
       <motion.div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{ background: spot }}
-      />
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-[inherit] p-px opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        variants={lift ? { rest: { y: 0 }, hover: { y: -4 } } : undefined}
+        transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+        className={clsx('relative isolate h-full rounded-2xl border border-fg/[0.07]', className)}
         style={{
-          background: rim,
-          WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
-          WebkitMaskComposite: 'xor',
-          maskComposite: 'exclude',
+          background: ambient ? `radial-gradient(110% 130% at 100% 0%, ${glow}30, transparent 62%), var(--color-surface)` : 'var(--color-surface)',
         }}
-      />
-      {children}
+      >
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          style={{ background: spot }}
+        />
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-[inherit] p-px opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          style={{
+            background: rim,
+            WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+            WebkitMaskComposite: 'xor',
+            maskComposite: 'exclude',
+          }}
+        />
+        {children}
+      </motion.div>
     </motion.div>
   )
 }

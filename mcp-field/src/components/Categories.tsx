@@ -43,7 +43,11 @@ function CoverArt({ t, size, active }: { t: Tile; size: Size; active: boolean })
   )
 }
 
-/** 拼贴里的一块，整块可点：封面是会动的 3D 图标；鼠标悬停或键盘聚焦时卡片浮起、边框和投影染上分类色，图标跳起来转一圈，之后动作更活跃 */
+/**
+ * 拼贴里的一块，整块可点：封面是会动的 3D 图标；鼠标悬停或键盘聚焦时卡片浮起、边框和投影染上分类色，图标跳起来转一圈，之后动作更活跃。
+ * 接收指针事件的 Link 本身保持不动，浮起的是里面的卡面：如果让命中区域跟着上移，指针停在卡片底边附近时会被卡片"甩出去"，
+ * 离开→回落→再进入，无限循环，卡片就一直抖。
+ */
 function TileShell({ t, size, className, children }: { t: Tile; size: Size; className?: string; children: ReactNode }) {
   const { m, tr, to } = useI18n()
   const [active, setActive] = useState(false)
@@ -55,18 +59,22 @@ function TileShell({ t, size, className, children }: { t: Tile; size: Size; clas
       onPointerLeave={() => setActive(false)}
       onFocus={(e) => e.currentTarget.matches(':focus-visible') && setActive(true)}
       onBlur={() => setActive(false)}
-      className={clsx(
-        'relative flex min-w-0 flex-col justify-end overflow-hidden rounded-[20px] border transition-[translate,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:translate-none motion-reduce:transition-none',
-        active
-          ? '-translate-y-1.5 border-[color-mix(in_oklab,var(--c)_45%,transparent)] shadow-[0_22px_44px_-20px_color-mix(in_oklab,var(--c)_70%,transparent),0_10px_24px_-12px_rgba(0,0,0,0.45)]'
-          : 'border-fg/[0.07] shadow-[0_0_0_0_transparent]',
-        LAYOUT[size].pad,
-        className,
-      )}
-      style={{ '--c': t.cat.color, background: 'linear-gradient(180deg, color-mix(in oklab, var(--mf-fg) 4%, transparent), transparent 55%), var(--color-surface)' } as CSSProperties}
+      className={clsx('relative flex min-w-0 flex-col rounded-[20px]', className)}
+      style={{ '--c': t.cat.color } as CSSProperties}
     >
-      <CoverArt t={t} size={size} active={active} />
-      <div className="relative">{children}</div>
+      <div
+        className={clsx(
+          'relative flex flex-1 flex-col justify-end overflow-hidden rounded-[20px] border transition-[translate,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:translate-none motion-reduce:transition-none',
+          active
+            ? '-translate-y-1.5 border-[color-mix(in_oklab,var(--c)_45%,transparent)] shadow-[0_22px_44px_-20px_color-mix(in_oklab,var(--c)_70%,transparent),0_10px_24px_-12px_rgba(0,0,0,0.45)]'
+            : 'border-fg/[0.07] shadow-[0_0_0_0_transparent]',
+          LAYOUT[size].pad,
+        )}
+        style={{ background: 'linear-gradient(180deg, color-mix(in oklab, var(--mf-fg) 4%, transparent), transparent 55%), var(--color-surface)' }}
+      >
+        <CoverArt t={t} size={size} active={active} />
+        <div className="relative">{children}</div>
+      </div>
     </Link>
   )
 }

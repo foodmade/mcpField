@@ -102,6 +102,30 @@ export function assignSlugs<T extends SlugRequest>(requests: T[], previous: Prev
   return result
 }
 
+/**
+ * 页面内容的哈希，决定 sitemap 的 lastmod（content_changed_at）。
+ * 去掉不算内容变化的字段：源站更新时间（mcp.so 会批量刷新，2026-10-10 一天刷了 9 千多条一年没提交过的服务）、最近提交时间、
+ * 星数等指标、质量问题、审计时间和 CLI 的验证日期；README 从 GitHub 抓取、不在草稿里，加上它的正文哈希。
+ */
+export function contentHash(draft: EntityDraft, readmeHash?: string): string {
+  const { sourceUpdatedAt: _updated, lastCommitAt: _commit, metrics: _metrics, issues: _issues, ...content } = draft
+  const detail: Record<string, unknown> = { ...draft.detail }
+  if ('audits' in draft.detail) detail.audits = draft.detail.audits.map(({ auditedAt: _audited, ...audit }) => audit)
+  delete detail.lastVerifiedOn
+  return sha256(stableJson({ ...content, detail, readme: readmeHash ?? null }))
+}
+
+export interface PreviousContent {
+  contentHash: string | null
+  contentChangedAt: Date | null
+}
+
+/** 内容没变（或上一次还没记哈希）时沿用上一次的时间，变了或是新条目记为本次发布时间 */
+export function contentChangedAt(previous: PreviousContent | undefined, hash: string, now: Date): Date | null {
+  if (!previous) return now
+  return previous.contentHash === null || previous.contentHash === hash ? previous.contentChangedAt : now
+}
+
 export interface PublishStats {
   drafts: number
   /** 判定为凑数、没有发布的草稿 */
@@ -134,10 +158,22 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
   const jobs: GroupJob[] = plan.groups.map((group) => ({ kind: group.kind, key: group.key, group, primary: pickPrimary(group.members) }))
 
   const previous = await db
-    .select({ kind: ingestPublished.kind, identityKey: ingestPublished.identityKey, sourceId: ingestPublished.sourceId, externalId: ingestPublished.externalId, slug: ingestPublished.slug })
+    .select({
+      kind: ingestPublished.kind,
+      identityKey: ingestPublished.identityKey,
+      sourceId: ingestPublished.sourceId,
+      externalId: ingestPublished.externalId,
+      slug: ingestPublished.slug,
+      contentHash: ingestPublished.contentHash,
+      contentChangedAt: ingestPublished.contentChangedAt,
+    })
     .from(ingestPublished)
     .where(inArray(ingestPublished.kind, [...kinds]))
   const slugs = assignSlugs(jobs, previous)
+  // 上一次发布的内容哈希：和地址一样按身份键，其次按主条目对应
+  const prevByKey = new Map(previous.map((p) => [`${p.kind}:${p.identityKey}`, p]))
+  const prevByPrimary = new Map(previous.map((p) => [`${p.kind}:${p.sourceId}:${p.externalId}`, p]))
+  const previousOf = (job: GroupJob) => prevByKey.get(`${job.kind}:${job.key}`) ?? prevByPrimary.get(`${job.kind}:${job.primary.sourceId}:${job.primary.externalId}`)
   const classifications = await new ClassificationStore(db).all(kinds)
   // owner-icons 转存过的所有者头像（见 assets/owner-icons.ts）
   const assets = new AssetStore(db)
@@ -187,10 +223,13 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
         const repoKeys = drafts.map((d) => (lacksTagline(d) ? repoRef(d)?.key : undefined))
         const repoStats = await repos.find(repoKeys.filter((k): k is string => !!k))
         drafts.forEach((d, i) => applyRepoDescription(d, repoStats.get(repoKeys[i] ?? '')))
+        const readmeSubjects = drafts.map((d) => readmeSubject(d)?.key)
+        const readmeHashes = await readmes.hashes(readmeSubjects.filter((k): k is string => !!k))
 
         const values = batch.map((job, i) => {
           const draft = drafts[i]!
           const slug = slugs.get(job)!
+          const hash = contentHash(draft, readmeHashes.get(readmeSubjects[i] ?? ''))
           const sources = [...job.group.sources].sort().join(',')
           bySources[sources] = (bySources[sources] ?? 0) + 1
           return {
@@ -204,6 +243,8 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
             memberCount: job.group.members.length,
             draftHash: sha256(stableJson(draft)),
             draft,
+            contentHash: hash,
+            contentChangedAt: contentChangedAt(previousOf(job), hash, now),
             mappedAt: new Date(Math.max(...job.group.members.map((m) => byId.get(m.draftId)!.mappedAt.getTime()))),
             publishedAt: now,
           }

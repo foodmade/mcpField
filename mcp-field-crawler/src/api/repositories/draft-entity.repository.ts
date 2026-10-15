@@ -246,17 +246,17 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   async sitemap(offset: number, limit: number): Promise<{ rows: SitemapEntry[]; total: number }> {
     const where = sql.join(this.base(), sql` AND `)
     // 先只按 id 排序分页，再回表取更新时间：直接带着草稿 JSON 排序上万行会超出 MySQL 的排序缓冲区
+    // 更新时间用页面内容最后变化的时间：源站的更新时间会批量刷新，不代表内容变了（见 merge/publish.ts contentHash）
     const [rows, [count]] = await Promise.all([
-      this.rows<{ slug: string; updated_at: string | null }>(sql`
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.slug')) AS slug,
-               COALESCE(JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.sourceUpdatedAt')), JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.lastCommitAt'))) AS updated_at
+      this.rows<{ slug: string; updated_at: unknown }>(sql`
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.slug')) AS slug, d.content_changed_at AS updated_at
         FROM (SELECT d.id FROM ingest_published d WHERE ${where} ORDER BY d.slug LIMIT ${limit} OFFSET ${offset}) page
         JOIN ingest_published d ON d.id = page.id`),
       this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_published d WHERE ${where}`),
     ])
     return {
       rows: rows
-        .map((r) => ({ slug: r.slug, updatedAt: r.updated_at && r.updated_at !== 'null' ? r.updated_at : null }))
+        .map((r) => ({ slug: r.slug, updatedAt: r.updated_at ? toIso(r.updated_at) : null }))
         .sort((x, y) => (x.slug < y.slug ? -1 : x.slug > y.slug ? 1 : 0)),
       total: Number(count?.total ?? 0),
     }

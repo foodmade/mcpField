@@ -397,6 +397,10 @@ export const ingestPublished = mysqlTable(
     memberCount: smallint('member_count', { unsigned: true }).notNull(),
     draftHash: sha256('draft_hash').notNull(),
     draft: json('draft').notNull(),
+    /** 页面内容的哈希：合并后的草稿去掉星数、源站更新时间等易变字段，加上 GitHub README 的哈希（见 merge/publish.ts contentHash） */
+    contentHash: sha256('content_hash'),
+    /** 页面内容最后一次变化的时间（sitemap 的 lastmod）；内容哈希没变时沿用上一次的，不知道时为空 */
+    contentChangedAt: at('content_changed_at'),
     /** 成员草稿里最新的映射时间 */
     mappedAt: at('mapped_at').notNull(),
     publishedAt: at('published_at').notNull(),

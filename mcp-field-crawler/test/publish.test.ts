@@ -4,7 +4,7 @@ import type { EntityDraft, ServerDetailDraft, SkillAuditDraft } from '../src/cor
 import { parseRepositoryUrl } from '../src/core/identity.ts'
 import { hasBrokenName, mergeDrafts, pickPrimary } from '../src/merge/merge-drafts.ts'
 import type { MergeItem } from '../src/merge/plan.ts'
-import { assignSlugs, bulkDraftIds } from '../src/merge/publish.ts'
+import { assignSlugs, bulkDraftIds, contentChangedAt, contentHash } from '../src/merge/publish.ts'
 
 const detail = (over: Partial<ServerDetailDraft> = {}): ServerDetailDraft => ({ isRemote: false, transports: [], packages: [], envVars: [], remotes: [], tools: [], ...over })
 
@@ -222,5 +222,43 @@ describe('assignSlugs', () => {
     const b = req('k2', 'mcpso', 'BasicMcpServer')
     const slugs = assignSlugs([a, b], [])
     expect([slugs.get(a), slugs.get(b)]).toEqual(['basicMcpServer', 'BasicMcpServer-2'])
+  })
+})
+
+describe('contentHash', () => {
+  const base = () => mcpso('acme-weather').build() as EntityDraft
+
+  it('源站更新时间、最近提交时间、星数和质量问题变了不算内容变化', () => {
+    const changed = mcpso('acme-weather').set('sourceUpdatedAt', '2026-10-10T15:14:33.667Z').set('lastCommitAt', '2026-10-13T00:00:00Z').metric('github_stars', 999).issue('suspicious_name', 'x').build() as EntityDraft
+    expect(contentHash(changed)).toBe(contentHash(base()))
+  })
+
+  it('简介、README 变了算内容变化', () => {
+    const tagline = mcpso('acme-weather').text('tagline', 'zh', '天气').build() as EntityDraft
+    expect(contentHash(tagline)).not.toBe(contentHash(base()))
+    expect(contentHash(base(), 'readme-v2')).not.toBe(contentHash(base(), 'readme-v1'))
+  })
+
+  it('Skill 只是重新审计（审计时间变了、结果没变）不算内容变化', () => {
+    const skill = (auditedAt: string, result: SkillAuditDraft['result'] = 'pass') =>
+      new DraftBuilder({ kind: 'skill', sourceId: 'skills-sh', externalId: 'pdf', sourceUrl: 'https://skills.sh/pdf', slug: 'pdf', name: 'pdf' }, { audits: [{ auditor: 'Socket', result, auditedAt }] }).build() as EntityDraft
+    expect(contentHash(skill('2026-10-14'))).toBe(contentHash(skill('2026-09-01')))
+    expect(contentHash(skill('2026-10-14', 'fail'))).not.toBe(contentHash(skill('2026-09-01')))
+  })
+})
+
+describe('contentChangedAt', () => {
+  const now = new Date('2026-10-15T00:00:00Z')
+  const before = new Date('2025-04-06T00:00:00Z')
+
+  it('新条目记为本次发布时间；内容没变沿用上一次的，变了记为本次发布时间', () => {
+    expect(contentChangedAt(undefined, 'h1', now)).toBe(now)
+    expect(contentChangedAt({ contentHash: 'h1', contentChangedAt: before }, 'h1', now)).toBe(before)
+    expect(contentChangedAt({ contentHash: 'h1', contentChangedAt: before }, 'h2', now)).toBe(now)
+  })
+
+  it('上一次还没记哈希（迁移后第一次发布）沿用迁移时的初始值，没有初始值的仍为空', () => {
+    expect(contentChangedAt({ contentHash: null, contentChangedAt: before }, 'h1', now)).toBe(before)
+    expect(contentChangedAt({ contentHash: null, contentChangedAt: null }, 'h1', now)).toBeNull()
   })
 })

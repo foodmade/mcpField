@@ -98,6 +98,20 @@ export class GithubReadmeStore implements GithubReadmeReader {
     return out
   }
 
+  /** 只取正文哈希（发布时判断页面内容是否变化），不读整篇正文；没抓到的不在结果里 */
+  async hashes(keys: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>()
+    const unique = [...new Set(keys)]
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const rows = await this.db
+        .select({ key: ingestEnrichments.subjectKey, hash: ingestEnrichments.contentHash })
+        .from(ingestEnrichments)
+        .where(and(eq(ingestEnrichments.enricher, README_ENRICHER), inArray(ingestEnrichments.subjectKey, unique.slice(i, i + CHUNK))))
+      for (const r of rows) if (r.hash) out.set(r.key, r.hash)
+    }
+    return out
+  }
+
   private async upsert(key: string, values: Omit<typeof ingestEnrichments.$inferInsert, 'enricher' | 'subjectKey'>): Promise<void> {
     await this.db
       .insert(ingestEnrichments)

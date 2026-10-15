@@ -21,7 +21,7 @@ export interface TypeCount {
   count: number
 }
 
-/** sitemap 条目：slug 和源站最后更新时间 */
+/** sitemap 条目：slug 和页面内容最后变化的时间 */
 export interface SitemapEntry {
   slug: string
   updatedAt: string | null

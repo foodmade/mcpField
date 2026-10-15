@@ -76,7 +76,8 @@ export async function loadHome({ request, params }: Args) {
     fetchFeatured('loop', 4, locale, signal),
     fetchFeatured('skill', 4, locale, signal),
     fetchList('server', { page: 1, pageSize: 6, sort: 'popular', locale }, signal).then((r) => r.data),
-    fetchList('skill', { page: 1, pageSize: 7, sort: 'installs', locale }, signal).then((r) => r.data),
+    // Skill 的热度就是安装量（POPULAR_METRIC），popular 走搜索表的主键顺序，比 installs 的现算排序快得多
+    fetchList('skill', { page: 1, pageSize: 7, sort: 'popular', locale }, signal).then((r) => r.data),
     fetchFacets('server', {}, signal),
     soft(fetchStats(signal)),
     soft(fetchList('server', { page: 1, pageSize: 4, sort: 'newest', locale }, signal).then((r) => r.data)),

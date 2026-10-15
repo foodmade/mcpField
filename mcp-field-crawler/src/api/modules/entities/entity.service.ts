@@ -12,11 +12,21 @@ import type { ReadmeTranslationReader } from '../../../readme/store.ts'
 import { sourceHash } from '../../../translate/key.ts'
 import type { TranslationReader } from '../../../translate/memory.ts'
 import { pageMeta, type ListQuery, type PageMeta, type Scope } from '../../http/query.ts'
+import { TtlCache } from '../../http/ttl-cache.ts'
+import { stableJson } from '../../../store/hash.ts'
 import type { EntityReadRepository, EntityRow } from '../../repositories/types.ts'
 import type { AuthorDto, CategoryFacet, EntityDetail, EntityFacets, EntityListItem } from './entity.dto.ts'
 import type { EntityPresenter } from './presenters.ts'
 
 type AnyDraft = EntityDraftOf<EntityKind>
+type ListResult = { data: EntityListItem[]; meta: PageMeta & { locale: Locale } }
+
+/** 列表、目录计数的结果缓存（首页一次并发十几个列表查询，服务器 2 核，不缓存时首页要 4–6 秒）；关键词搜索不缓存 */
+export interface ResultCacheOptions {
+  ttlMs: number
+  /** 列表缓存的条数上限（不同的筛选、排序、页码、语言各算一条） */
+  maxLists: number
+}
 
 const text = (d: AnyDraft, field: TextField, locale = 'en') => d.texts.find((t) => t.field === field && t.locale === locale)
 /** 卡片上的一句话简介：优先 tagline，没有时用 description（Skill 只有 description） */
@@ -52,9 +62,21 @@ export class EntityService<K extends EntityKind> {
     private readonly repository: EntityReadRepository<K>,
     private readonly presenter: EntityPresenter<K>,
     private readonly localization: Localization = {},
-  ) {}
+    cache?: ResultCacheOptions,
+  ) {
+    this.listCache = cache ? new TtlCache(cache.ttlMs, cache.maxLists) : null
+    this.facetCache = cache ? new TtlCache(cache.ttlMs, 16) : null
+  }
 
-  async list(query: ListQuery): Promise<{ data: EntityListItem[]; meta: PageMeta & { locale: Locale } }> {
+  private readonly listCache: TtlCache<ListResult> | null
+  private readonly facetCache: TtlCache<{ data: EntityFacets }> | null
+
+  list(query: ListQuery): Promise<ListResult> {
+    if (!this.listCache || query.q) return this.loadList(query)
+    return this.listCache.get(stableJson(query), () => this.loadList(query))
+  }
+
+  private async loadList(query: ListQuery): Promise<ListResult> {
     const { rows, total } = await this.repository.list(query)
     const items = rows.map((row) => this.toListItem(row.draft))
     await Promise.all([this.localize(items, query.locale), this.mirrorIcons(items), this.applyRepoStats(items, rows.map((row) => row.draft))])
@@ -116,7 +138,12 @@ export class EntityService<K extends EntityKind> {
     return { data, meta: { total: data.reduce((sum, f) => sum + f.count, 0) } }
   }
 
-  async facets(scope?: Scope): Promise<{ data: EntityFacets }> {
+  facets(scope?: Scope): Promise<{ data: EntityFacets }> {
+    if (!this.facetCache) return this.loadFacets(scope)
+    return this.facetCache.get(stableJson(scope ?? {}), () => this.loadFacets(scope))
+  }
+
+  private async loadFacets(scope?: Scope): Promise<{ data: EntityFacets }> {
     const [{ data: categories, meta }, views, types] = await Promise.all([this.categories(scope), this.repository.viewCounts(scope), this.repository.typeCounts(scope)])
     return { data: { total: meta.total, views, types, categories } }
   }

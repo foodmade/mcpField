@@ -39,9 +39,12 @@ const localization = {
   githubRepos: new GithubRepoStore(db),
 }
 
+/** 列表、目录计数缓存 10 分钟（与首页统计一致）；每种类型最多 200 条列表结果，单条一般几十 KB */
+const RESULT_CACHE = { ttlMs: 10 * 60_000, maxLists: 200 }
+
 function serviceFor<K extends EntityKind>(kind: K): EntityService<K> {
   const presenter = PRESENTERS[kind]
-  return new EntityService(kind, new DraftEntityRepository(db, kind, { popularMetric: presenter.popularMetric, typePath: presenter.typePath }), presenter, localization)
+  return new EntityService(kind, new DraftEntityRepository(db, kind, { popularMetric: presenter.popularMetric, typePath: presenter.typePath }), presenter, localization, RESULT_CACHE)
 }
 
 const entities: ApiDeps['entities'] = {}

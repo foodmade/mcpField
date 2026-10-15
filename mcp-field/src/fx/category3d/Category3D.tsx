@@ -54,7 +54,7 @@ export function Category3D({ model, size, active = false, className, style }: { 
   return (
     <div aria-hidden className={clsx('relative', className)} style={{ width: size, height: size, ...style }}>
       {poster && (
-        <img src={poster} alt="" width={size} height={size} decoding="async" draggable={false} className={clsx('absolute inset-0 size-full transition-opacity duration-300', live && 'opacity-0')} />
+        <img src={poster} alt={model.replace(/-/g, ' ')} width={size} height={size} decoding="async" draggable={false} className={clsx('absolute inset-0 size-full transition-opacity duration-300', live && 'opacity-0')} />
       )}
       <canvas ref={ref} className={clsx('absolute inset-0 size-full transition-opacity duration-300', live ? 'opacity-100' : 'opacity-0')} />
     </div>

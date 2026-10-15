@@ -52,7 +52,7 @@ function CommentBody({ text }: { text: string }) {
 
 function Avatar({ c, size }: { c: Comment; size: 'md' | 'sm' }) {
   const cls = clsx('grid shrink-0 place-items-center overflow-hidden rounded-full font-bold text-white', size === 'md' ? 'size-[34px] text-sm' : 'size-7 text-xs')
-  if (c.avatar) return <img src={c.avatar} alt="" referrerPolicy="no-referrer" className={clsx(cls, 'object-cover')} />
+  if (c.avatar) return <img src={c.avatar} alt={c.author} referrerPolicy="no-referrer" className={clsx(cls, 'object-cover')} />
   return <span className={cls} style={{ background: colorOf(c.author) }}>{[...c.author][0]?.toUpperCase()}</span>
 }
 

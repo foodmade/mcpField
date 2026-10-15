@@ -15,7 +15,8 @@ export function EntityIcon({ name, src, color, size = 40, className }: { name: s
       {src && state !== 'failed' && (
         <img
           src={src}
-          alt=""
+          // 用条目名称作 alt：旁边虽然有名称文字，但空 alt 会被搜索引擎（Bing 网站管理员工具）判为缺少替代文本
+          alt={name}
           width={size}
           height={size}
           loading="lazy"

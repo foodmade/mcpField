@@ -78,7 +78,7 @@ const RISK_STYLE: Record<string, string> = {
 /** 审计平台的官方标志，统一画成圆形；不认识的平台用首字母 */
 function AuditorLogo({ name, size }: { name: string; size: number }) {
   const key = name.toLowerCase()
-  if (key === 'gen agent trust hub') return <img src="/brands/gen.png" alt="" width={size} height={size} className="block shrink-0 rounded-full" />
+  if (key === 'gen agent trust hub') return <img src="/brands/gen.png" alt={name} width={size} height={size} className="block shrink-0 rounded-full" />
   if (key === 'runlayer') return <RunlayerIcon size={size} className="block shrink-0" />
   if (key === 'zeroleaks') return <ZeroLeaksIcon size={size} className="block shrink-0" />
   const glyph = key === 'socket' ? { bg: '#C93CD7', icon: SocketIcon } : key === 'snyk' ? { bg: '#4C4A73', icon: SnykIcon } : null

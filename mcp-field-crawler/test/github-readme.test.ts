@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { DraftBuilder } from '../src/core/draft-builder.ts'
+import type { EntityDraft } from '../src/core/draft.ts'
 import type { Logger } from '../src/core/logger.ts'
 import { GithubClient, type GithubResponse } from '../src/github/client.ts'
 import { frontmatterName, GithubReadmeFetcher, readmeSubject, stripFrontmatter, type GithubReadme, type ReadmeSubject } from '../src/github/readme.ts'
-import { GithubRepoFetcher, repoRef, type RepoRef, type RepoStats } from '../src/github/repo.ts'
+import { applyRepoDescription, GithubRepoFetcher, repoRef, type RepoRef, type RepoStats } from '../src/github/repo.ts'
 import { GithubReadmeRunner, GithubRepoRunner, type CollectedSubject } from '../src/github/runner.ts'
 import type { ReadmeFetchState } from '../src/github/store.ts'
 import { resolveReadme } from '../src/readme/source.ts'
@@ -258,18 +260,34 @@ describe('仓库统计', () => {
     const fetcher = new GithubRepoFetcher({
       graphql: async <T>(query: string, variables: Record<string, unknown>) => {
         sent = { query, variables }
-        const node = { nameWithOwner: 'Acme/Tools', stargazerCount: 42, forkCount: 3, isArchived: false, pushedAt: '2026-10-02T00:00:00Z', defaultBranchRef: { target: { committedDate: '2026-10-01T00:00:00Z' } } }
+        const node = { nameWithOwner: 'Acme/Tools', stargazerCount: 42, forkCount: 3, isArchived: false, pushedAt: '2026-10-02T00:00:00Z', description: ' Tools for Acme ', defaultBranchRef: { target: { committedDate: '2026-10-01T00:00:00Z' } } }
         return { data: { r0: node, r1: null } as T, errors: [{ type: 'NOT_FOUND', path: ['r1'], message: 'x' }] }
       },
     })
     const result = await fetcher.fetch([ref('acme', 'tools'), ref('acme', 'gone')])
     expect(sent!.variables).toEqual({ o0: 'acme', n0: 'tools', o1: 'acme', n1: 'gone' })
     expect(sent!.query).toContain('r1: repository(owner: $o1, name: $n1)')
-    expect(result.get('repo:github.com/acme/tools')).toEqual({ repository: 'Acme/Tools', stars: 42, forks: 3, archived: false, lastCommitAt: '2026-10-01T00:00:00Z', pushedAt: '2026-10-02T00:00:00Z' })
+    expect(result.get('repo:github.com/acme/tools')).toEqual({ repository: 'Acme/Tools', stars: 42, forks: 3, archived: false, lastCommitAt: '2026-10-01T00:00:00Z', pushedAt: '2026-10-02T00:00:00Z', description: 'Tools for Acme' })
     expect(result.get('repo:github.com/acme/gone')).toBeNull()
 
     const broken = new GithubRepoFetcher({ graphql: async () => ({ data: null, errors: [{ message: 'timeout' }] }) })
     await expect(broken.fetch([ref('acme', 'tools')])).rejects.toThrow('timeout')
+  })
+
+  it('没有简介的条目用仓库简介；已有简介的、由 describe 撰写的类型不用', () => {
+    const entry = (kind: 'server' | 'skill' | 'cli', tagline?: string) => {
+      const b = new DraftBuilder({ kind, sourceId: 'mcpso', externalId: 'x', sourceUrl: 'u', slug: 'x', name: 'x' }, {} as never)
+      if (tagline) b.text(kind === 'skill' ? 'description' : 'tagline', 'en', tagline)
+      return b.build() as EntityDraft
+    }
+    const server = entry('server')
+    expect(applyRepoDescription(server, { description: 'Visual Studio Code :rocket:' })).toBe(true)
+    expect(server.texts).toEqual([{ field: 'tagline', locale: 'en', content: 'Visual Studio Code', format: 'plain' }])
+    expect(applyRepoDescription(server, { description: 'again' })).toBe(false)
+    expect(applyRepoDescription(entry('skill', 'Fill PDF forms'), { description: 'x' })).toBe(false)
+    expect(applyRepoDescription(entry('cli'), { description: 'x' })).toBe(false)
+    expect(applyRepoDescription(entry('server'), { description: null })).toBe(false)
+    expect(applyRepoDescription(entry('server'), undefined)).toBe(false)
   })
 
   it('分批写入；某批失败只跳过这一批', async () => {

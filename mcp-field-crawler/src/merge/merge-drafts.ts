@@ -41,6 +41,8 @@ export function pickPrimary<T extends PrimaryCandidate>(members: T[]): T {
 
 const words = (value: string) => value.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1)
 const NAME_STOPWORDS = new Set(['mcp', 'server', 'the', 'and', 'for', 'api'])
+/** 只由这些词组成的仓库名（mcp、mcp-server、servers、modelcontextprotocol）当不了名称 */
+const GENERIC_REPO_WORDS = new Set(['mcp', 'server', 'servers', 'modelcontextprotocol', 'model', 'context', 'protocol'])
 /** 被当成名称的 README 小节标题（2026-10 mcp.so 实测："Introduction""Getting Started""License"……） */
 const README_HEADINGS = new Set(
   [
@@ -54,10 +56,12 @@ const README_HEADINGS = new Set(
 
 /**
  * 源站名称明显填错：mcp.so 有些条目的名称是 README 的小节标题（"Introduction""License"）、作者名或重复词（microsoft/playwright-mcp 叫"Slack Slack"）。
+ * 填成人名或随手写的词（microsoft/vscode 叫"Geng"、google/filament 叫"Pulse"）：不超过两个有效词、且 README 里一次都没提到。
+ * 描述性的长名称（"Belgian Train Schedule" ↔ hansf/irail-mcp）常常不出现在 README 里，不算；没有 README、仓库名是泛称（ppl-ai/modelcontextprotocol）时不判定。
  * 只在映射时已标记为可疑、且名称与仓库所有者和仓库名没有共同词时才判定，避免误伤作者就是公司本身的条目（"PayPal" ↔ paypal/agent-toolkit）。
- * 填成提交者人名的（microsoft/vscode 叫"Geng"）与正常的单词品牌名分不开，不在这里处理，留给人工修正。
+ * readme：从 GitHub 抓取的 README（源站收录的 README 在草稿里，一并检查）。
  */
-export function hasBrokenName(d: EntityDraft): boolean {
+export function hasBrokenName(d: EntityDraft, readme?: string): boolean {
   if (!d.issues.some((i) => i.code === 'suspicious_name')) return false
   const name = words(d.name)
   const repo = d.identity.repository
@@ -66,15 +70,26 @@ export function hasBrokenName(d: EntityDraft): boolean {
   const isAuthor = d.authors.some((a) => [a.displayName, a.login].some((v) => v && v.trim().toLowerCase() === d.name.trim().toLowerCase()))
   const repeated = name.some((w, i) => i > 0 && w === name[i - 1] && !NAME_STOPWORDS.has(w))
   const heading = README_HEADINGS.has(d.name.trim().toLowerCase().replace(/\s+/g, ' '))
-  return isAuthor || repeated || heading
+  const readmes = [readme, ...d.texts.filter((t) => t.field === 'readme').map((t) => t.content)].filter((t): t is string => !!t?.trim())
+  const phrase = ` ${name.join(' ')} `
+  const unmentioned =
+    name.filter((w) => !NAME_STOPWORDS.has(w)).length <= 2 &&
+    words(repoName(d)).some((w) => !GENERIC_REPO_WORDS.has(w)) &&
+    readmes.length > 0 &&
+    !readmes.some((t) => ` ${words(t).join(' ')} `.includes(phrase))
+  return isAuthor || repeated || heading || unmentioned
 }
 
-/** 名称填错时的替代：其他来源的名称，其次仓库名（monorepo 取子目录名） */
+/** 仓库名（monorepo 取子目录名），没有仓库时为空 */
+function repoName(d: EntityDraft): string {
+  const repo = d.identity.repository
+  return repo ? repo.path.split('/').filter(Boolean).at(-1) || repo.name : ''
+}
+
+/** 名称填错时的替代：其他来源的名称，其次仓库名 */
 function fallbackName(d: EntityDraft, others: EntityDraft[]): string {
   const other = first(others, (o) => (hasBrokenName(o) ? undefined : o.name))
-  if (other) return other
-  const repo = d.identity.repository
-  return repo ? repo.path.split('/').filter(Boolean).at(-1) || repo.name : d.name
+  return other ?? (repoName(d) || d.name)
 }
 
 function nonEmpty<T>(value: T | undefined | null): value is T {
@@ -171,10 +186,10 @@ function mergeSkillDetail(primary: SkillDetailDraft, display: EntityDraft[]): Sk
 }
 
 /**
- * 合并一组草稿。members 里要包含主条目；slug、identityKey 由发布阶段分配。
+ * 合并一组草稿。members 里要包含主条目；slug、identityKey 由发布阶段分配；readme 是 GitHub 抓取的 README，判断名称是否填错用。
  * 源站收录的 README 文本（texts.readme）不进入结果：README 只用从 GitHub 抓取的原文。
  */
-export function mergeDrafts(members: EntityDraft[], options: { primary: EntityDraft; slug: string; identityKey: string }): EntityDraft {
+export function mergeDrafts(members: EntityDraft[], options: { primary: EntityDraft; slug: string; identityKey: string; readme?: string }): EntityDraft {
   const { primary } = options
   const others = members.filter((d) => d !== primary)
   const display = [primary, ...byOrder(others, DISPLAY_ORDER)]
@@ -188,7 +203,7 @@ export function mergeDrafts(members: EntityDraft[], options: { primary: EntityDr
   if (identity.repository) merged.repository = identity.repository
   else delete merged.repository
 
-  if (hasBrokenName(merged)) merged.name = fallbackName(merged, others)
+  if (hasBrokenName(merged, options.readme)) merged.name = fallbackName(merged, others)
 
   merged.flags = {
     ...(display.some((d) => d.flags.official) ? { official: true } : {}),

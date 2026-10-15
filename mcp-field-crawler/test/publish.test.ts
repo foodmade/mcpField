@@ -120,6 +120,30 @@ describe('mergeDrafts', () => {
     expect(hasBrokenName(misnamed('Gemini Docs MCP Server', 'm-gonzalo/cosa-sai'))).toBe(false)
   })
 
+  it('名称填错：不超过两个有效词、且 README 里没提到；描述性长名称和没有 README 的不算', () => {
+    const vscode = (name: string, readme?: string) => {
+      const b = new DraftBuilder({ kind: 'server', sourceId: 'mcpso', externalId: 'vscode', sourceUrl: 'u', slug: 'vscode', name }, detail())
+        .identity({ repository: parseRepositoryUrl('https://github.com/microsoft/vscode') })
+        .issue('suspicious_name', name)
+      if (readme) b.text('readme', 'en', readme, 'markdown')
+      return b.build() as EntityDraft
+    }
+    const readme = '# Visual Studio Code - Open Source ("Code - OSS")\n\nThis repository is where we develop the Visual Studio Code product.'
+    expect(hasBrokenName(vscode('Geng', readme))).toBe(true)
+    expect(hasBrokenName(vscode('Geng'), readme)).toBe(true)
+    expect(hasBrokenName(vscode('Geng'))).toBe(false)
+    expect(hasBrokenName(vscode('Code OSS', readme))).toBe(false)
+    expect(hasBrokenName(vscode('Geng'), 'Thanks to Geng for the logo.')).toBe(false)
+    expect(hasBrokenName(vscode('Belgian Train Schedule', readme))).toBe(false)
+    const generic = new DraftBuilder({ kind: 'server', sourceId: 'mcpso', externalId: 'x', sourceUrl: 'u', slug: 'x', name: 'Perplexity Ask' }, detail())
+      .identity({ repository: parseRepositoryUrl('https://github.com/ppl-ai/modelcontextprotocol') })
+      .issue('suspicious_name', 'Perplexity Ask')
+      .build() as EntityDraft
+    expect(hasBrokenName(generic, readme)).toBe(false)
+    const so = vscode('Geng')
+    expect(mergeDrafts([so], { primary: so, slug: 'vscode', identityKey: 'k', readme }).name).toBe('vscode')
+  })
+
   it('名称填错时用其他来源的名称，没有时用仓库名（monorepo 取子目录名）', () => {
     const broken = misnamed('Umut Naci', 'acme/mcp-servers/tree/main/weather')
     expect(mergeDrafts([broken, reg], { primary: broken, slug: 'x', identityKey: 'k' }).name).toBe('weather')
@@ -191,5 +215,12 @@ describe('assignSlugs', () => {
     ]
     const slugs = assignSlugs([a, b], previous)
     expect([slugs.get(a), slugs.get(b)]).toEqual(['weather', 'weather-2'])
+  })
+
+  it('只差大小写的地址算重名（数据库比较不区分大小写）', () => {
+    const a = req('k1', 'mcpso', 'basicMcpServer')
+    const b = req('k2', 'mcpso', 'BasicMcpServer')
+    const slugs = assignSlugs([a, b], [])
+    expect([slugs.get(a), slugs.get(b)]).toEqual(['basicMcpServer', 'BasicMcpServer-2'])
   })
 })

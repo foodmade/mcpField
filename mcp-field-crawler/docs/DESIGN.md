@@ -183,7 +183,7 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
   - 过滤：同一仓库目录（完整仓库键，含子目录）登记超过 20 条的服务判定为批量凑数，不发布（2026-10 官方 Registry 有 17 个仓库、约 3,300 条，如一个仓库登记了 2,332 个"上海当前时间""英制杯换算毫升"）。
   - 主条目：有 mcp.so 的用 mcp.so（沿用已有地址和已生成的翻译、介绍）；同来源多条时不带随机后缀、slug 短的优先。发布条目的 `source_id` / `external_id` 是主条目的，生成内容都按它关联。
   - 字段取舍（`merge/merge-drafts.ts`）：名称、简介、分类、标签、图标、作者按 mcp.so > Registry；安装包、远程端点、环境变量整组取自 Registry（发布者自己登记的；mcp.so 的配置可能被换成代理）；工具列表取最多的；仓库取最具体的（带子目录的）；指标取最大值；创建时间取最早、更新时间取最晚。源站收录的 README 文本不进入发布层（只用 GitHub 原文）。
-  - 名称修正：映射时标为可疑、与仓库所有者和仓库名没有共同词，且是 README 小节标题（"Introduction""License"）、作者名或重复词（"Slack Slack"）的，换成其他来源的名称，没有时用仓库名。填成人名的（microsoft/vscode 叫"Geng"）规则分不出来，留给人工修正。
+  - 名称修正：映射时标为可疑、与仓库所有者和仓库名没有共同词，且是 README 小节标题（"Introduction""License"）、作者名、重复词（"Slack Slack"），或不超过两个有效词、在 README（源站收录的和 GitHub 抓取的）里一次都没出现（microsoft/vscode 叫"Geng"）的，换成其他来源的名称，没有时用仓库名。描述性的长名称常常不出现在 README 里，不按这条判定；没有 README、仓库名是泛称（mcp、mcp-server、modelcontextprotocol）的也不判定。2026-10-14 线上约 45 条按这条改名，其中少数是 README 没提到的正常产品名（"Transcode""Riskscore"），改成仓库名也说得过去。
   - 地址：同类型内唯一；上一次发布过的沿用（按身份键，其次按主条目），新条目用主条目的 slug，mcp.so 的先分配，重名加 -2、-3。被合并进来的成员原来的地址记在 `ingest_published_slugs`，旧链接也能打开。
 - 搜索表 `ingest_search`（`search/`，`npm run crawler -- search-index`）：列表接口的关键词搜索和热门排序读这张窄表，不再对发布层每一行现算 JSON 字段和译文指纹（原来 skills 搜一次 2–6 秒，现在全站搜索取前几条 2–6 毫秒）。
   - 一行 = 一个条目在一种语言下的 body（名称、slug、英文简介、这种语言的简介译文、自撰简介，换行分隔）和排序键；主键按 类型 → 语言 → 热度 → 精选 → slug 排列，与 `sort=popular` 的顺序一致，查询按主键顺序扫描、凑够一页就停。最坏情况是关键词搜不到、要扫完一整类（本地 skills 约 140 毫秒）。
@@ -280,13 +280,15 @@ SELECT detail, COUNT(*) FROM ingest_issues WHERE code = 'unmapped_category' GROU
 - 数据库：`media_assets` 表只存"原始地址 → 公开地址"和尺寸、状态等元信息，不存图片本身。失败按 1h、4h、16h…… 最长 7 天退避重试；格式不支持记为 skipped，原图 404 记为 gone。
 - 接口：组装列表和详情时把图标、截图换成转存地址，没转存的保留原地址；前端看到图片加载失败时显示首字母色块。
 - 命令：`npm run crawler -- assets`（默认处理图标，`--media screenshot` 处理截图）；每次抓取后运行一次即可增量转存。
+- 图标补全（`assets/owner-icons.ts`，`npm run crawler -- owner-icons`）：没有图标、或原图已失效（gone / skipped）的条目，仓库在 GitHub 上的用仓库所有者头像（`github.com/<owner>.png`，按所有者去重转存）。2026-10-14 起适用于所有类型（之前只有 Skill）：mcp.so 的服务约 2/3 没有图标（如 microsoft/vscode）。转存成功的写进发布层，publish 重建时按 `media_assets` 再补上。
 - 存储层是 `AssetStorage` 接口（`R2Storage` / `LocalStorage`），以后换成其他对象存储只需新增实现。
 
 ## 13. GitHub：README、星数、最近提交时间
 
 README 只用 GitHub 上的原文。mcp.so 收录的 README（`item.description`）往往是收录时的旧快照，不少只有一句话，而且 CLI、Skill、Agent 根本没有；它仍按事实映射进草稿，但不再展示、翻译或用来生成介绍。星数和最近提交时间同样以 GitHub 为准。`github` 命令先更新仓库统计，再抓取 README：
 
-- 仓库统计：按仓库去重（`repo:github.com/owner/name`，不含子目录），GraphQL 每批 50 个仓库一次查询（约 1 点额度），取星数、Fork 数、是否归档、默认分支最新提交时间、最近推送时间；每次运行全部更新，存 `ingest_enrichments`（`enricher = github_repo`）。接口的星数、最近更新时间以及按星数 / 热度 / 更新时间排序都优先用它，没抓到的仓库用源站的数值。
+- 仓库统计：按仓库去重（`repo:github.com/owner/name`，不含子目录），GraphQL 每批 50 个仓库一次查询（约 1 点额度），取星数、Fork 数、是否归档、默认分支最新提交时间、最近推送时间、仓库简介；每次运行全部更新，存 `ingest_enrichments`（`enricher = github_repo`）。接口的星数、最近更新时间以及按星数 / 热度 / 更新时间排序都优先用它，没抓到的仓库用源站的数值。
+- 仓库简介：合并后仍没有简介（tagline / description）的服务、客户端、Skill，publish 时用仓库简介作为英文 tagline（去掉 `:rocket:` 这类 emoji 短代码），之后 translate 照常翻译；Loop / CLI / Agent 的简介由 describe 撰写，不用它。
 
 - 主体：按仓库目录去重，`repo:github.com/owner/name[/dir]`（monorepo 子目录各算一个；指向文件的地址取所在目录）；Skill 用 `skill:owner/repo#slug`。
 - 仓库：`GET /repos/{owner}/{repo}/readme/{dir}`，GitHub 自动识别 README 文件名。

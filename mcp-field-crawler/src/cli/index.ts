@@ -34,7 +34,7 @@ import { LlmReadmeTranslator } from '../readme/translator.ts'
 import { AssetMirror, collectMediaUrls } from '../assets/mirror.ts'
 import { LocalStorage, R2Storage } from '../assets/storage.ts'
 import { AssetStore } from '../assets/store.ts'
-import { applySkillIcons, skillsWithoutIcon } from '../assets/skill-icons.ts'
+import { applyOwnerIcons, entriesWithoutIcon } from '../assets/owner-icons.ts'
 import { runMergePlan } from '../merge/runner.ts'
 import { publish } from '../merge/publish.ts'
 import { syncSearchIndex } from '../search/sync.ts'
@@ -64,7 +64,7 @@ MCP Field 数据采集
   overview                根据 README 生成三语介绍（概述、主要功能、适用场景、MCP 相关）；Loop / CLI / Agent 由 describe 撰写
   readme                  把 README 整篇翻译成中文、日文（代码块不变，按片段去重、增量翻译）
   assets                  把图标等图片转存到 Cloudflare R2（转成 WebP），数据库只记录链接
-  skill-icons             补全 Skill 图标：GitHub 仓库所有者的头像转存到 R2，写入发布层（之后 publish 也会保留）
+  owner-icons             图标补全：没有图标或原图已失效的条目用 GitHub 仓库所有者的头像，转存到 R2 并写入发布层（之后 publish 也会保留）
   describe                为没有 README 的 Loop / CLI / Agent 撰写我们自己的三语内容
   merge-plan              合并预演：按身份键算出哪些草稿是同一个东西，只读，报告写到 data/merge-plan
   classify                给来源没有分类的条目分类（按 classify/taxonomy.ts 的分类体系），之后 publish 写入发布层
@@ -144,7 +144,7 @@ assets 选项：
   --force                 已转存的也重新处理
   --retry-all             不支持的格式、原图不存在的也重试
 
-skill-icons 选项：
+owner-icons 选项：
   --limit / --concurrency / --store / --force / --retry-all   同 assets（--limit 按头像张数计）
 `
 
@@ -486,8 +486,8 @@ async function assets() {
   }
 }
 
-async function skillIcons() {
-  if (!config.databaseUrl) throw new Error('skill-icons 需要 DATABASE_URL')
+async function ownerIcons() {
+  if (!config.databaseUrl) throw new Error('owner-icons 需要 DATABASE_URL')
   const storage = assetStorage()
 
   const controller = new AbortController()
@@ -499,16 +499,17 @@ async function skillIcons() {
   const { db, pool } = createDb(config.databaseUrl)
   try {
     const store = new AssetStore(db)
-    const skills = await skillsWithoutIcon(db)
-    const avatars = [...new Set(skills.map((s) => s.url))]
-    logger.info({ skills: skills.length, owners: avatars.length }, '没有图标的 Skill')
+    const broken = await store.brokenUrls()
+    const entries = await entriesWithoutIcon(db, broken)
+    const avatars = [...new Set(entries.map((e) => e.url))]
+    logger.info({ entries: entries.length, owners: avatars.length }, '缺图标的条目')
     const stats = await new AssetMirror(storage, store, logger, config.userAgent).run(
       avatars.map((url) => ({ url, type: 'icon' as const })),
       mirrorOptions(controller.signal),
     )
     // 中断时也写入：已经转存成功的头像不白做
-    const applied = await applySkillIcons(db, store, skills)
-    logger.info({ ...stats, uploadedMB: +(stats.uploadedBytes / 1024 / 1024).toFixed(1), applied }, 'Skill 图标补全完成')
+    const applied = await applyOwnerIcons(db, store, entries, broken)
+    logger.info({ ...stats, uploadedMB: +(stats.uploadedBytes / 1024 / 1024).toFixed(1), applied }, '图标补全完成')
   } finally {
     await pool.end()
   }
@@ -647,8 +648,8 @@ async function main() {
       return readme()
     case 'assets':
       return assets()
-    case 'skill-icons':
-      return skillIcons()
+    case 'owner-icons':
+      return ownerIcons()
     case 'describe':
       return describe()
     case 'merge-plan':

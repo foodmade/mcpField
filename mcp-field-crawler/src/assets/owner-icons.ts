@@ -6,8 +6,9 @@ import { sha256, stableJson } from '../store/hash.ts'
 import type { AssetReader } from './store.ts'
 
 /*
- * Skill 图标补全：skills.sh、mcp.so 都不提供 Skill 图标，用 GitHub 仓库所有者的头像（GitHub 仓库页、skills.sh 上显示的就是它）。
- * skill-icons 命令：发布层里没有图标、仓库在 GitHub 上的 Skill → 按所有者去重 → 头像转存到 R2（AssetMirror，记录在 media_assets）
+ * 图标补全：没有图标、或图标原图已失效（转存记录为 gone / skipped）的条目，用 GitHub 仓库所有者的头像
+ * （GitHub 仓库页、skills.sh 上显示的就是它；skills.sh、mcp.so 都不提供 Skill 图标，mcp.so 的服务也有大半没有图标）。
+ * owner-icons 命令：发布层里缺图标、仓库在 GitHub 上的条目 → 按所有者去重 → 头像转存到 R2（AssetMirror，记录在 media_assets）
  * → 转存成功的写进发布层草稿的图标。publish 重建发布层时按 media_assets 再补上（applyOwnerIcon），不会丢。
  * 草稿里记的是原始地址，接口按 media_assets 换成 R2 地址，与其他图标一致。
  */
@@ -21,12 +22,19 @@ export function ownerAvatarUrl(identity: IdentityHints | undefined): string | nu
   return `https://github.com/${repo.owner.toLowerCase()}.png`
 }
 
-/** Skill 没有图标时补上所有者头像，只用已经转存成功的；返回是否改动 */
-export function applyOwnerIcon(draft: EntityDraft, mirrored: Pick<ReadonlySet<string>, 'has'>): boolean {
-  if (draft.kind !== 'skill' || draft.media.some((m) => m.type === 'icon')) return false
+/** 草稿的图标地址；没有图标时为 undefined */
+const iconOf = (draft: EntityDraft) => draft.media.find((m) => m.type === 'icon')?.url
+
+/**
+ * 没有图标、或图标原图已失效时补上所有者头像，只用已经转存成功的；返回是否改动。
+ * broken：原图已失效的图标地址（AssetStore.brokenUrls）
+ */
+export function applyOwnerIcon(draft: EntityDraft, mirrored: Pick<ReadonlySet<string>, 'has'>, broken: Pick<ReadonlySet<string>, 'has'> = new Set()): boolean {
+  const icon = iconOf(draft)
+  if (icon && !broken.has(icon)) return false
   const url = ownerAvatarUrl(draft.identity)
-  if (!url || !mirrored.has(url)) return false
-  draft.media = [{ type: 'icon', url }, ...draft.media]
+  if (!url || url === icon || !mirrored.has(url)) return false
+  draft.media = [{ type: 'icon', url }, ...draft.media.filter((m) => m.type !== 'icon')]
   return true
 }
 
@@ -36,31 +44,31 @@ export async function mirroredOwnerAvatars(reader: AssetReader, identities: Iden
   return new Set((await reader.lookup(urls)).keys())
 }
 
-/** 发布层里还没有图标的 Skill：发布 id 与所有者头像地址 */
-export async function skillsWithoutIcon(db: Db): Promise<{ id: number; url: string }[]> {
+/** 发布层里缺图标（没有或原图已失效）、仓库在 GitHub 上的条目：发布 id 与所有者头像地址 */
+export async function entriesWithoutIcon(db: Db, broken: ReadonlySet<string>): Promise<{ id: number; url: string }[]> {
   const [rows] = (await db.execute(sql`
-    SELECT d.id, JSON_EXTRACT(d.draft, '$.identity') AS identity
+    SELECT d.id, JSON_EXTRACT(d.draft, '$.identity') AS identity,
+           (SELECT m.url FROM JSON_TABLE(d.draft, '$.media[*]' COLUMNS (type VARCHAR(16) PATH '$.type', url VARCHAR(2048) PATH '$.url')) m WHERE m.type = 'icon' LIMIT 1) AS icon
     FROM ingest_published d
-    WHERE d.kind = 'skill'
-      AND JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.host')) = 'github.com'
-      AND JSON_SEARCH(d.draft, 'one', 'icon', NULL, '$.media[*].type') IS NULL`)) as unknown as [{ id: number; identity: IdentityHints | string | null }[]]
+    WHERE JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.host')) = 'github.com'`)) as unknown as [{ id: number; identity: IdentityHints | string | null; icon: string | null }[]]
   return rows.flatMap((r) => {
+    if (r.icon && !broken.has(r.icon)) return []
     const url = ownerAvatarUrl(typeof r.identity === 'string' ? (JSON.parse(r.identity) as IdentityHints) : (r.identity ?? undefined))
-    return url ? [{ id: r.id, url }] : []
+    return url && url !== r.icon ? [{ id: r.id, url }] : []
   })
 }
 
 /** 把转存成功的头像写进发布层草稿（同时更新草稿哈希）；返回写入的条数 */
-export async function applySkillIcons(db: Db, reader: AssetReader, skills: { id: number; url: string }[]): Promise<number> {
-  const mirrored = new Set((await reader.lookup(skills.map((s) => s.url))).keys())
-  const ids = skills.filter((s) => mirrored.has(s.url)).map((s) => s.id)
+export async function applyOwnerIcons(db: Db, reader: AssetReader, entries: { id: number; url: string }[], broken: ReadonlySet<string>): Promise<number> {
+  const mirrored = new Set((await reader.lookup(entries.map((e) => e.url))).keys())
+  const ids = entries.filter((e) => mirrored.has(e.url)).map((e) => e.id)
   let applied = 0
   for (let i = 0; i < ids.length; i += CHUNK) {
     const rows = await db.select({ id: ingestPublished.id, draft: ingestPublished.draft }).from(ingestPublished).where(inArray(ingestPublished.id, ids.slice(i, i + CHUNK)))
     await db.transaction(async (tx) => {
       for (const row of rows) {
         const draft = (typeof row.draft === 'string' ? JSON.parse(row.draft) : row.draft) as EntityDraft
-        if (!applyOwnerIcon(draft, mirrored)) continue
+        if (!applyOwnerIcon(draft, mirrored, broken)) continue
         await tx.update(ingestPublished).set({ draft, draftHash: sha256(stableJson(draft)) }).where(eq(ingestPublished.id, row.id))
         applied++
       }

@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm'
-import { applyOwnerIcon, mirroredOwnerAvatars } from '../assets/skill-icons.ts'
+import { applyOwnerIcon, mirroredOwnerAvatars } from '../assets/owner-icons.ts'
 import { AssetStore } from '../assets/store.ts'
 import type { EntityDraft } from '../core/draft.ts'
 import { repoKey } from '../core/identity.ts'
@@ -10,13 +10,17 @@ import { ingestDrafts, ingestPublished, ingestPublishedSlugs } from '../db/schem
 import { classifyKey } from '../classify/classifier.ts'
 import { applyClassification } from '../classify/runner.ts'
 import { ClassificationStore } from '../classify/store.ts'
+import { readmeSubject } from '../github/readme.ts'
+import { applyRepoDescription, lacksTagline, repoRef } from '../github/repo.ts'
+import { GithubReadmeStore, GithubRepoStore } from '../github/store.ts'
 import { sha256, stableJson } from '../store/hash.ts'
 import { displayRank, mergeDrafts, pickPrimary } from './merge-drafts.ts'
 import { planMerge, type MergeGroup, type MergeItem, type MergeMember } from './plan.ts'
 import { collectMergeItems } from './runner.ts'
 
 /*
- * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类、Skill 的所有者头像 → 整体重建 ingest_published。
+ * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类、缺图标条目的所有者头像、缺简介条目的 GitHub 仓库简介
+ * → 整体重建 ingest_published。
  * 在一个事务里先删后写：网站在重建期间读到的仍是旧数据，提交后一次切换。
  */
 
@@ -30,6 +34,11 @@ export const BULK_REPO_LIMIT = 20
 const MAX_SLUG = 191
 
 const toSlug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+/**
+ * 地址的唯一性按数据库的比较规则判断（utf8mb4_unicode_ci 不区分大小写和重音）：
+ * mcp.so 的 basicMcpServer 和 BasicMcpServer 在库里是同一个地址（2026-10-14 因此写入 ingest_published_slugs 主键冲突、发布失败）
+ */
+const slugKey = (kind: EntityKind, slug: string) => `${kind}:${slug.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()}`
 
 /** 返回判定为凑数的草稿 id */
 export function bulkDraftIds(items: MergeItem[], limit = BULK_REPO_LIMIT): Set<number> {
@@ -68,14 +77,14 @@ export function assignSlugs<T extends SlugRequest>(requests: T[], previous: Prev
   const taken = new Set<string>()
   const claim = (req: T, slug: string) => {
     result.set(req, slug)
-    taken.add(`${req.kind}:${slug}`)
+    taken.add(slugKey(req.kind, slug))
   }
   const prevByKey = new Map(previous.map((p) => [`${p.kind}:${p.identityKey}`, p.slug]))
   const prevByPrimary = new Map(previous.map((p) => [`${p.kind}:${p.sourceId}:${p.externalId}`, p.slug]))
 
   for (const req of requests) {
     const slug = prevByKey.get(`${req.kind}:${req.key}`) ?? prevByPrimary.get(`${req.kind}:${req.primary.sourceId}:${req.primary.externalId}`)
-    if (slug && !taken.has(`${req.kind}:${slug}`)) claim(req, slug)
+    if (slug && !taken.has(slugKey(req.kind, slug))) claim(req, slug)
   }
   const rest = requests
     .filter((req) => !result.has(req))
@@ -85,9 +94,9 @@ export function assignSlugs<T extends SlugRequest>(requests: T[], previous: Prev
     let slug = base
     // Skill 重名很常见（几百个 pdf、frontend-design）：先用"名称-作者"，和 mcp.so 的地址规则一致
     const owner = req.kind === 'skill' && req.primary.externalId.includes('/') ? toSlug(req.primary.externalId.split('/')[0]!) : ''
-    if (owner && taken.has(`${req.kind}:${slug}`)) slug = `${base}-${owner}`.slice(0, MAX_SLUG - 4)
+    if (owner && taken.has(slugKey(req.kind, slug))) slug = `${base}-${owner}`.slice(0, MAX_SLUG - 4)
     const first = slug
-    for (let n = 2; taken.has(`${req.kind}:${slug}`); n++) slug = `${first}-${n}`
+    for (let n = 2; taken.has(slugKey(req.kind, slug)); n++) slug = `${first}-${n}`
     claim(req, slug)
   }
   return result
@@ -130,9 +139,13 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
     .where(inArray(ingestPublished.kind, [...kinds]))
   const slugs = assignSlugs(jobs, previous)
   const classifications = await new ClassificationStore(db).all(kinds)
-  // skill-icons 转存过的所有者头像（见 assets/skill-icons.ts）
-  const avatars = await mirroredOwnerAvatars(new AssetStore(db), all.filter((item) => item.kind === 'skill').map((item) => item.identity))
-  const canonical = new Set([...slugs].map(([job, slug]) => `${job.kind}:${slug}`))
+  // owner-icons 转存过的所有者头像（见 assets/owner-icons.ts）
+  const assets = new AssetStore(db)
+  const avatars = await mirroredOwnerAvatars(assets, all.map((item) => item.identity))
+  const brokenIcons = await assets.brokenUrls()
+  const readmes = new GithubReadmeStore(db)
+  const repos = new GithubRepoStore(db)
+  const canonical = new Set([...slugs].map(([job, slug]) => slugKey(job.kind, slug)))
   logger.info({ drafts: all.length, bulk: bulk.size, groups: jobs.length }, '开始发布')
 
   const now = new Date()
@@ -151,14 +164,33 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
           .from(ingestDrafts)
           .where(inArray(ingestDrafts.id, batch.flatMap((j) => j.group.members.map((m) => m.draftId))))
         const byId = new Map(rows.map((r) => [r.id, r]))
+        // 名称可疑的组要看 GitHub README 里有没有提到这个名称（见 hasBrokenName），只为这些组读 README
+        const readmeKeys = new Map<GroupJob, string>()
+        for (const job of batch) {
+          const primary = byId.get(job.primary.draftId)!.draft as EntityDraft
+          const subject = primary.issues.some((i) => i.code === 'suspicious_name') ? readmeSubject(primary) : null
+          if (subject) readmeKeys.set(job, subject.key)
+        }
+        const readmeByKey = await readmes.find([...readmeKeys.values()])
 
-        const values = batch.map((job) => {
+        const drafts = batch.map((job) => {
           const members = job.group.members.map((m) => byId.get(m.draftId)!.draft as EntityDraft)
           const primary = members[job.group.members.indexOf(job.primary)]!
-          const slug = slugs.get(job)!
-          const draft = mergeDrafts(members, { primary, slug, identityKey: job.key })
+          const readmeKey = readmeKeys.get(job)
+          const readme = readmeKey ? readmeByKey.get(readmeKey)?.content : undefined
+          const draft = mergeDrafts(members, { primary, slug: slugs.get(job)!, identityKey: job.key, readme })
           applyClassification(draft, classifications.get(classifyKey({ ...job.primary, kind })))
-          applyOwnerIcon(draft, avatars)
+          applyOwnerIcon(draft, avatars, brokenIcons)
+          return draft
+        })
+        // 合并后仍没有简介的，用 GitHub 仓库简介（github 命令每天更新）
+        const repoKeys = drafts.map((d) => (lacksTagline(d) ? repoRef(d)?.key : undefined))
+        const repoStats = await repos.find(repoKeys.filter((k): k is string => !!k))
+        drafts.forEach((d, i) => applyRepoDescription(d, repoStats.get(repoKeys[i] ?? '')))
+
+        const values = batch.map((job, i) => {
+          const draft = drafts[i]!
+          const slug = slugs.get(job)!
           const sources = [...job.group.sources].sort().join(',')
           bySources[sources] = (bySources[sources] ?? 0) + 1
           return {
@@ -169,7 +201,7 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
             sourceId: job.primary.sourceId,
             externalId: job.primary.externalId,
             sources,
-            memberCount: members.length,
+            memberCount: job.group.members.length,
             draftHash: sha256(stableJson(draft)),
             draft,
             mappedAt: new Date(Math.max(...job.group.members.map((m) => byId.get(m.draftId)!.mappedAt.getTime()))),
@@ -188,8 +220,8 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
           const id = idBySlug.get(slugs.get(job)!)!
           return [slugs.get(job)!, ...job.group.members.map((m) => m.slug)]
             .filter((s) => s && s.length <= MAX_SLUG)
-            .filter((s) => s === slugs.get(job) || !canonical.has(`${kind}:${s}`))
-            .filter((s) => !aliasTaken.has(`${kind}:${s}`) && aliasTaken.add(`${kind}:${s}`))
+            .filter((s) => s === slugs.get(job) || !canonical.has(slugKey(kind, s)))
+            .filter((s) => !aliasTaken.has(slugKey(kind, s)) && aliasTaken.add(slugKey(kind, s)))
             .map((slug) => ({ kind, slug, publishedId: id }))
         })
         if (aliases.length > 0) await tx.insert(ingestPublishedSlugs).values(aliases)

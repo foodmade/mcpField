@@ -35,7 +35,7 @@ npm run crawler -- translate --kind client --recheck         # 按当前规则�
 npm run crawler -- overview --kind client                    # 根据 README 生成三语介绍
 npm run crawler -- readme --kind client                      # README 整篇翻译成中文、日文（增量）
 npm run crawler -- assets                                    # 图标转存到 Cloudflare R2（增量）
-npm run crawler -- skill-icons                               # Skill 图标补全：GitHub 仓库所有者头像转存到 R2 并写入发布层（增量）
+npm run crawler -- owner-icons                               # 图标补全：缺图标的条目用 GitHub 仓库所有者头像，转存到 R2 并写入发布层（增量）
 npm run crawler -- describe                                  # 为 Loop / CLI / Agent 撰写我们自己的三语内容（增量）
 npm run api:dev                                              # 启动后端 API（http://localhost:3100）
 ```

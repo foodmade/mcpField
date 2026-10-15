@@ -88,6 +88,12 @@ export class AssetStore implements AssetReader {
       .onDuplicateKeyUpdate({ set: values })
   }
 
+  /** 原图已失效的图片（不存在、不是图片），不再自动重试：图标补全时换成所有者头像 */
+  async brokenUrls(): Promise<Set<string>> {
+    const rows = await this.db.select({ url: mediaAssets.sourceUrl }).from(mediaAssets).where(inArray(mediaAssets.status, ['gone', 'skipped']))
+    return new Set(rows.map((r) => r.url))
+  }
+
   async lookup(sourceUrls: string[]): Promise<Map<string, string>> {
     const out = new Map<string, string>()
     const unique = [...new Set(sourceUrls)]

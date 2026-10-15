@@ -20,7 +20,10 @@ module.exports = {
       name: 'mcpfield-web',
       cwd: resolve(root, 'mcp-field'),
       script: 'server.js',
-      max_memory_restart: '350M',
+      // Googlebot 按 sitemap 大量抓取时（每秒 3 次以上服务端渲染）内存会涨到 400MB 左右，350M 的上限下每两分钟重启一次、返回 502；
+      // 限制 V8 老生代堆到 512MB，让它及早回收，进程超过 700M 才重启
+      node_args: '--max-old-space-size=512',
+      max_memory_restart: '700M',
       env: { NODE_ENV: 'production', HOST: '127.0.0.1', PORT: '3000', API_ORIGIN: 'http://127.0.0.1:3100' },
     },
   ],

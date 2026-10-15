@@ -61,6 +61,10 @@ const envSchema = z.object({
   R2_PUBLIC_BASE_URL: optionalString,
   R2_ACCESS_KEY_ID: optionalString,
   R2_SECRET_ACCESS_KEY: optionalString,
+  /** IndexNow 密钥（与 mcp-field/public/<密钥>.txt 一致）；不设置时 publish 不推送，本地跑 publish 不会把本地数据推给搜索引擎 */
+  INDEXNOW_KEY: optionalString,
+  /** 网站地址：IndexNow 推送的页面地址用它拼 */
+  SITE_URL: z.string().trim().default('https://mcpfield.com'),
 })
 
 export interface AppConfig {
@@ -92,6 +96,9 @@ export interface AppConfig {
   skillsShVercelDir: string
   /** 五项都配置了才启用 R2 */
   r2?: { accountId: string; bucket: string; publicBaseUrl: string; accessKeyId: string; secretAccessKey: string }
+  siteUrl: string
+  /** 配置了 INDEXNOW_KEY 才启用 */
+  indexNow?: { key: string; siteUrl: string }
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -127,5 +134,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       parsed.R2_ACCOUNT_ID && parsed.R2_BUCKET && parsed.R2_PUBLIC_BASE_URL && parsed.R2_ACCESS_KEY_ID && parsed.R2_SECRET_ACCESS_KEY
         ? { accountId: parsed.R2_ACCOUNT_ID, bucket: parsed.R2_BUCKET, publicBaseUrl: parsed.R2_PUBLIC_BASE_URL, accessKeyId: parsed.R2_ACCESS_KEY_ID, secretAccessKey: parsed.R2_SECRET_ACCESS_KEY }
         : undefined,
+    siteUrl: parsed.SITE_URL.replace(/\/+$/, ''),
+    indexNow: parsed.INDEXNOW_KEY ? { key: parsed.INDEXNOW_KEY, siteUrl: parsed.SITE_URL.replace(/\/+$/, '') } : undefined,
   }
 }

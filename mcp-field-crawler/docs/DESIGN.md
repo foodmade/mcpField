@@ -341,6 +341,13 @@ README 只用 GitHub 上的原文。mcp.so 收录的 README（`item.description`
 - 地址：Skill 重名很常见，发布时先用"名称-作者"（与 mcp.so 一致），再加序号。
 - 合并：Skill 的审计取信息最全的来源（skills.sh 的带风险等级和摘要），文件列表从有的来源补上。
 
+## 17. IndexNow 推送
+
+- 页面内容变了就通知 Bing、Yandex、Naver、Seznam 等搜索引擎（`seo/indexnow.ts`），Google 不支持 IndexNow，仍靠 sitemap。
+- 推什么：内容真的变了的条目（`content_changed_at` 不早于本次发布开始，见第 6 节），每个条目推中、英、日三个详情页地址；不能直接放进路径的 slug 不推（与 sitemap 一致）。源站批量刷新更新时间不会触发推送。
+- 何时推：配置了 `INDEXNOW_KEY` 时，`publish` 同步完搜索表后自动推送本次变化的；失败只记警告，不影响发布，可用 `indexnow --since <时间>` 补推（`--dry-run` 只列出地址）。本地 `.env` 不配密钥，本地跑 publish 不会把本地数据推出去。
+- 密钥：搜索引擎从 `https://mcpfield.com/<密钥>.txt` 读取验证，文件在 `mcp-field/public/` 下，内容就是密钥本身；`.env` 里的 `INDEXNOW_KEY` 要与它一致。每次最多 1 万个地址，超过时分批。
+
 ## 17. 后续阶段
 
 1. **补全**（Enricher）：GitHub GraphQL（每次 100 个仓库，星数等元数据）、npm / PyPI 下载量、远程服务实时探测（initialize + tools/list + prompts/list + resources/list）。

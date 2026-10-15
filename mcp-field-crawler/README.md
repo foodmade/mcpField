@@ -28,6 +28,7 @@ npm run crawler -- merge-plan                                # 合并预演：�
 npm run crawler -- classify                                  # 给来源没有分类的条目分类（Opus 5.5），之后 publish 生效
 npm run crawler -- publish                                   # 发布：过滤凑数条目、合并各来源，重建 ingest_published（网站和各生成任务读它）
 npm run crawler -- search-index                              # 同步搜索表 ingest_search（publish / github / translate / describe 结束时会自动同步）
+npm run crawler -- indexnow --since 2026-10-15              # 把内容有变化的页面推送给 IndexNow（Bing 等）；配置了 INDEXNOW_KEY 时 publish 结束后自动推送
 npm run crawler -- remap --source mcpso --kind client        # 改了映射规则后重建草稿（不发网络请求）
 npm run crawler -- github                                    # 从 GitHub 更新星数、最近提交时间，并抓取 README（Skill 取 SKILL.md，增量）
 npm run crawler -- translate --kind client                   # 把简介翻译成中英日三语

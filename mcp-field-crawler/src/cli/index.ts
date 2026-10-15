@@ -38,6 +38,7 @@ import { applyOwnerIcons, entriesWithoutIcon } from '../assets/owner-icons.ts'
 import { runMergePlan } from '../merge/runner.ts'
 import { publish } from '../merge/publish.ts'
 import { syncSearchIndex } from '../search/sync.ts'
+import { changedUrls, pushChanged } from '../seo/indexnow.ts'
 import { LlmClassifier } from '../classify/classifier.ts'
 import { ClassifyRunner, collectClassifyInputs } from '../classify/runner.ts'
 import { ClassificationStore } from '../classify/store.ts'
@@ -69,6 +70,7 @@ MCP Field 数据采集
   merge-plan              合并预演：按身份键算出哪些草稿是同一个东西，只读，报告写到 data/merge-plan
   classify                给来源没有分类的条目分类（按 classify/taxonomy.ts 的分类体系），之后 publish 写入发布层
   publish                 发布：过滤凑数条目，把各来源的同一个东西合并成一条，重建 ingest_published（网站和各生成任务读它）
+  indexnow                把内容有变化的页面推送给 IndexNow（Bing 等，Google 不支持）；配置了 INDEXNOW_KEY 时 publish 结束后自动推送本次变化的
   search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）；publish / github / translate / describe 结束时自动同步
   stats                   查看采集层统计（需要 MySQL）
 
@@ -144,6 +146,11 @@ assets 选项：
   --force                 已转存的也重新处理
   --retry-all             不支持的格式、原图不存在的也重试
 
+indexnow 选项：
+  --since <date>          推送内容在该时间之后变化的条目，默认最近 24 小时
+  --kind <a,b>            只推这些类型，默认全部
+  --dry-run               只列出要推送的地址数和前几个，不发请求（不需要 INDEXNOW_KEY）
+
 owner-icons 选项：
   --limit / --concurrency / --store / --force / --retry-all   同 assets（--limit 按头像张数计）
 `
@@ -172,6 +179,7 @@ const { positionals, values } = parseArgs({
     media: { type: 'string' },
     'retry-all': { type: 'boolean', default: false },
     all: { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
 })
@@ -590,9 +598,12 @@ async function publishCommand() {
   const kinds = parseKinds(values.kind, ENTITY_KINDS)
   const { db, pool } = createDb(config.databaseUrl)
   try {
+    const started = new Date()
     const stats = await publish(db, kinds, logger)
     logger.info(stats, '发布完成')
     await syncSearchIndex(db, kinds, logger)
+    // 推送失败不影响发布结果，之后可以用 indexnow --since 补推
+    if (config.indexNow) await pushChanged(db, config.indexNow, kinds, started, logger).catch((error: unknown) => logger.warn({ err: error instanceof Error ? error.message : String(error) }, 'IndexNow 推送失败'))
   } finally {
     await pool.end()
   }
@@ -604,6 +615,25 @@ async function searchIndex() {
   const { db, pool } = createDb(config.databaseUrl)
   try {
     await syncSearchIndex(db, kinds, logger)
+  } finally {
+    await pool.end()
+  }
+}
+
+async function indexNow() {
+  if (!config.databaseUrl) throw new Error('indexnow 需要 DATABASE_URL')
+  const kinds = parseKinds(values.kind, ENTITY_KINDS)
+  const since = values.since ? new Date(values.since) : new Date(Date.now() - 24 * 3600_000)
+  if (Number.isNaN(since.getTime())) throw new Error(`--since 不是有效的时间：${values.since}`)
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    if (values['dry-run']) {
+      const urls = await changedUrls(db, config.siteUrl, kinds, since)
+      logger.info({ since: since.toISOString(), urls: urls.length, sample: urls.slice(0, 6) }, 'IndexNow 预演：要推送的地址')
+      return
+    }
+    if (!config.indexNow) throw new Error('indexnow 需要 INDEXNOW_KEY')
+    await pushChanged(db, config.indexNow, kinds, since, logger)
   } finally {
     await pool.end()
   }
@@ -658,6 +688,8 @@ async function main() {
       return classify()
     case 'publish':
       return publishCommand()
+    case 'indexnow':
+      return indexNow()
     case 'search-index':
       return searchIndex()
     case 'stats':

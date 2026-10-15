@@ -111,3 +111,16 @@ export async function loadHome({ request, params }: Args) {
     reps: Object.fromEntries(reps.filter((r) => r !== null)) as Record<string, string[]>,
   }
 }
+
+/** 排行榜条数 */
+export const RANK_SIZE = 100
+
+/** 排行榜：按星数取前 100 个 MCP 服务；候选总数来自全站统计（失败时不显示） */
+export async function loadRankings({ request, params }: Args) {
+  const locale = localeOf(params)
+  const [list, stats] = await Promise.all([
+    fetchList('server', { page: 1, pageSize: RANK_SIZE, sort: 'stars', locale, withTotal: false }, request.signal),
+    fetchStats(request.signal).catch(() => null),
+  ])
+  return { rows: list.data, total: stats?.totals.server ?? null }
+}

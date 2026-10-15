@@ -29,7 +29,7 @@ const urlset = (entries: string[]) =>
 
 /** 首页、各目录页、有条目的分类页、标签页和隐私政策（三种语言） */
 async function pagesSitemap(signal: AbortSignal) {
-  const paths: [string, string][] = [['/', ''], ['/remote-servers', ''], ['/tags', ''], ['/privacy', '']]
+  const paths: [string, string][] = [['/', ''], ['/remote-servers', ''], ['/tags', ''], ['/rankings', ''], ['/privacy', '']]
   const facets = await Promise.all((Object.keys(ROUTE) as Kind[]).map((kind) => fetchFacets(kind, {}, signal).then((f) => [kind, f] as const)))
   for (const [kind, f] of facets) {
     paths.push([`/${ROUTE[kind]}`, ''])

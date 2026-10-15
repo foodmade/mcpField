@@ -113,7 +113,7 @@ export const zh = {
     support: '联系支持',
     cols: [
       ['目录', ['MCP 服务', '远程服务', '客户端', 'CLI', 'Loops', 'Skills', 'Agents']],
-      ['发现', ['分类', ['标签', '/tags'], '排行榜', '提交动态', '博客', '使用案例']],
+      ['发现', ['分类', ['标签', '/tags'], ['排行榜', '/rankings'], '提交动态', '博客', '使用案例']],
       ['合作', ['项目认领', '广告投放', 'hello@mcpfield.dev']],
       ['条款', ['服务条款', ['隐私政策', '/privacy']]],
     ] as [string, (string | readonly [label: string, href: string])[]][],
@@ -175,6 +175,39 @@ export const zh = {
     remaining: (n: string) => `还有 ${n} 个标签`,
     letters: { title: '按首字母浏览全部标签', hint: '切换到 A–Z 排序并只看这个字母开头的标签', other: '其他', clear: '取消首字母筛选' },
     empty: { title: (q: string) => `没有找到包含“${q}”的标签`, hint: '换个关键词试试，或者按首字母浏览。', clear: '清空筛选' },
+  },
+  rankings: {
+    eyebrow: 'MCP FIELD · LEADERBOARD',
+    title: 'MCP 服务排行榜',
+    sub: '按 GitHub 星数实时排序，收录全网最受欢迎的 100 个 MCP 服务，数据随采集任务定期更新。',
+    seoTitle: 'MCP 服务排行榜 · 星数 Top 100 · MCP Field',
+    seoDesc: (n: string) => `按 GitHub 星数排序的 MCP 服务 Top 100：从 ${n} 个收录服务中选出，附分类、工具数与星数，定期更新。`,
+    stats: { top: '上榜服务', total: '候选服务总数', stars: '上榜服务累计星数', first: '榜首星数', updated: '数据更新' },
+    podium: { title: '前三甲', sub: '星数最多的三个 MCP 服务', medals: ['GOLD', 'SILVER', 'BRONZE'], stars: 'GitHub 星数' },
+    updated: (d: string) => `UPDATED ${d}`,
+    all: '全部',
+    more: '更多',
+    filterLabel: '按分类筛选',
+    searchPh: '在榜单中查找',
+    share: '分享榜单',
+    copied: '已复制链接',
+    tools: (n: number) => `${n} 个工具`,
+    filtered: (n: number) => `筛选出 ${n} 个服务，名次为总榜名次`,
+    empty: { title: (q: string) => `榜单里没有“${q}”`, hint: '换个关键词，或者到目录页搜索全部服务。', clear: '清空筛选' },
+    end: { text: '榜单只收录前 100 名。想看更多？', link: '浏览全部 MCP 服务' },
+    side: {
+      dist: { title: '分类分布', sub: '前 100 名中各分类的数量', other: '其他' },
+      jump: '快速跳转',
+      rules: {
+        title: '榜单说明',
+        items: [
+          ['排序依据', '按 GitHub 仓库星数降序排列。'],
+          ['更新频率', '星数随采集任务定期同步，页头显示最近一次数据更新时间。'],
+          ['入榜条件', '已通过基础审核的 MCP 服务，含官方与社区项目。'],
+        ] as [string, string][],
+      },
+      claim: { title: '你的项目也在榜上？', text: '认领后可在详情页展示排名徽章，并把它嵌到 README 里。', btn: '联系我们认领' },
+    },
   },
   dirs: {
     remote: {

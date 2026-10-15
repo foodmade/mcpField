@@ -89,7 +89,7 @@ function HotProjects({ initial }: { initial: ServerItem[] }) {
           </LayoutGroup>
         )}
       </div>
-      <LinkArrow href="/servers" className="mt-5">{m.rank.hotMore}</LinkArrow>
+      <LinkArrow href="/rankings" className="mt-5">{m.rank.hotMore}</LinkArrow>
     </div>
   )
 }

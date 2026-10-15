@@ -63,7 +63,7 @@ export function Nav() {
   useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 8))
   useCmdK(useCallback(() => setOpen((o) => !o), []))
   const { rest } = stripLocale(useLocation().pathname)
-  const active = rest.startsWith('/remote-servers') ? 'remote' : rest.startsWith('/clients') ? 'clients' : rest.startsWith('/loops') ? 'loops' : rest.startsWith('/cli') ? 'cli' : rest.startsWith('/skills') ? 'skills' : rest.startsWith('/agents') ? 'agents' : rest.startsWith('/servers') ? 'servers' : rest === '/' || rest.startsWith('/tags') ? 'discover' : null
+  const active = rest.startsWith('/remote-servers') ? 'remote' : rest.startsWith('/clients') ? 'clients' : rest.startsWith('/loops') ? 'loops' : rest.startsWith('/cli') ? 'cli' : rest.startsWith('/skills') ? 'skills' : rest.startsWith('/agents') ? 'agents' : rest.startsWith('/servers') ? 'servers' : rest === '/' || rest.startsWith('/tags') || rest.startsWith('/rankings') ? 'discover' : null
   // 各栏目的收录数量：浏览器里取一次，与首页共用
   const stats = useApi('site-stats', () => sharedStats()).data
   const ref = useRef<HTMLElement>(null)

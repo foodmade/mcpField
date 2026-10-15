@@ -26,6 +26,7 @@ export default [
     route('agents', 'pages/Agents.tsx'),
     route('agents/:slug', 'pages/AgentDetail.tsx'),
     route('tags', 'pages/Tags.tsx'),
+    route('rankings', 'pages/Rankings.tsx'),
     route('privacy', 'pages/Privacy.tsx'),
     route('*', 'routes/not-found.tsx'),
   ]),

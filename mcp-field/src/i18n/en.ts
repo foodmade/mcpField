@@ -115,7 +115,7 @@ export const en: Messages = {
     support: 'Contact support',
     cols: [
       ['Directory', ['MCP Servers', 'Remote Servers', 'Clients', 'CLI', 'Loops', 'Skills', 'Agents']],
-      ['Discover', ['Categories', ['Tags', '/tags'], 'Rankings', 'Submission feed', 'Blog', 'Use cases']],
+      ['Discover', ['Categories', ['Tags', '/tags'], ['Rankings', '/rankings'], 'Submission feed', 'Blog', 'Use cases']],
       ['Partners', ['Claim a project', 'Advertise', 'hello@mcpfield.dev']],
       ['Legal', ['Terms of service', ['Privacy policy', '/privacy']]],
     ],
@@ -177,6 +177,39 @@ export const en: Messages = {
     remaining: (n: string) => `${n} more tags`,
     letters: { title: 'Browse all tags by first letter', hint: 'Switches to A–Z and shows only tags starting with that letter', other: 'Other', clear: 'Clear letter filter' },
     empty: { title: (q: string) => `No tags matching “${q}”`, hint: 'Try another keyword, or browse by first letter.', clear: 'Clear filters' },
+  },
+  rankings: {
+    eyebrow: 'MCP FIELD · LEADERBOARD',
+    title: 'MCP Server Rankings',
+    sub: 'The 100 most-starred MCP servers on GitHub, ranked live and refreshed with every crawl.',
+    seoTitle: 'MCP Server Rankings · Top 100 by Stars · MCP Field',
+    seoDesc: (n: string) => `The top 100 MCP servers ranked by GitHub stars, picked from ${n} listed servers, with category, tool count and stars. Updated regularly.`,
+    stats: { top: 'Ranked servers', total: 'Candidates', stars: 'Combined stars', first: 'Leader stars', updated: 'Data updated' },
+    podium: { title: 'Top three', sub: 'The three most-starred MCP servers', medals: ['GOLD', 'SILVER', 'BRONZE'], stars: 'GitHub stars' },
+    updated: (d: string) => `UPDATED ${d}`,
+    all: 'All',
+    more: 'More',
+    filterLabel: 'Filter by category',
+    searchPh: 'Find in rankings',
+    share: 'Share',
+    copied: 'Link copied',
+    tools: (n: number) => `${n} tools`,
+    filtered: (n: number) => `${n} servers match; positions are overall ranks`,
+    empty: { title: (q: string) => `No “${q}” in the rankings`, hint: 'Try another keyword, or search all servers in the directory.', clear: 'Clear filters' },
+    end: { text: 'Only the top 100 are ranked. Want more?', link: 'Browse all MCP servers' },
+    side: {
+      dist: { title: 'By category', sub: 'How the top 100 split across categories', other: 'Other' },
+      jump: 'Jump to',
+      rules: {
+        title: 'How it works',
+        items: [
+          ['Ordering', 'Sorted by GitHub repository stars, highest first.'],
+          ['Refresh', 'Stars sync with each crawl; the header shows the latest data update.'],
+          ['Eligibility', 'MCP servers that passed basic review, official and community alike.'],
+        ] as [string, string][],
+      },
+      claim: { title: 'Is your project listed?', text: 'Claim it to show a rank badge on its page and embed it in your README.', btn: 'Contact us to claim' },
+    },
   },
   dirs: {
     remote: {

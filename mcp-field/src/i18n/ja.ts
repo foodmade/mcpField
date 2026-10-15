@@ -115,7 +115,7 @@ export const ja: Messages = {
     support: 'サポートに連絡',
     cols: [
       ['ディレクトリ', ['MCP サーバー', 'リモートサーバー', 'クライアント', 'CLI', 'Loops', 'Skills', 'Agents']],
-      ['発見', ['カテゴリ', ['タグ', '/tags'], 'ランキング', '投稿フィード', 'ブログ', '活用事例']],
+      ['発見', ['カテゴリ', ['タグ', '/tags'], ['ランキング', '/rankings'], '投稿フィード', 'ブログ', '活用事例']],
       ['パートナー', ['プロジェクトを申請', '広告掲載', 'hello@mcpfield.dev']],
       ['規約', ['利用規約', ['プライバシーポリシー', '/privacy']]],
     ],
@@ -177,6 +177,39 @@ export const ja: Messages = {
     remaining: (n: string) => `残り ${n} 件のタグ`,
     letters: { title: '頭文字からすべてのタグを探す', hint: 'A–Z 順に切り替え、その文字で始まるタグだけを表示します', other: 'その他', clear: '頭文字の絞り込みを解除' },
     empty: { title: (q: string) => `「${q}」を含むタグは見つかりませんでした`, hint: '別のキーワードを試すか、頭文字から探してください。', clear: '絞り込みをクリア' },
+  },
+  rankings: {
+    eyebrow: 'MCP FIELD · LEADERBOARD',
+    title: 'MCP サーバーランキング',
+    sub: 'GitHub スター数でリアルタイムに並べた、最も人気のある MCP サーバー 100 件。データはクロールごとに更新されます。',
+    seoTitle: 'MCP サーバーランキング · スター数 Top 100 · MCP Field',
+    seoDesc: (n: string) => `GitHub スター数順の MCP サーバー Top 100。掲載 ${n} 件から選出し、カテゴリ・ツール数・スター数を掲載。定期更新。`,
+    stats: { top: 'ランクイン', total: '候補サーバー数', stars: '合計スター数', first: '首位のスター数', updated: 'データ更新' },
+    podium: { title: 'トップ 3', sub: 'スター数が最も多い 3 つの MCP サーバー', medals: ['GOLD', 'SILVER', 'BRONZE'], stars: 'GitHub スター' },
+    updated: (d: string) => `UPDATED ${d}`,
+    all: 'すべて',
+    more: 'その他',
+    filterLabel: 'カテゴリで絞り込む',
+    searchPh: 'ランキング内を検索',
+    share: '共有',
+    copied: 'リンクをコピーしました',
+    tools: (n: number) => `${n} ツール`,
+    filtered: (n: number) => `${n} 件が該当。順位は総合順位です`,
+    empty: { title: (q: string) => `ランキングに「${q}」はありません`, hint: '別のキーワードを試すか、ディレクトリで全サーバーを検索してください。', clear: '絞り込みをクリア' },
+    end: { text: 'ランキングは上位 100 件のみです。もっと見るには？', link: 'すべての MCP サーバーを見る' },
+    side: {
+      dist: { title: 'カテゴリ分布', sub: '上位 100 件のカテゴリ別件数', other: 'その他' },
+      jump: 'ジャンプ',
+      rules: {
+        title: 'ランキングについて',
+        items: [
+          ['並び順', 'GitHub リポジトリのスター数の降順。'],
+          ['更新頻度', 'スター数はクロールごとに同期。ヘッダーに最新のデータ更新日を表示します。'],
+          ['掲載条件', '基本審査を通過した MCP サーバー（公式・コミュニティ双方）。'],
+        ] as [string, string][],
+      },
+      claim: { title: 'あなたのプロジェクトもランクイン？', text: '申請すると詳細ページに順位バッジを表示でき、README にも埋め込めます。', btn: '申請について問い合わせる' },
+    },
   },
   dirs: {
     remote: {

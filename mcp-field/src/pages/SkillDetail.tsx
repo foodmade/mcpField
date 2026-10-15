@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { CalendarBlank, CheckCircle, DownloadSimple, File, FolderSimple, GithubLogo, Info, Prohibit, ShieldCheck, SquaresFour, Stack, Star, User, Warning } from '@phosphor-icons/react'
+import { CalendarBlank, CheckCircle, DownloadSimple, File, FolderSimple, GithubLogo, Info, Prohibit, ShieldCheck, SquaresFour, Star, User, Warning } from '@phosphor-icons/react'
 import { useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { RunlayerIcon, SnykIcon, SocketIcon, ZeroLeaksIcon } from '../components/BrandIcons'
@@ -7,7 +7,7 @@ import { Comments } from '../components/Comments'
 import { CopyButton, PrimaryCopyButton } from '../components/detail/CopyButton'
 import { SectionNav, useActiveSection, type SectionItem } from '../components/detail/SectionNav'
 import {
-  AboutSection, DetailBody, DetailError, DetailSeo, EntityHeader, InfoSection, LinkButton, ReadmeSection, RelatedSection, sourcesValue, useDateFormat,
+  AboutSection, DetailBody, DetailError, DetailSeo, EntityHeader, InfoSection, LinkButton, ReadmeSection, RelatedSection, useDateFormat,
 } from '../components/detail/EntityDetail'
 import { useI18n } from '../i18n/context'
 import type { SkillDetail as Detail, SkillItem } from '../lib/api/entities'
@@ -287,7 +287,6 @@ function Sidebar({ s, related }: { s: Detail; related: SkillItem[] }) {
           { icon: DownloadSimple, label: k.installs, value: s.installs?.toLocaleString('en-US') },
           { icon: Star, label: m.client.infoKeys.stars, value: s.stars?.toLocaleString('en-US') },
           { icon: CalendarBlank, label: m.skill.firstSeen, value: fmt(s.firstSeenOn) },
-          { icon: Stack, label: m.detail.infoKeys.sources, value: sourcesValue(s.allLinks, m.detail.sourceNames) },
         ]}
       />
       <RelatedSection

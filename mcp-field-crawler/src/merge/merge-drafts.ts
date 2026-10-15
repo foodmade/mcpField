@@ -209,7 +209,7 @@ export function mergeDrafts(members: EntityDraft[], options: { primary: EntityDr
     display.flatMap((d) => d.texts.filter((t) => t.field !== 'readme')),
     (t) => `${t.field}:${t.locale}`,
   )
-  // 每个来源的条目地址记为 source 链接（label 是数据源 ID），详情页据此列出"收录来源"
+  // 每个来源的条目地址记为 source 链接（label 是数据源 ID）
   const sourceLinks = display.map((d) => ({ type: 'source' as const, url: d.sourceUrl, label: d.sourceId }))
   merged.links = unique(
     [...display.flatMap((d) => d.links), ...sourceLinks],

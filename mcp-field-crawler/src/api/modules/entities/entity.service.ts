@@ -225,7 +225,6 @@ export class EntityService<K extends EntityKind> {
       identityKey: d.identityKey,
       readme: readme ? { format: readme.format, content: readme.content, baseUrl: readme.baseUrl } : null,
       authors: d.authors.map(toAuthor),
-      allLinks: d.links.map((l) => ({ type: l.type, url: l.url, label: l.label ?? null })),
       screenshots: d.media.filter((m) => m.type === 'screenshot').map((m) => m.url),
       previousSlugs: d.aliases.filter((a) => a.type === 'previous_slug').map((a) => a.value),
       metrics: d.metrics,

@@ -88,7 +88,6 @@ export interface EntityDetail extends EntityListItem {
   /** 从 GitHub 抓取的 README；baseUrl 是 README 所在目录，用来解析相对链接 */
   readme: { format: string; content: string; baseUrl: string } | null
   authors: AuthorDto[]
-  allLinks: { type: string; url: string; label: string | null }[]
   screenshots: string[]
   previousSlugs: string[]
   metrics: { metric: string; period: string; value: number; observedOn: string }[]

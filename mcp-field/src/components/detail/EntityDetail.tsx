@@ -284,24 +284,6 @@ export function RelatedSection<T extends BaseItem>({ kind, items, title, allLabe
 export type InfoRow = { icon: Icon; label: string; value: ReactNode }
 
 /** 侧栏"基本信息"和分享、收藏、报告问题按钮；值为空的行自动隐藏 */
-/** 收录来源：合并后的条目可能同时来自多个数据源，列出各来源的条目链接；只显示已知的数据源 */
-export function SourceLinks({ links }: { links: { type: string; url: string; label: string | null }[] }) {
-  const { m } = useI18n()
-  const sources = links.filter((l) => l.type === 'source' && l.label && m.detail.sourceNames[l.label])
-  if (sources.length === 0) return null
-  return (
-    <span className="flex flex-wrap justify-end gap-x-2.5">
-      {sources.map((l) => (
-        <a key={l.url} href={l.url} target="_blank" rel="noreferrer" className="hover:text-accent">{m.detail.sourceNames[l.label!]}</a>
-      ))}
-    </span>
-  )
-}
-
-/** 有已知来源链接时返回"收录来源"的显示内容，没有时为 null（信息栏会隐藏这一行） */
-export const sourcesValue = (links: { type: string; url: string; label: string | null }[], known: Record<string, string>) =>
-  links.some((l) => l.type === 'source' && l.label && known[l.label]) ? <SourceLinks links={links} /> : null
-
 export function InfoSection({ kind, d, rows }: { kind: Kind; d: BaseItem; rows: InfoRow[] }) {
   const { m } = useI18n()
   const [shared, setShared] = useState(false)

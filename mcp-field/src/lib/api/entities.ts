@@ -71,7 +71,6 @@ export type DetailBase = {
   /** 从 GitHub 抓取的 README；baseUrl 是 README 所在目录（https://github.com/o/r/blob/HEAD/dir/），用来解析相对链接 */
   readme: { format: string; content: string; baseUrl: string } | null
   authors: ApiAuthor[]
-  allLinks: { type: string; url: string; label: string | null }[]
   screenshots: string[]
   previousSlugs: string[]
   metrics: { metric: string; period: string; value: number; observedOn: string }[]

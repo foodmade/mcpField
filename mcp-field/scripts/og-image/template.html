@@ -1,0 +1,78 @@
+<!doctype html>
+<!-- 分享图模板（1200×630），render.py 用 ?locale=zh|en|ja 打开后截图；文案与 src/i18n 的 hero、footer 目录一致 -->
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: 'Inter Variable';
+    font-weight: 100 900;
+    src: url('../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
+  }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    position: relative;
+    background: #0a0b0d;
+    color: #fff;
+    font-family: 'Inter Variable', 'PingFang SC', 'Hiragino Sans', 'Hiragino Sans GB', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-locale='ja'] { font-family: 'Inter Variable', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif; }
+  .glow { position: absolute; inset: 0; background:
+    radial-gradient(circle 520px at 1010px 120px, rgba(61, 220, 151, 0.22), transparent 70%),
+    radial-gradient(circle 460px at 1120px 600px, rgba(43, 127, 255, 0.2), transparent 70%); }
+  .dots { position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.13) 1.2px, transparent 1.7px);
+    background-size: 22px 22px;
+    mask-image: radial-gradient(circle 560px at 1000px 300px, #000 20%, transparent 75%); }
+  .mark { position: absolute; right: 60px; top: 150px; width: 340px; height: 340px; opacity: 0.95;
+    filter: drop-shadow(0 30px 80px rgba(61, 220, 151, 0.35)); }
+  .content { position: absolute; left: 80px; top: 72px; right: 380px; bottom: 64px; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 16px; font-size: 34px; font-weight: 650; letter-spacing: -0.01em; }
+  .brand img { width: 52px; height: 52px; }
+  h1 { margin-top: 60px; font-size: 64px; line-height: 1.12; font-weight: 750; letter-spacing: -0.02em; white-space: pre-line; }
+  h1 .accent { background: linear-gradient(90deg, #3ddc97, #2b7fff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  body[data-locale='en'] h1 { font-size: 62px; }
+  body[data-locale='ja'] h1 { font-size: 56px; }
+  .sub { margin-top: 24px; font-size: 24px; line-height: 1.5; color: rgba(255, 255, 255, 0.66); }
+  .chips { margin-top: auto; display: flex; gap: 8px; }
+  .chip { padding: 6px 13px; border-radius: 999px; font-size: 16px; white-space: nowrap; font-weight: 550; color: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); }
+  .chip:first-child { color: #06110d; background: #3ddc97; border-color: #3ddc97; }
+  .domain { position: absolute; right: 80px; bottom: 56px; font-size: 22px; font-weight: 550; color: rgba(255, 255, 255, 0.55); letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="dots"></div>
+  <img class="mark" src="../../public/logo.svg" alt="" />
+  <div class="content">
+    <div class="brand"><img src="../../public/logo.svg" alt="" />MCP Field</div>
+    <h1 id="title"></h1>
+    <p class="sub" id="sub"></p>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="domain">mcpfield.com</div>
+  <script>
+    // 标题第二行用渐变色
+    const COPY = {
+      zh: { title: ['发现好用的', 'MCP 服务与工具'], sub: '为 AI 应用连接工具、数据与自动化能力，查看配置即可接入。', chips: ['MCP 服务', '远程服务', '客户端', 'CLI', 'Skills', 'Loops', 'Agents'] },
+      en: { title: ['Discover useful', 'MCP servers & tools'], sub: 'Connect AI apps to tools, data and automation. Copy the config and you are in.', chips: ['MCP Servers', 'Remote Servers', 'Clients', 'CLI', 'Skills', 'Loops', 'Agents'] },
+      ja: { title: ['便利な MCP サーバーと', 'ツールを見つけよう'], sub: 'AI アプリをツール・データ・自動化につなぐ。設定をコピーするだけで使えます。', chips: ['MCP サーバー', 'リモートサーバー', 'クライアント', 'CLI', 'Skills', 'Loops', 'Agents'] },
+    }
+    const locale = new URLSearchParams(location.search).get('locale') || 'zh'
+    const c = COPY[locale]
+    document.body.dataset.locale = locale
+    document.documentElement.lang = { zh: 'zh-CN', en: 'en', ja: 'ja' }[locale]
+    const title = document.getElementById('title')
+    title.append(c.title[0], document.createElement('br'))
+    const accent = document.createElement('span')
+    accent.className = 'accent'
+    accent.textContent = c.title[1]
+    title.append(accent)
+    document.getElementById('sub').textContent = c.sub
+    document.getElementById('chips').append(...c.chips.map((t) => Object.assign(document.createElement('span'), { className: 'chip', textContent: t })))
+  </script>
+</body>
+</html>

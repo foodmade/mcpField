@@ -1,6 +1,6 @@
 import { useI18n } from '../i18n/context'
 import { LOCALE_META, LOCALES } from '../i18n/locales'
-import { absoluteUrl, clip, OG_LOCALE } from '../lib/seo'
+import { absoluteUrl, clip, OG_LOCALE, SITE } from '../lib/seo'
 
 type Props = {
   title: string
@@ -25,6 +25,8 @@ export function Seo({ title, description, path, query = '', image, noindex, type
   const { locale } = useI18n()
   const url = absoluteUrl(locale, path, query)
   const desc = clip(description)
+  // 详情页用条目图标（小图卡片）；首页、目录页等没有图标的用品牌分享图（大图卡片，scripts/og-image 生成）
+  const ogImage = image ?? `${SITE}/og/${locale}.png`
   return (
     <>
       <title>{title}</title>
@@ -46,8 +48,15 @@ export function Seo({ title, description, path, query = '', image, noindex, type
       <meta property="og:url" content={url} />
       <meta property="og:locale" content={OG_LOCALE[locale]} />
       {LOCALES.filter((l) => l !== locale).map((l) => <meta key={l} property="og:locale:alternate" content={OG_LOCALE[l]} />)}
-      {image && <meta property="og:image" content={image} />}
-      <meta name="twitter:card" content="summary" />
+      <meta property="og:image" content={ogImage} />
+      {!image && (
+        <>
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+          <meta property="og:image:alt" content="MCP Field" />
+        </>
+      )}
+      <meta name="twitter:card" content={image ? 'summary' : 'summary_large_image'} />
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />}
     </>
   )

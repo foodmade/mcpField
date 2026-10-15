@@ -2,9 +2,11 @@ import { data } from 'react-router'
 import { DEFAULT_LOCALE, localeFromParam } from '../../i18n/locales'
 import { categoryOf, categoryParam, PAGE_SIZE, type SortKey } from '../categories'
 import { parseDirectoryQuery, type DirectoryConfig } from '../directoryQuery'
+import { parseTagsQuery, TAG_PAGE_SIZE } from '../tagsQuery'
 import { fetchDetail, fetchFacets, fetchList, type Kind, type ListParams } from './entities'
 import { fetchFeatured, fetchStats } from './home'
 import { ApiError } from './http'
+import { fetchTags } from './tags'
 
 /*
  * 各页面 loader 的数据加载逻辑：在服务端执行（首屏 HTML 直接带数据），
@@ -52,6 +54,7 @@ export async function loadDirectory<K extends Kind>(spec: DirectorySpec<K>, { re
     official: q.view === 'official' || undefined,
     remote: spec.remote || undefined,
     type: q.type ?? undefined,
+    tag: q.tag ?? undefined,
     sort: SORT[q.sort],
     locale,
   }
@@ -62,6 +65,14 @@ export async function loadDirectory<K extends Kind>(spec: DirectorySpec<K>, { re
   // 超出范围的页码不生成空页面
   if (q.page > 1 && list.data.length === 0) throw notFound()
   return { list, facets }
+}
+
+/** 标签页：URL 里的类型、关键词、首字母、排序、页码转成接口参数 */
+export async function loadTags({ request }: Args) {
+  const q = parseTagsQuery(new URL(request.url).searchParams)
+  const list = await fetchTags({ kind: q.kind ?? undefined, q: q.q || undefined, letter: q.letter ?? undefined, sort: q.sort, page: q.page, pageSize: TAG_PAGE_SIZE }, request.signal)
+  if (q.page > 1 && list.data.length === 0) throw notFound()
+  return list
 }
 
 /** 首页：推荐、排行、分类计数、全站统计一次并行取回；统计和补充数据失败时只隐藏对应区块 */

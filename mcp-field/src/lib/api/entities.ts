@@ -150,6 +150,8 @@ export type ListParams = {
   remote?: boolean
   /** 子类型，只对 Agent 有效（product / template） */
   type?: string
+  /** 标签（小写 slug） */
+  tag?: string
   sort?: 'popular' | 'stars' | 'installs' | 'name' | 'updated' | 'newest'
   locale: Locale
   /** false = 后端不统计总数（meta.total 为 null），只要前几条时用，省一半查询 */

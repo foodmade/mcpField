@@ -1,13 +1,20 @@
 import { PlugsConnected } from '@phosphor-icons/react'
 import clsx from 'clsx'
+import { Link } from 'react-router'
 import { useI18n } from '../../i18n/context'
-import type { ApiOverview } from '../../lib/api/entities'
+import type { ApiOverview, Kind } from '../../lib/api/entities'
+import { tagPath } from '../../lib/tagsQuery'
 
-/** 标签列表（#标签） */
-export function TagList({ tags }: { tags: string[] }) {
+/** 标签列表（#标签）：链接到同类型目录页里带这个标签的条目 */
+export function TagList({ tags, kind }: { tags: string[]; kind: Kind }) {
+  const { to } = useI18n()
   return (
     <div className="flex flex-wrap gap-2">
-      {tags.map((t) => <span key={t} className="rounded-lg border border-fg/[0.08] bg-fg/[0.04] px-2.5 py-1 text-xs text-text2">#{t}</span>)}
+      {tags.map((t) => (
+        <Link key={t} to={to(tagPath(kind, t))} className="rounded-lg border border-fg/[0.08] bg-fg/[0.04] px-2.5 py-1 text-xs text-text2 transition-colors hover:border-fg/20 hover:text-ink">
+          #{t}
+        </Link>
+      ))}
     </div>
   )
 }
@@ -32,7 +39,7 @@ function ItemList({ title, items, className }: { title: string; items: string[];
 }
 
 /** AI 根据 README 生成的介绍：概述、主要功能、适用场景、MCP 相关，末尾是标签；summaryOnly 时不显示功能与场景 */
-export function AiOverview({ overview, summaryOnly, tags = [] }: { overview: ApiOverview; summaryOnly?: boolean; tags?: string[] }) {
+export function AiOverview({ overview, summaryOnly, tags = [], kind }: { overview: ApiOverview; summaryOnly?: boolean; tags?: string[]; kind: Kind }) {
   const { m, locale } = useI18n()
   const t = m.detail.aiOverview
   const lists = summaryOnly
@@ -59,7 +66,7 @@ export function AiOverview({ overview, summaryOnly, tags = [] }: { overview: Api
           <p className="mt-1.5 text-[15px] leading-relaxed text-text2">{overview.mcp}</p>
         </div>
       )}
-      {tags.length > 0 && <TagList tags={tags} />}
+      {tags.length > 0 && <TagList tags={tags} kind={kind} />}
     </div>
   )
 }

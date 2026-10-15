@@ -219,11 +219,11 @@ export function AboutSection({ d, summaryOnly }: { d: BaseItem & DetailBase; sum
     <section>
       <h2 className="text-xl font-bold tracking-tight">{m.detail.about(d.name)}</h2>
       {d.overview ? (
-        <AiOverview overview={d.overview} summaryOnly={summaryOnly} tags={d.tags} />
+        <AiOverview overview={d.overview} summaryOnly={summaryOnly} tags={d.tags} kind={d.kind} />
       ) : (
         <>
           <p className={clsx('mt-4 text-[15px] leading-[1.75]', d.tagline ? 'text-text2' : 'text-text3')}>{d.tagline ?? m.client.noTagline}</p>
-          {d.tags.length > 0 && <div className="mt-4"><TagList tags={d.tags} /></div>}
+          {d.tags.length > 0 && <div className="mt-4"><TagList tags={d.tags} kind={d.kind} /></div>}
         </>
       )}
     </section>

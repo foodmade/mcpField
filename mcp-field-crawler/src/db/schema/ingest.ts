@@ -448,6 +448,21 @@ export const ingestSearch = mysqlTable(
 )
 
 /**
+ * 标签表：一行 = 一个发布条目的一个标签，由发布层草稿的 tags 展开（tags/sync.ts，publish / search-index 结束时整类重建）。
+ * 标签页按 类型 + 标签 汇总条目数，目录页按标签筛选；草稿里的标签已经是规范化的 slug（core/draft-builder 的 tagSlug）。
+ * 发布层每次 publish 整体重建、id 会变，这里按 slug 关联。
+ */
+export const ingestTags = mysqlTable(
+  'ingest_tags',
+  {
+    kind: kindCol(),
+    tag: varchar('tag', { length: 255 }).notNull(),
+    slug: varchar('slug', { length: 191 }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.tag, t.slug] }), index('ix_ingest_tags_slug').on(t.kind, t.slug)],
+)
+
+/**
  * 分类器的结果：一行 = 一个发布条目（按主条目的来源、类型、ID 关联）。
  * publish 时，来源没有给出分类的条目用这里的结果；输入、分类体系、提示词都没变就不重复分类。
  */

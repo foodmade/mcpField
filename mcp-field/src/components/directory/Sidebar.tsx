@@ -65,7 +65,7 @@ function TypeItem({ active, icon, label, count, to, accent }: { active: boolean;
 }
 
 /** 搜索框：输入停顿 300ms 后才更新 URL（触发重新加载），回车立即搜索 */
-function SearchBox({ q, onQuery, placeholder }: { q: string; onQuery: (v: string) => void; placeholder: string }) {
+export function SearchBox({ q, onQuery, placeholder }: { q: string; onQuery: (v: string) => void; placeholder: string }) {
   const { m } = useI18n()
   const [text, setText] = useState(q)
   // 最近一次提交的关键词；URL 追上它之前不要用旧值覆盖正在输入的内容

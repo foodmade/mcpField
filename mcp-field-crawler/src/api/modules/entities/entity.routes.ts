@@ -7,7 +7,7 @@ import { LABEL_BY_KIND } from './presenters.ts'
 
 /**
  * 每种类型同一组接口（挂在 /api/<servers|clients|cli|skills|loops|agents> 下）：
- * GET /              列表：page, pageSize, q, category, featured, verified, official, remote, type, sort, locale
+ * GET /              列表：page, pageSize, q, category, tag, featured, verified, official, remote, type, sort, locale
  * GET /facets        目录侧栏计数：总数、官方/精选/已认证、各子类型、各分类；remote 限定范围
  * GET /categories    分类汇总（含源站原始分类的对应关系）
  * GET /:slug         详情：locale

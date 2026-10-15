@@ -26,7 +26,9 @@ export function useDirectoryParams(config: DirectoryConfig) {
     categoryTo: (c: string | null) => to({ category: c, view: null }),
     typeTo: (t: string) => to({ type: t === q.type ? null : t }),
     pageTo: (p: number) => to({ page: p }),
+    tagTo: (t: string | null) => to({ tag: t }),
     setCategory: (c: string | null) => go({ category: c, view: null }),
+    setTag: (t: string | null) => go({ tag: t }),
     setSort: (s: SortKey) => go({ sort: s }),
     setQuery: (v: string) => go({ q: v }, true),
   }

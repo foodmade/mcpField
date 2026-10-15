@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { List, SquaresFour } from '@phosphor-icons/react'
+import { List, SquaresFour, X } from '@phosphor-icons/react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { useLocation } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import clsx from 'clsx'
 import { FaqSection } from '../Faq'
 import { Seo } from '../Seo'
@@ -88,7 +88,8 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const scope = p.view ? m.dir[p.view] : p.category && catBySlug[p.category] ? tr(catBySlug[p.category].name) : null
   const typeLabel = types.find((t) => t.value === p.type)?.label
-  const title = [scope, typeLabel].filter(Boolean).join(' · ') || m.dir.all
+  const tagLabel = p.tag ? `#${p.tag}` : null
+  const title = [scope, typeLabel, tagLabel].filter(Boolean).join(' · ') || m.dir.all
 
   // 翻页后若列表顶部已滚出视口，滚回列表开头
   const scrollToList = () => {
@@ -96,8 +97,8 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
     if (top < 120) window.scrollBy({ top: top - 150, behavior: 'smooth' })
   }
 
-  // SEO：标题和描述带上当前筛选；排序不影响内容，canonical 去掉排序；搜索结果页不收录
-  const seoScope = [scope, typeLabel].filter(Boolean).join(' · ')
+  // SEO：标题和描述带上当前筛选；排序不影响内容，canonical 去掉排序；搜索结果页、标签筛选页不收录（标签很多，大多只有几个条目）
+  const seoScope = [scope, typeLabel, tagLabel].filter(Boolean).join(' · ')
   const seoTitle = [seoScope, text.title, page > 1 ? m.dir.pageTitle(page) : null, 'MCP Field'].filter(Boolean).join(' · ')
   const seoDesc = `${seoScope ? `${seoScope}：` : ''}${text.subBefore}${(seoScope ? total : counts.all).toLocaleString('en-US')}${text.subAfter}`
   const jsonLd = {
@@ -114,7 +115,7 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
 
   return (
     <>
-      <Seo title={seoTitle} description={seoDesc} path={path} query={directorySearch({ ...p, q: '' }, { keepSort: false })} noindex={!!p.q} jsonLd={jsonLd} />
+      <Seo title={seoTitle} description={seoDesc} path={path} query={directorySearch({ ...p, q: '' }, { keepSort: false })} noindex={!!p.q || !!p.tag} jsonLd={jsonLd} />
       <section
         className="relative overflow-hidden border-b border-fg/[0.04]"
         style={{ background: 'radial-gradient(60% 220% at 20% 0%, #2B7FFF1F, transparent 60%), radial-gradient(40% 200% at 85% 0%, #3DDC9714, transparent 60%)' }}
@@ -152,9 +153,14 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, y: -8, filter: 'blur(6px)' }}
                 transition={{ duration: 0.3 }}
-                className="text-xl font-bold tracking-tight"
+                className="flex min-w-0 items-center gap-2.5 text-xl font-bold tracking-tight"
               >
-                {title}
+                <span className="truncate">{title}</span>
+                {p.tag && (
+                  <Link to={p.tagTo(null)} preventScrollReset aria-label={m.dir.clearTag(p.tag)} title={m.dir.clearTag(p.tag)} className="grid size-6 shrink-0 place-items-center rounded-md border border-fg/10 text-text3 transition-colors hover:border-fg/25 hover:text-ink">
+                    <X size={12} />
+                  </Link>
+                )}
               </motion.h2>
             </AnimatePresence>
             <div className="flex items-center gap-2.5">
@@ -171,7 +177,7 @@ export function DirectoryLayout<T extends { slug: string; name: string }>({
           </div>
 
           {items.length === 0 ? (
-            <EmptyState kind={p.q ? 'search' : 'category'} label={p.q || title} text={text.empty} onPrimary={() => (p.q ? p.setQuery('') : p.setCategory(null))} />
+            <EmptyState kind={p.q ? 'search' : 'category'} label={p.q || title} text={text.empty} onPrimary={() => (p.q ? p.setQuery('') : p.tag ? p.setTag(null) : p.setCategory(null))} />
           ) : (
             <motion.div
               layout

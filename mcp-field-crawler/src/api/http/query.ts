@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import { z } from 'zod'
+import { ENTITY_KINDS } from '../../core/types.ts'
 import { ApiError } from './errors.ts'
 
 /** 用 zod 校验查询参数，失败时返回 400 并附上每个字段的错误 */
@@ -48,6 +49,14 @@ export const listQuerySchema = z.object({
     .max(32)
     .regex(/^[a-z0-9-]+$/, '类型只能包含小写字母、数字和连字符')
     .optional(),
+  /** 标签（ingest_tags 里的规范化 slug，小写） */
+  tag: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(255)
+    .optional()
+    .transform((v) => v || undefined),
   /** popular = 按该类型的热度指标（服务/客户端/CLI 用星数，Skill 用安装量，Loop/Agent 用浏览量） */
   sort: z.enum(['popular', 'stars', 'installs', 'name', 'updated', 'newest']).default('popular'),
   /** 简介等文本的语言；没有译文时返回原文 */
@@ -69,6 +78,21 @@ export interface PageMeta {
 export function pageMeta(query: Pick<ListQuery, 'page' | 'pageSize'>, total: number | null): PageMeta {
   return { page: query.page, pageSize: query.pageSize, total, totalPages: total === null ? null : Math.ceil(total / query.pageSize) }
 }
+
+/** 标签页：kind 不传 = 全部类型；letter 是首字母分组（a–z、0-9、other）；count = 按条目数排序 */
+export const tagsQuerySchema = z.object({
+  kind: z.enum(ENTITY_KINDS).optional(),
+  q: listQuerySchema.shape.q,
+  letter: z
+    .string()
+    .regex(/^([a-z]|0-9|other)$/, '首字母只能是 a–z、0-9 或 other')
+    .optional(),
+  sort: z.enum(['count', 'name']).default('count'),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(1000).default(300),
+})
+
+export type TagsQuery = z.infer<typeof tagsQuerySchema>
 
 /** sitemap 分页：单个 sitemap 文件最多 5 万条 */
 export const sitemapQuerySchema = z.object({

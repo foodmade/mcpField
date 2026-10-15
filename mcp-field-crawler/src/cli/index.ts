@@ -38,6 +38,7 @@ import { applyOwnerIcons, entriesWithoutIcon } from '../assets/owner-icons.ts'
 import { runMergePlan } from '../merge/runner.ts'
 import { publish } from '../merge/publish.ts'
 import { syncSearchIndex } from '../search/sync.ts'
+import { syncTagIndex } from '../tags/sync.ts'
 import { changedUrls, pushChanged } from '../seo/indexnow.ts'
 import { LlmClassifier } from '../classify/classifier.ts'
 import { ClassifyRunner, collectClassifyInputs } from '../classify/runner.ts'
@@ -71,7 +72,7 @@ MCP Field 数据采集
   classify                给来源没有分类的条目分类（按 classify/taxonomy.ts 的分类体系），之后 publish 写入发布层
   publish                 发布：过滤凑数条目，把各来源的同一个东西合并成一条，重建 ingest_published（网站和各生成任务读它）
   indexnow                把内容有变化的页面推送给 IndexNow（Bing 等，Google 不支持）；配置了 INDEXNOW_KEY 时 publish 结束后自动推送本次变化的
-  search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）；publish / github / translate / describe 结束时自动同步
+  search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）和标签表 ingest_tags；publish 结束时两张都同步，github / translate / describe 结束时只同步搜索表
   stats                   查看采集层统计（需要 MySQL）
 
 选项：
@@ -602,6 +603,7 @@ async function publishCommand() {
     const stats = await publish(db, kinds, logger)
     logger.info(stats, '发布完成')
     await syncSearchIndex(db, kinds, logger)
+    await syncTagIndex(db, kinds, logger)
     // 推送失败不影响发布结果，之后可以用 indexnow --since 补推
     if (config.indexNow) await pushChanged(db, config.indexNow, kinds, started, logger).catch((error: unknown) => logger.warn({ err: error instanceof Error ? error.message : String(error) }, 'IndexNow 推送失败'))
   } finally {
@@ -615,6 +617,7 @@ async function searchIndex() {
   const { db, pool } = createDb(config.databaseUrl)
   try {
     await syncSearchIndex(db, kinds, logger)
+    await syncTagIndex(db, kinds, logger)
   } finally {
     await pool.end()
   }

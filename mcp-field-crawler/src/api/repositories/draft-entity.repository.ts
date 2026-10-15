@@ -116,7 +116,12 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     return this.searchCheck.ready
   }
 
-  /** 热门排序、除关键词外没有别的筛选：顺序和条件都在搜索表里，不用碰发布层的草稿 */
+  /** 带某个标签的条目 slug（标签表 ingest_tags，publish 时与发布层一起重建） */
+  private taggedSlugs(tag: string): SQL {
+    return sql`SELECT t.slug FROM ingest_tags t WHERE t.kind = ${this.kind} AND t.tag = ${tag}`
+  }
+
+  /** 热门排序、除关键词和标签外没有别的筛选：顺序和条件都在搜索表里，不用碰发布层的草稿 */
   private bySearchTable(query: ListQuery): boolean {
     return (
       query.sort === 'popular' &&
@@ -158,6 +163,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     } else if (query.category) {
       conditions.push(sql`JSON_CONTAINS(JSON_EXTRACT(d.draft, '$.categories[*].slug'), JSON_QUOTE(${query.category}))`)
     }
+    if (query.tag) conditions.push(sql`d.slug IN (${this.taggedSlugs(query.tag)})`)
     if (query.featured !== undefined) conditions.push(flag('$.flags.featured', query.featured))
     if (query.verified !== undefined) conditions.push(flag('$.flags.verified', query.verified))
     if (query.official !== undefined) conditions.push(flag('$.flags.official', query.official))
@@ -167,7 +173,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
 
   /** 按搜索表的主键（类型 → 语言 → 热度 → 精选 → slug）顺序取一页：不用排序，凑够一页就停 */
   private async listFromSearch(query: ListQuery): Promise<{ rows: EntityRow<K>[]; total: number | null }> {
-    const from = sql`FROM ingest_search s WHERE s.kind = ${this.kind} AND s.locale = ${query.locale}${query.q ? sql` AND s.body LIKE ${likeOf(query.q)}` : sql``}`
+    const from = sql`FROM ingest_search s WHERE s.kind = ${this.kind} AND s.locale = ${query.locale}${query.q ? sql` AND s.body LIKE ${likeOf(query.q)}` : sql``}${query.tag ? sql` AND s.slug IN (${this.taggedSlugs(query.tag)})` : sql``}`
     const [page, count] = await Promise.all([
       this.rows<{ slug: string }>(sql`SELECT s.slug ${from} ORDER BY s.pop_rank, s.featured_rank, s.slug LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}`),
       query.withTotal ? this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total ${from}`) : undefined,

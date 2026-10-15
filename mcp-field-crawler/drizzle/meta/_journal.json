@@ -85,6 +85,13 @@
       "when": 1792024637302,
       "tag": "0011_published_content_changed",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1792035382339,
+      "tag": "0012_tags",
+      "breakpoints": true
     }
   ]
 }

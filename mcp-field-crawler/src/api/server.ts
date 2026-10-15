@@ -20,6 +20,7 @@ import { LiveToolsService } from './modules/entities/live-tools.ts'
 import { PRESENTERS } from './modules/entities/presenters.ts'
 import { FieldService } from './modules/stats/field.service.ts'
 import { PublishedStatsReader, StatsService } from './modules/stats/stats.service.ts'
+import { PublishedTagReader, TagService } from './modules/tags/tag.service.ts'
 import { DraftEntityRepository } from './repositories/draft-entity.repository.ts'
 
 /* API 的组合根：装配数据库、仓储、业务服务，启动 HTTP 服务 */
@@ -55,6 +56,7 @@ const app = createApp({
   liveTools: new LiveToolsService(entities.server!, listRemoteTools),
   stats: new StatsService(new PublishedStatsReader(db)),
   field: new FieldService({ server: entities.server!, skill: entities.skill! }),
+  tags: new TagService(new PublishedTagReader(db)),
   comments: new CommentService(new MysqlCommentRepository(db)),
   auth: config.supabaseUrl ? new SupabaseAuth(config.supabaseUrl) : undefined,
   logger,

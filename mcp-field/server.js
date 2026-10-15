@@ -12,6 +12,12 @@ const PORT = Number.parseInt(process.env.PORT || '3000', 10)
 const HOSTS = (process.env.HOST || '0.0.0.0').split(',').map((h) => h.trim()).filter(Boolean)
 const API_ORIGIN = process.env.API_ORIGIN || 'http://127.0.0.1:3100'
 
+/** 把请求地址拆成路径和查询串（查询串带 ?，没有时为空） */
+const splitUrl = (url) => {
+  const i = url.indexOf('?')
+  return i === -1 ? [url, ''] : [url.slice(0, i), url.slice(i)]
+}
+
 const app = express()
 app.disable('x-powered-by')
 app.use(compression())
@@ -20,6 +26,13 @@ app.use((req, res, next) => {
   const host = req.headers.host ?? ''
   if (host.startsWith('www.')) return res.redirect(301, `https://${host.slice(4)}${req.originalUrl}`)
   next()
+})
+// 去掉路径结尾的斜杠（/servers/ → /servers），与 canonical 一致，避免同一页面有两个地址；
+// 开头的多个斜杠合并成一个，否则 //example.com/ 会被当成跳到别的域名
+app.use((req, res, next) => {
+  const [path, query] = splitUrl(req.originalUrl)
+  if (path === '/' || !path.endsWith('/') || path.startsWith('/api/') || (req.method !== 'GET' && req.method !== 'HEAD')) return next()
+  res.redirect(301, `/${path.replace(/^\/+|\/+$/g, '')}${query}`)
 })
 app.use(createProxyMiddleware({ target: API_ORIGIN, changeOrigin: true, pathFilter: '/api' }))
 

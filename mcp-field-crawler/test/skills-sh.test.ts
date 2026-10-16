@@ -4,9 +4,11 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { HttpError } from '../src/core/errors.ts'
 import type { Fetcher } from '../src/core/source.ts'
+import type { EntityDraft } from '../src/core/draft.ts'
 import type { CrawlTarget, FetchRequest, RawDocument } from '../src/core/types.ts'
 import { assignSlugs } from '../src/merge/publish.ts'
-import { SkillsShDiscoverer, weekStart } from '../src/sources/skills-sh/discoverer.ts'
+import { applyListedInstalls, type SkillsShActivity } from '../src/sources/skills-sh/activity.ts'
+import { REFRESH_MAX_MS, REFRESH_MIN_MS, refreshLastmod, SkillsShDiscoverer } from '../src/sources/skills-sh/discoverer.ts'
 import { SkillsShFetcher } from '../src/sources/skills-sh/fetcher.ts'
 import { frontmatterField, SkillsShMapper } from '../src/sources/skills-sh/mapper.ts'
 import { SkillsShParser } from '../src/sources/skills-sh/parser.ts'
@@ -44,13 +46,16 @@ describe('urls', () => {
     expect(skillUrl('open.feishu.cn', 'lark-doc')).toBe('https://skills.sh/api/v1/skills/open.feishu.cn/lark-doc')
     expect(auditUrlFor(skillUrl('anthropics/skills', 'pdf'))).toBe('https://skills.sh/api/v1/skills/audit/anthropics/skills/pdf')
     expect(listUrl(3)).toBe('https://skills.sh/api/v1/skills?view=all-time&per_page=500&page=3')
+    expect(listUrl(0, 'trending')).toBe('https://skills.sh/api/v1/skills?view=trending&per_page=500&page=0')
   })
 })
 
 describe('SkillsShDiscoverer + SkillsShFetcher', () => {
   const PAGES: Record<string, unknown> = {
-    [listUrl(0)]: { data: [listing('anthropics/skills', 'pdf'), listing('acme/skills', 'facebook/meta-ads')], pagination: { hasMore: true } },
-    [listUrl(1)]: { data: [listing('anthropics/skills', 'pdf'), listing('open.feishu.cn', 'lark-doc', 9, 'well-known')], pagination: { hasMore: false } },
+    [listUrl(0)]: { data: [listing('anthropics/skills', 'pdf'), listing('acme/skills', 'facebook/meta-ads')], pagination: { hasMore: true, total: 1000 } },
+    [listUrl(1)]: { data: [listing('anthropics/skills', 'pdf'), listing('open.feishu.cn', 'lark-doc', 9, 'well-known')], pagination: { hasMore: false, total: 1000 } },
+    // trending 的安装量是近期的：已在全站榜里的跳过，新的照样抓
+    [listUrl(0, 'trending')]: { data: [listing('anthropics/skills', 'pdf', 5), listing('newco/skills', 'fresh', 3)], pagination: { hasMore: false, total: 2 } },
     [skillUrl('anthropics/skills', 'pdf')]: { id: 'anthropics/skills/pdf', source: 'anthropics/skills', slug: 'pdf', installs: 120, hash: 'h1', files: [{ path: 'SKILL.md', contents: SKILL_MD }, { path: 'scripts/merge.py', contents: 'print(1)' }] },
     [auditUrlFor(skillUrl('anthropics/skills', 'pdf'))]: { audits: [{ provider: 'Socket', slug: 'socket', status: 'pass', summary: 'No alerts', riskLevel: 'SAFE', categories: ['FILES'] }] },
     [skillUrl('open.feishu.cn', 'lark-doc')]: { id: 'open.feishu.cn/lark-doc', source: 'open.feishu.cn', slug: 'lark-doc', installs: 9, files: [] },
@@ -62,12 +67,21 @@ describe('SkillsShDiscoverer + SkillsShFetcher', () => {
     },
   }
 
-  it('翻页去重，跳过名称里带 / 的；lastmod 是本周期开始', async () => {
+  it('翻全站榜再翻 trending，去重，跳过名称里带 / 的；lastmod 取仓库推送时间；记下全站榜的安装量', async () => {
     const fetcher = new SkillsShFetcher(inner)
+    const pushedAt = new Date(Date.now() - 10 * 24 * 3600_000)
+    let saved: Map<string, number> | undefined
+    const activity: SkillsShActivity = {
+      repoPushedAt: async () => new Map([['repo:github.com/anthropics/skills', pushedAt]]),
+      saveInstalls: async (installs) => {
+        saved = installs
+      },
+    }
     const targets: CrawlTarget[] = []
-    for await (const t of new SkillsShDiscoverer(fetcher, 'skills-sh').discover({ kinds: ['skill'] })) targets.push(t)
-    expect(targets.map((t) => t.externalId)).toEqual(['anthropics/skills/pdf', 'open.feishu.cn/lark-doc'])
-    expect(targets[0]!.lastmod).toEqual(weekStart())
+    for await (const t of new SkillsShDiscoverer(fetcher, 'skills-sh', activity).discover({ kinds: ['skill'] })) targets.push(t)
+    expect(targets.map((t) => t.externalId)).toEqual(['anthropics/skills/pdf', 'open.feishu.cn/lark-doc', 'newco/skills/fresh'])
+    expect(targets[0]!.lastmod).toEqual(pushedAt)
+    expect(saved).toEqual(new Map([['anthropics/skills/pdf', 100], ['open.feishu.cn/lark-doc', 9]]))
   })
 
   it('抓取 skill 时合并排行榜条目、详情和审计；没有审计（404）时为空', async () => {
@@ -112,6 +126,39 @@ describe('SkillsShDiscoverer + SkillsShFetcher', () => {
     const feishu = new SkillsShMapper().map(wk!)
     expect(feishu).toMatchObject({ identityKey: 'skill:open.feishu.cn#lark-doc', name: 'lark-doc', detail: { installCommand: 'npx skills add https://open.feishu.cn --skill lark-doc' } })
     expect(feishu.identity.repository).toBeUndefined()
+  })
+})
+
+describe('refreshLastmod', () => {
+  const now = Date.UTC(2026, 9, 20)
+  const at = (msAgo: number) => new Date(now - msAgo)
+  const DAY = 24 * 3600_000
+
+  it('仓库有推送且距上次抓取超过 7 天才重新抓；没有推送的 90 天抓一次；没有推送时间的 7 天抓一次', () => {
+    // 3 天前推送：lastmod 不晚于 7 天前，上周以后抓过的都跳过
+    expect(refreshLastmod(at(3 * DAY), now)).toEqual(at(REFRESH_MIN_MS))
+    // 20 天前推送：20 天前以后抓过的跳过
+    expect(refreshLastmod(at(20 * DAY), now)).toEqual(at(20 * DAY))
+    // 一年没推送：90 天前以前抓的重新抓
+    expect(refreshLastmod(at(365 * DAY), now)).toEqual(at(REFRESH_MAX_MS))
+    expect(refreshLastmod(undefined, now)).toEqual(at(REFRESH_MIN_MS))
+  })
+})
+
+describe('applyListedInstalls', () => {
+  const draft = (installs?: number) => ({ metrics: installs === undefined ? [] : [{ metric: 'skill_installs', period: 'total', value: installs, observedOn: '2026-10-12' }] }) as unknown as EntityDraft
+
+  it('排行榜的安装量更大时替换，否则保留', () => {
+    const listed = new Map([['a/b/c', { installs: 500, observedOn: '2026-10-20' }]])
+    const d = draft(120)
+    applyListedInstalls(d, ['a/b/c'], listed)
+    expect(d.metrics).toEqual([{ metric: 'skill_installs', period: 'total', value: 500, observedOn: '2026-10-20' }])
+    const e = draft(900)
+    applyListedInstalls(e, ['a/b/c'], listed)
+    expect(e.metrics[0]!.value).toBe(900)
+    const f = draft()
+    applyListedInstalls(f, ['x/y/z'], listed)
+    expect(f.metrics).toEqual([])
   })
 })
 

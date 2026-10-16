@@ -56,6 +56,8 @@ const envSchema = z.object({
   TRANSLATE_CONCURRENCY: z.coerce.number().int().positive().optional(),
   /** skills.sh API 令牌所在目录：一个已 vercel link 的空项目，令牌在它的 .env.local 里（见 docs/DESIGN.md） */
   SKILLS_SH_VERCEL_DIR: z.string().trim().default(join(homedir(), '.mcpfield', 'skills-sh')),
+  /** Vercel Access Token：没有 vercel login 的机器（服务器）用它运行 vercel env pull 换 skills.sh 令牌 */
+  VERCEL_TOKEN: optionalString,
   R2_ACCOUNT_ID: optionalString,
   R2_BUCKET: optionalString,
   R2_PUBLIC_BASE_URL: optionalString,
@@ -94,6 +96,7 @@ export interface AppConfig {
   qwen: { apiKey?: string; baseURL: string }
   translateConcurrency?: number
   skillsShVercelDir: string
+  vercelToken?: string
   /** 五项都配置了才启用 R2 */
   r2?: { accountId: string; bucket: string; publicBaseUrl: string; accessKeyId: string; secretAccessKey: string }
   siteUrl: string
@@ -130,6 +133,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     qwen: { apiKey: parsed.QWEN_API_KEY, baseURL: parsed.QWEN_BASE_URL },
     translateConcurrency: parsed.TRANSLATE_CONCURRENCY,
     skillsShVercelDir: parsed.SKILLS_SH_VERCEL_DIR,
+    vercelToken: parsed.VERCEL_TOKEN,
     r2:
       parsed.R2_ACCOUNT_ID && parsed.R2_BUCKET && parsed.R2_PUBLIC_BASE_URL && parsed.R2_ACCESS_KEY_ID && parsed.R2_SECRET_ACCESS_KEY
         ? { accountId: parsed.R2_ACCOUNT_ID, bucket: parsed.R2_BUCKET, publicBaseUrl: parsed.R2_PUBLIC_BASE_URL, accessKeyId: parsed.R2_ACCESS_KEY_ID, secretAccessKey: parsed.R2_SECRET_ACCESS_KEY }

@@ -22,6 +22,8 @@ npm run crawler -- discover --source mcpso                   # 只登记目标
 npm run crawler -- crawl --source mcpso --limit 2            # 每种类型抽样 2 个
 npm run crawler -- crawl --source mcpso --kind server,skill  # 只抓指定类型
 npm run crawler -- crawl --source mcpso --since 2026-10-01   # 只抓近期更新的
+npm run crawler -- crawl --source mcp-registry --since auto # 只拉上次成功抓取之后有变化的（每日任务用）
+npm run crawler -- crawl --source skills-sh                  # 翻排行榜：新的抓详情，已收录的按仓库推送时间隔 7 天以上才重抓，安装量每天更新
 npm run crawler -- crawl --source mcpso --store file         # 不写数据库，输出到 data/runs
 npm run crawler -- stats                                     # 采集层统计
 npm run crawler -- merge-plan                                # 合并预演：哪些草稿是同一个东西（只读，报告在 data/merge-plan）

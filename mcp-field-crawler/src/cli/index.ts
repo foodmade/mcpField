@@ -8,12 +8,13 @@ import { LlmDescribeWriter } from '../describe/writer.ts'
 import { loadConfig } from '../config.ts'
 import { CrawlEvents } from '../core/events.ts'
 import { CrawlRunner, DiscoverRunner, InlineRunner, remapRecords, type RunOptions } from '../core/runner.ts'
-import { isRecordSource } from '../core/store.ts'
+import { isRecordSource, type IngestStore } from '../core/store.ts'
 import { assembleKit } from '../core/source.ts'
 import { ENTITY_KINDS, isEntityKind, type EntityKind } from '../core/types.ts'
 import { createDb } from '../db/client.ts'
 import { createLogger } from '../infra/logger.ts'
 import { FileStore } from '../store/file-store.ts'
+import { MySqlIngestStore } from '../store/mysql-store.ts'
 import { GithubClient } from '../github/client.ts'
 import { GithubReadmeFetcher } from '../github/readme.ts'
 import { GithubRepoFetcher } from '../github/repo.ts'
@@ -82,7 +83,7 @@ MCP Field 数据采集
 选项：
   --kind <a,b>            只处理这些类型：${ENTITY_KINDS.join(', ')}
   --limit <n>             每种类型最多处理 n 个（抽样调试）
-  --since <date>          只处理站点地图 lastmod 晚于该日期的目标
+  --since <date|auto>     只处理 lastmod 晚于该日期的目标；auto 取上次成功的全量抓取时间（mcp-registry 用它增量拉取）
   --force                 忽略增量判断，强制重新抓取和解析
   --store <mysql|file>    存储位置；默认有 DATABASE_URL 时用 mysql，否则输出到 data/runs
 
@@ -224,30 +225,43 @@ async function run(mode: 'discover' | 'crawl') {
     })
   }
 
-  const options: RunOptions = {
-    kinds: parseKinds(values.kind, factory.meta.kinds),
-    limitPerKind: values.limit ? Number(values.limit) : undefined,
-    since: values.since ? new Date(values.since) : undefined,
-    force: values.force,
-    signal: controller.signal,
-  }
-
   const store = createStore(storeKind, config)
-  const events = new CrawlEvents()
-  const ctx = { config, logger: logger.child({ source: factory.meta.id }) }
-  const deps = { kit: assembleKit(factory, ctx), store, events, logger: ctx.logger }
-  const runner: CrawlRunner = mode === 'discover' ? new DiscoverRunner(deps) : new InlineRunner(deps)
-
-  events.on('parsed', (target, records, drafts) => ctx.logger.info({ kind: target.kind, id: target.externalId, records, drafts }, '已解析'))
-  events.on('skipped', (target, reason) => ctx.logger.debug({ kind: target.kind, id: target.externalId, reason }, '跳过'))
-
   try {
+    const options: RunOptions = {
+      kinds: parseKinds(values.kind, factory.meta.kinds),
+      limitPerKind: values.limit ? Number(values.limit) : undefined,
+      since: await resolveSince(store, factory.meta.id),
+      force: values.force,
+      signal: controller.signal,
+    }
+    if (values.since === 'auto') logger.info({ since: options.since?.toISOString() ?? '没有成功的全量抓取，本次全量' }, '增量抓取')
+
+    const events = new CrawlEvents()
+    const ctx = { config, logger: logger.child({ source: factory.meta.id }), db: store instanceof MySqlIngestStore ? store.db : undefined }
+    const deps = { kit: assembleKit(factory, ctx), store, events, logger: ctx.logger }
+    const runner: CrawlRunner = mode === 'discover' ? new DiscoverRunner(deps) : new InlineRunner(deps)
+
+    events.on('parsed', (target, records, drafts) => ctx.logger.info({ kind: target.kind, id: target.externalId, records, drafts }, '已解析'))
+    events.on('skipped', (target, reason) => ctx.logger.debug({ kind: target.kind, id: target.externalId, reason }, '跳过'))
+
     const stats = await runner.run(options)
     logger.info({ store: storeKind, ...stats }, mode === 'discover' ? '发现完成' : '抓取完成')
     if (store instanceof FileStore) logger.info(`输出目录：${store.outputDir}`)
   } finally {
     await store.close()
   }
+}
+
+/** --since auto：上次成功的全量抓取开始时间往前 1 小时（那次运行期间更新的也算进来）；没有时全量 */
+async function resolveSince(store: IngestStore, sourceId: string): Promise<Date | undefined> {
+  if (values.since !== 'auto') {
+    const since = values.since ? new Date(values.since) : undefined
+    if (since && Number.isNaN(since.getTime())) throw new Error(`--since 不是有效的时间：${values.since}`)
+    return since
+  }
+  if (!(store instanceof MySqlIngestStore)) throw new Error('--since auto 需要 MySQL 存储')
+  const last = await store.lastSucceededRun(sourceId, 'crawl')
+  return last ? new Date(last.getTime() - 3600_000) : undefined
 }
 
 async function remap() {

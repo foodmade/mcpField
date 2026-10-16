@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 import { hostname } from 'node:os'
 import type { EntityDraft } from '../core/draft.ts'
 import { HttpError, RobotsDisallowedError } from '../core/errors.ts'
@@ -29,7 +29,7 @@ export class MySqlIngestStore implements IngestStore, RecordSource {
   private readonly targetIds = new Map<string, number>()
 
   constructor(
-    private readonly db: Db,
+    readonly db: Db,
     private readonly blobs: BlobStore,
     private readonly onClose: () => Promise<void>,
   ) {}
@@ -46,6 +46,17 @@ export class MySqlIngestStore implements IngestStore, RecordSource {
       .values({ sourceId: info.sourceId, command: info.command, options: info.options, host: hostname(), pid: process.pid, startedAt: new Date() })
       .$returningId()
     return String(row!.id)
+  }
+
+  /** 上一次成功完成的全量运行（抽样运行不算）的开始时间，没有时返回 undefined；crawl --since auto 用 */
+  async lastSucceededRun(sourceId: string, command: string): Promise<Date | undefined> {
+    const [row] = await this.db
+      .select({ startedAt: ingestRuns.startedAt })
+      .from(ingestRuns)
+      .where(and(eq(ingestRuns.sourceId, sourceId), eq(ingestRuns.command, command), eq(ingestRuns.status, 'succeeded'), sql`JSON_EXTRACT(${ingestRuns.options}, '$.limitPerKind') IS NULL`))
+      .orderBy(desc(ingestRuns.startedAt))
+      .limit(1)
+    return row?.startedAt
   }
 
   /** 本机上进程已不存在、却仍标记为 running 的运行（被强制结束），改为 aborted */

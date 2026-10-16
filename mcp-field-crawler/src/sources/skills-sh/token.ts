@@ -16,10 +16,17 @@ export function tokenFromEnvFile(text: string): string | null {
   return /^VERCEL_OIDC_TOKEN="?([^"\n]+)"?/m.exec(text)?.[1] ?? null
 }
 
+/** 在目录里运行 vercel env pull；给了 Vercel Access Token 时用它认证（服务器上没有 vercel login），否则用本机 CLI 的登录状态 */
+export function vercelPull(accessToken?: string): (dir: string) => Promise<void> {
+  return async (cwd) => {
+    await promisify(execFile)('vercel', ['env', 'pull', '.env.local', '--yes', ...(accessToken ? ['--token', accessToken] : [])], { cwd, timeout: 120_000 })
+  }
+}
+
 /**
  * skills.sh API 用的 Vercel OIDC 令牌。
  * 目录是一个已 `vercel link` 的空项目（不在代码仓库里），令牌在它的 .env.local 里，有效期约 12 小时；
- * 快过期时在该目录运行 `vercel env pull` 换新的（用本机 Vercel CLI 的登录状态），长时间采集也不会中断。
+ * 快过期时在该目录运行 `vercel env pull` 换新的，长时间采集也不会中断。
  */
 export class VercelOidcToken {
   private token: string | null = null
@@ -27,9 +34,7 @@ export class VercelOidcToken {
 
   constructor(
     private readonly dir: string,
-    private readonly pull: (dir: string) => Promise<void> = async (cwd) => {
-      await promisify(execFile)('vercel', ['env', 'pull', '.env.local', '--yes'], { cwd, timeout: 120_000 })
-    },
+    private readonly pull: (dir: string) => Promise<void> = vercelPull(),
   ) {}
 
   async get(): Promise<string> {

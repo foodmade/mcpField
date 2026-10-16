@@ -13,13 +13,15 @@ import { ClassificationStore } from '../classify/store.ts'
 import { readmeSubject } from '../github/readme.ts'
 import { applyRepoDescription, lacksTagline, repoRef } from '../github/repo.ts'
 import { GithubReadmeStore, GithubRepoStore } from '../github/store.ts'
+import { applyListedInstalls, SKILLS_SH_SOURCE, SkillsShActivityStore } from '../sources/skills-sh/activity.ts'
 import { sha256, stableJson } from '../store/hash.ts'
 import { displayRank, mergeDrafts, pickPrimary } from './merge-drafts.ts'
 import { planMerge, type MergeGroup, type MergeItem, type MergeMember } from './plan.ts'
 import { collectMergeItems } from './runner.ts'
 
 /*
- * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类、缺图标条目的所有者头像、缺简介条目的 GitHub 仓库简介
+ * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类、缺图标条目的所有者头像、缺简介条目的 GitHub 仓库简介、
+ * Skill 在 skills.sh 排行榜上的最新安装量
  * → 整体重建 ingest_published。
  * 在一个事务里先删后写：网站在重建期间读到的仍是旧数据，提交后一次切换。
  */
@@ -181,6 +183,7 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
   const brokenIcons = await assets.brokenUrls()
   const readmes = new GithubReadmeStore(db)
   const repos = new GithubRepoStore(db)
+  const skillInstalls = new SkillsShActivityStore(db)
   const canonical = new Set([...slugs].map(([job, slug]) => slugKey(job.kind, slug)))
   logger.info({ drafts: all.length, bulk: bulk.size, groups: jobs.length }, '开始发布')
 
@@ -223,6 +226,12 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
         const repoKeys = drafts.map((d) => (lacksTagline(d) ? repoRef(d)?.key : undefined))
         const repoStats = await repos.find(repoKeys.filter((k): k is string => !!k))
         drafts.forEach((d, i) => applyRepoDescription(d, repoStats.get(repoKeys[i] ?? '')))
+        // Skill 的安装量用 skills.sh 排行榜每天的数字（crawl --source skills-sh 记下），已收录的不是每天都重新抓详情
+        if (kind === 'skill') {
+          const listedIds = batch.map((job) => job.group.members.filter((m) => m.sourceId === SKILLS_SH_SOURCE).map((m) => m.externalId))
+          const listed = await skillInstalls.find(listedIds.flat())
+          drafts.forEach((d, i) => applyListedInstalls(d, listedIds[i]!, listed))
+        }
         const readmeSubjects = drafts.map((d) => readmeSubject(d)?.key)
         const readmeHashes = await readmes.hashes(readmeSubjects.filter((k): k is string => !!k))
 

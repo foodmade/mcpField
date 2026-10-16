@@ -333,9 +333,11 @@ README 只用 GitHub 上的原文。mcp.so 收录的 README（`item.description`
 数据源 ID `skills-sh`，只有 Skill 一种类型。`npm run crawler -- crawl --source skills-sh`。
 
 - 接口：官方 API `https://skills.sh/api/v1`（文档 /docs/api），认证用 Vercel OIDC 令牌，每分钟 600 次（按 Vercel 团队 + 项目计）。robots.txt 的 `Disallow: /api/` 针对网页爬虫；文档化、需认证的 API 是网站提供的正式数据接口，使用条款写明合理使用、缓存到自己的服务器是被鼓励的。
-- 令牌：`SKILLS_SH_VERCEL_DIR`（默认 `~/.mcpfield/skills-sh`）是一个已 `vercel link` 的空 Vercel 项目（免费 Hobby 账号即可），令牌在它的 `.env.local` 里，有效期约 12 小时；快过期时自动在该目录运行 `vercel env pull` 换新（`sources/skills-sh/token.ts`），需要本机 Vercel CLI 已登录。新机器上：`vercel login`，然后在该目录 `vercel link` 和 `vercel env pull`。
+- 令牌：`SKILLS_SH_VERCEL_DIR`（默认 `~/.mcpfield/skills-sh`）是一个已 `vercel link` 的空 Vercel 项目（免费 Hobby 账号即可），令牌在它的 `.env.local` 里，有效期约 12 小时；快过期时自动在该目录运行 `vercel env pull` 换新（`sources/skills-sh/token.ts`）。本机用 Vercel CLI 的登录状态；服务器上没有 `vercel login`，在 `.env` 里设置 `VERCEL_TOKEN`（Vercel Access Token），换令牌时带 `--token`。新机器上：装 Vercel CLI，把本机该目录下的 `.vercel/project.json`（项目和团队 ID，不是密钥）拷过去，再 `vercel env pull`。
 - 发现：全站排行榜（`view=all-time`，每页 500 条，最多前 10 万条；2026-10 共 93,019 条）。网站上显示的 "All Time (1,291,198)" 是被安装过的全部 skill 个数，排行榜之外的长尾只能按仓库查（`source=owner/repo`），以后配合 GitHub 指纹补。名称里带 `/` 的接口不支持，跳过。
-- 抓取：每个 skill 请求详情（含 SKILL.md 等文件、内容哈希）和安全审计两次，`SkillsShFetcher` 合成一份文档（排行榜条目 + 详情 + 审计）。列表没有更新时间，用"每周一个周期"代替：本周期内抓过的跳过。
+- 发现还会翻 trending（约 1 万条，4 页并发；2026-10-16 实测有 240 条还没进全站榜）。全站榜 187 页约 21 分钟（每页 6–8 秒），并发 4 页约 6 分钟；偶尔返回 HTML 错误页，重试。榜单是按安装量截断的窗口：4 天里新进 1,340 条、跌出 1,122 条，跌出的保留不删。
+- 抓取：每个 skill 请求详情（含 SKILL.md 等文件、内容哈希）和安全审计两次，`SkillsShFetcher` 合成一份文档（排行榜条目 + 详情 + 审计）。全量约 6 小时（9.3 万条 × 2 次，每分钟 600 次的限额），所以每天只抓：新出现的；上次抓取之后 GitHub 仓库有推送（`github` 命令存的 `pushedAt`）且距上次抓取超过 7 天的；仓库 90 天没推送的也重抓一次（审计会更新）；查不到推送时间的（well-known 来源、仓库不存在）每 7 天一次。实现上把 lastmod 设为 `min(max(推送时间, 现在-90天), 现在-7天)`，交给运行器的增量判断（`refreshLastmod`）。
+- 安装量：全站榜每条都带累计安装量，发现时整批写进 `ingest_enrichments`（`skills_sh_installs`，主体 `skill:来源ID`），publish 时更新到 Skill 上（取较大值），已收录的不必为了安装量重抓详情。trending 的安装量是近期的，不记。
 - 映射：名称、简介取 SKILL.md 元数据（作者自己写的）；身份键 `skill:owner/repo#skill`（well-known 来源是 `skill:域名#skill`），与 mcp.so 的 Skill 自动合并；安装量、安全审计（结论、风险等级、摘要、行为类别、时间）、随 Skill 分发的文件列表。源记录只存 SKILL.md 正文和其他文件的路径。
 - README：`github` 命令开始抓 README 前，先把 skills.sh 记录里的 SKILL.md 导入为对应 Skill 的 README（去掉 YAML 元数据，`sources/skills-sh/readme.ts`），这些 Skill 不再请求 GitHub（GitHub 额度 5,000 次/小时，与线上共用）。
 - 地址：Skill 重名很常见，发布时先用"名称-作者"（与 mcp.so 一致），再加序号。

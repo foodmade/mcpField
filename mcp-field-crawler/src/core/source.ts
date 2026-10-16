@@ -1,4 +1,5 @@
 import type { AppConfig } from '../config.ts'
+import type { Db } from '../db/client.ts'
 import type { EntityDraft } from './draft.ts'
 import type { Logger } from './logger.ts'
 import type { CrawlTarget, EntityKind, FetchRequest, RawDocument, SourceRecord } from './types.ts'
@@ -58,6 +59,8 @@ export interface Mapper<T = unknown> {
 export interface SourceContext {
   config: AppConfig
   logger: Logger
+  /** 用 MySQL 存储时的数据库连接：数据源要读写补充数据时用（skills-sh 读仓库推送时间、记录排行榜安装量） */
+  db?: Db
 }
 
 /**

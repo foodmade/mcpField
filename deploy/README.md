@@ -59,6 +59,8 @@ mcpfield nginx
   否则用 http 访问的请求会回源到 80 端口的别的应用。站点配置只通过 `mcpfield nginx` 修改：先 `nginx -t` 校验，通过才重新加载。
 - 与 sub2api 同机：mysqld 的 systemd 配置里限了内存（`/etc/systemd/system/mysqld.service.d/mcpfield.conf`：MemoryHigh 3G / MemoryMax 3.5G；2026-10-15 从 2G / 2.5G 调上来，原来一直顶着上限被回收），CPU、磁盘 IO 的权重减半，
   紧张时 sub2api 优先；采集命令（`mcpfield run` / `data` / 每日任务）用 `nice -n 10` 运行；pm2 的服务超过上限自动重启（API 350MB；前端 700MB，堆限制 512MB，Googlebot 大量抓取时 350MB 不够）。不要在服务器上构建前端。
-- 每日任务跑抓取、发布、图标、图标补全（所有者头像）、GitHub 星数与 README、简介翻译、自撰内容（crontab 里 `STEPS="crawl publish assets owner-icons github translate describe"`，
-  cron 的 PATH 要带 `/usr/local/bin`）；AI 介绍、README 翻译、分类费用较高，需要时用 `mcpfield run readme`、`mcpfield run classify` 等手动触发。
+- 每日任务（crontab 里 `STEPS="crawl classify publish assets owner-icons github translate translate-tools describe overview readme"`，cron 的 PATH 要带 `/usr/local/bin`）：
+  抓取只走官方 MCP Registry（平时 `--since auto` 增量，周日全量）和 skills.sh；mcp.so 2026-10-16 起冻结，已有数据照常发布、不再更新（client / cli / loop / agent 只有它这一个来源，不会再有新条目）。
+  classify 只给新条目和输入有变化的分类。
+- skills.sh 要 Vercel OIDC 令牌：服务器 `.env` 里的 `VERCEL_TOKEN`（Vercel Access Token）+ `~/.mcpfield/skills-sh`（`.vercel/project.json` 从本机拷来），令牌快过期时自动 `vercel env pull --token` 换新；Vercel CLI 装在 `/usr/local/bin`。
 - `deploy/docker-compose.yml` 是旧服务器上 MySQL 容器的配置，新服务器不用 Docker。

@@ -24,6 +24,8 @@ import type { LlmConfig, LlmProvider } from '../llm/provider.ts'
 import { TranslationFailures } from '../translate/failures.ts'
 import { TranslationMemory } from '../translate/memory.ts'
 import { collectSources, TranslateRunner } from '../translate/runner.ts'
+import { TOOLS_PROMPT } from '../tools/prompt.ts'
+import { collectToolSources, validateToolTranslation } from '../tools/translate.ts'
 import { collectOverviewInputs, needsOverview, OverviewRunner } from '../overview/runner.ts'
 import { OverviewStore } from '../overview/store.ts'
 import { overviewKey } from '../overview/types.ts'
@@ -64,6 +66,7 @@ MCP Field 数据采集
   remap    --source <id>  用当前映射逻辑重建草稿（不发网络请求，需要 MySQL）
   github                  从 GitHub 更新星数和最近提交时间，并抓取 README（Skill 取 SKILL.md）；README 只用 GitHub 的
   translate               把简介翻译成中英日三语，写入翻译记忆库（需要 MySQL 和 ANTHROPIC_API_KEY）
+  translate-tools         把 MCP 服务的工具描述和参数说明翻译成中英日三语，写入同一个翻译记忆库（热门服务先翻）
   overview                根据 README 生成三语介绍（概述、主要功能、适用场景、MCP 相关）；Loop / CLI / Agent 由 describe 撰写
   readme                  把 README 整篇翻译成中文、日文（代码块不变，按片段去重、增量翻译）
   assets                  把图标等图片转存到 Cloudflare R2（转成 WebP），数据库只记录链接
@@ -93,6 +96,14 @@ translate 选项：
   --stale                 重翻旧版提示词的结果
   --force                 忽略已有结果全部重翻（人工译文保留）
   --recheck               按当前校验规则重新检查已有译文，只重翻不合格的
+
+translate-tools 选项：
+  --limit <n>             最多翻译 n 段原文（试跑用；按服务热度从高到低取）
+  --min-stars <n>         只翻译星数不低于 n 的服务的工具
+  --model <id>            模型，默认 TRANSLATE_MODEL；模型服务同 translate
+  --batch <n>             每次请求的条数，默认 20（每批原文合计不超过 8,000 字符）
+  --concurrency <n>       并发请求数，默认 TRANSLATE_CONCURRENCY，没有设置时 4
+  --stale / --force / --recheck   同 translate
 
 github 选项：
   --kind <a,b>            要处理的类型，默认全部（有 GitHub 仓库的条目）
@@ -321,6 +332,35 @@ async function translate() {
     logger.info({ ...stats, model: translator.model }, '翻译完成')
     // 新译文要能搜到
     if (!controller.signal.aborted) await syncSearchIndex(db, kinds, logger)
+  } finally {
+    await pool.end()
+  }
+}
+
+async function translateTools() {
+  if (!config.databaseUrl) throw new Error('translate-tools 需要 DATABASE_URL')
+
+  const controller = new AbortController()
+  process.once('SIGINT', () => {
+    logger.warn('收到中断信号，等待进行中的请求完成后退出……')
+    controller.abort()
+  })
+
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const translator = new LlmTranslator({ ...translateLlm(), model: values.model ?? config.translateModel, prompt: TOOLS_PROMPT })
+    const items = await collectToolSources(db, { minStars: values['min-stars'] ? Number(values['min-stars']) : undefined })
+    const stats = await new TranslateRunner(translator, new TranslationMemory(db), logger, validateToolTranslation).run(items, {
+      batchSize: values.batch ? Number(values.batch) : 20,
+      maxBatchChars: 8_000,
+      concurrency: values.concurrency ? Number(values.concurrency) : (config.translateConcurrency ?? 4),
+      limit: values.limit ? Number(values.limit) : undefined,
+      stale: values.stale,
+      force: values.force,
+      recheck: values.recheck,
+      signal: controller.signal,
+    })
+    logger.info({ ...stats, model: translator.model }, '工具描述翻译完成')
   } finally {
     await pool.end()
   }
@@ -683,6 +723,8 @@ async function main() {
       return github()
     case 'translate':
       return translate()
+    case 'translate-tools':
+      return translateTools()
     case 'overview':
       return overview()
     case 'readme':

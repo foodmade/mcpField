@@ -51,12 +51,12 @@ export function createApp(deps: ApiDeps) {
     await deps.ping?.()
     return c.json({ status: 'ok' })
   })
-  // GET /api/servers/:slug/tools/live —— 实时读取远程服务的 tools/list
+  // GET /api/servers/:slug/tools/live?locale —— 实时读取远程服务的 tools/list，描述有译文的换成请求语言
   const liveTools = deps.liveTools
   if (liveTools) {
     app.get('/api/servers/:slug/tools/live', async (c) => {
       const slug = c.req.param('slug')
-      const result = await liveTools.get(slug)
+      const result = await liveTools.get(slug, parseQuery(c, localeQuerySchema).locale)
       if (!result) throw ApiError.notFound(`MCP 服务 "${slug}" 不存在`)
       return c.json({ data: result })
     })

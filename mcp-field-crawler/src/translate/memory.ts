@@ -3,7 +3,6 @@ import { LOCALES, type Locale } from '../core/types.ts'
 import { withDeadlockRetry } from '../db/retry.ts'
 import type { Db } from '../db/client.ts'
 import { ingestTranslationSources, ingestTranslations } from '../db/schema/index.ts'
-import { normalizeSource } from './key.ts'
 import type { TranslationItem, TranslationResult, Translator } from './types.ts'
 import type { ValidationProblem } from './validate.ts'
 
@@ -42,8 +41,9 @@ export class TranslationMemory implements TranslationReader {
     return new Set([...ok].filter(([, n]) => n >= LOCALES.length).map(([hash]) => hash))
   }
 
+  /** item.text 已由调用方规范化（简介用 normalizeSource，工具描述用保留换行的 normalizeBlock） */
   async save(item: TranslationItem, result: TranslationResult, problems: ValidationProblem[], translator: Translator): Promise<void> {
-    const text = normalizeSource(item.text)
+    const text = item.text
     await withDeadlockRetry(() => this.db.transaction(async (tx) => {
       await tx
         .insert(ingestTranslationSources)

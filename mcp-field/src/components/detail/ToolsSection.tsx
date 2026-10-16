@@ -3,6 +3,7 @@ import { ArrowsClockwise, CaretDown, CloudArrowDown, MagnifyingGlass, Warning, W
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { useI18n } from '../../i18n/context'
+import type { Locale } from '../../i18n/locales'
 import type { ApiTool } from '../../lib/api/entities'
 import { apiGet } from '../../lib/api/http'
 import { daysSince } from '../../lib/entity'
@@ -12,12 +13,13 @@ import { EmptyState } from './EmptyState'
 const PREVIEW = 5
 type FetchError = 'auth' | 'network' | 'protocol' | 'unsupported' | 'blocked'
 
-const cacheKey = (slug: string) => `mcpfield.tools.${slug}`
+/** 描述按语言翻译，缓存也按语言分开 */
+const cacheKey = (slug: string, locale: Locale) => `mcpfield.tools.${locale}.${slug}`
 
 /** 通过后端实时读取远程服务的 tools/list（地址由后端从收录数据中取），本次会话内缓存 */
-async function fetchRemoteTools(slug: string): Promise<{ tools: ApiTool[] } | { error: FetchError }> {
+async function fetchRemoteTools(slug: string, locale: Locale): Promise<{ tools: ApiTool[] } | { error: FetchError }> {
   try {
-    const { data } = await apiGet<{ data: { tools?: ApiTool[]; error?: FetchError } }>(`/servers/${encodeURIComponent(slug)}/tools/live`)
+    const { data } = await apiGet<{ data: { tools?: ApiTool[]; error?: FetchError } }>(`/servers/${encodeURIComponent(slug)}/tools/live`, { locale })
     if (!data.tools) return { error: data.error ?? 'network' }
     return { tools: data.tools }
   } catch {
@@ -98,9 +100,9 @@ function Skeleton() {
 type Props = { slug: string; remote: boolean; stored: ApiTool[]; storedAt: string | null }
 
 export function ToolsSection({ slug, remote, stored, storedAt }: Props) {
-  const { m } = useI18n()
+  const { m, locale } = useI18n()
   // 本次会话读过的实时列表缓存在 sessionStorage；服务端渲染时只有收录的列表（爬虫能看到）
-  const [cachedRaw, setCached] = useStorage(cacheKey(slug), 'session')
+  const [cachedRaw, setCached] = useStorage(cacheKey(slug, locale), 'session')
   const cached = remote ? parseJson<ApiTool[] | null>(cachedRaw, null) : null
   const [fetched, setFetched] = useState<ApiTool[] | null>(null)
   const live = fetched ?? cached
@@ -114,20 +116,20 @@ export function ToolsSection({ slug, remote, stored, storedAt }: Props) {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const r = await fetchRemoteTools(slug)
+    const r = await fetchRemoteTools(slug, locale)
     if ('tools' in r) {
       setFetched(r.tools)
       setCached(JSON.stringify(r.tools))
     } else setError(r.error)
     setLoading(false)
     setAttempted(true)
-  }, [slug, setCached])
+  }, [slug, locale, setCached])
 
   // 远程服务首次进入时自动读取（本次会话已经读过的直接用缓存）
   useEffect(() => {
-    if (remote && !sessionStorage.getItem(cacheKey(slug))) void load()
+    if (remote && !sessionStorage.getItem(cacheKey(slug, locale))) void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug])
+  }, [slug, locale])
 
   const list = live ?? stored
   // 远程服务还没读到实时列表、也没有收录列表时显示骨架（服务端渲染时也一样，避免先闪出"没有工具"）

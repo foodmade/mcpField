@@ -9,6 +9,7 @@ import type { OverviewReader } from '../../../overview/store.ts'
 import { readmeHash } from '../../../readme/chunk.ts'
 import { resolveReadme } from '../../../readme/source.ts'
 import type { ReadmeTranslationReader } from '../../../readme/store.ts'
+import { localizeTools } from '../../../tools/translate.ts'
 import { sourceHash } from '../../../translate/key.ts'
 import type { TranslationReader } from '../../../translate/memory.ts'
 import { pageMeta, type ListQuery, type PageMeta, type Scope } from '../../http/query.ts'
@@ -88,7 +89,12 @@ export class EntityService<K extends EntityKind> {
     const row = await this.repository.findBySlug(slug)
     if (!row) return null
     const detail = this.toDetail(row, await this.githubReadme(row.draft))
-    await Promise.all([this.localize([detail], locale), this.mirrorIcons([detail], detail), this.applyRepoStats([detail], [row.draft])])
+    await Promise.all([
+      this.localize([detail], locale),
+      this.mirrorIcons([detail], detail),
+      this.applyRepoStats([detail], [row.draft]),
+      Array.isArray(detail.tools) ? this.localizeTools(detail.tools, locale) : undefined,
+    ])
     await this.fillGenerated([detail], locale)
 
     const ref = { sourceId: row.draft.sourceId, kind: this.kind, externalId: row.draft.externalId }
@@ -215,6 +221,12 @@ export class EntityService<K extends EntityKind> {
         item.taglineLocale = locale
       }
     })
+  }
+
+  /** MCP 服务的工具描述和参数说明换成请求语言的译文；实时读取的工具列表也用它（同样的原文能查到同样的译文） */
+  async localizeTools(tools: Parameters<typeof localizeTools>[0], locale: Locale): Promise<void> {
+    const reader = this.localization.translations
+    if (reader) await localizeTools(tools, reader, locale)
   }
 
   private toListItem(d: EntityDraftOf<K>): EntityListItem {

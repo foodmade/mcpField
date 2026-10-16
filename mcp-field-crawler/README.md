@@ -33,6 +33,7 @@ npm run crawler -- remap --source mcpso --kind client        # 改了映射规�
 npm run crawler -- github                                    # 从 GitHub 更新星数、最近提交时间，并抓取 README（Skill 取 SKILL.md，增量）
 npm run crawler -- translate --kind client                   # 把简介翻译成中英日三语
 npm run crawler -- translate --kind client --recheck         # 按当前规则重新校验已有译文，只重翻不合格的
+npm run crawler -- translate-tools --limit 10               # 把 MCP 服务的工具描述和参数说明翻译成中英日三语（热门服务先翻；--min-stars 只翻热门的）
 npm run crawler -- overview --kind client                    # 根据 README 生成三语介绍
 npm run crawler -- readme --kind client                      # README 整篇翻译成中文、日文（增量）
 npm run crawler -- assets                                    # 图标转存到 Cloudflare R2（增量）

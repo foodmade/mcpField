@@ -7,7 +7,7 @@ import { runBatches, type BatchJob, type BatchStats } from '../llm/batch.ts'
 import { normalizeSource, sourceHash } from './key.ts'
 import type { TranslationMemory } from './memory.ts'
 import type { TranslationItem, TranslationResult, Translator } from './types.ts'
-import { isHardFailure, validateTranslation } from './validate.ts'
+import { isHardFailure, validateTranslation, type ValidationProblem } from './validate.ts'
 
 export interface TranslateOptions {
   /** 每次请求最多多少条 */
@@ -55,6 +55,8 @@ export class TranslateRunner {
     private readonly translator: Translator,
     private readonly memory: Pick<TranslationMemory, 'completed' | 'save' | 'loadResults' | 'restatus'>,
     private readonly logger: Logger,
+    /** 校验规则：默认是简介的，工具描述在它上面再加几条 */
+    private readonly validate: (item: TranslationItem, result: TranslationResult) => ValidationProblem[] = validateTranslation,
   ) {}
 
   async run(items: TranslationItem[], options: TranslateOptions): Promise<TranslateStats> {
@@ -72,7 +74,7 @@ export class TranslateRunner {
         const { results, usage } = await this.translator.translate(batch, signal)
         return { results: new Map(results.map((r) => [r.hash, r])), usage }
       },
-      validate: validateTranslation,
+      validate: this.validate,
       save: (item, result, problems) => this.memory.save(item, result, problems, this.translator),
       describe: (item) => item.text.slice(0, 80),
     }
@@ -87,7 +89,7 @@ export class TranslateRunner {
     for (const item of items) {
       const result = stored.get(item.hash)
       if (!result || result.manual.size > 0) continue
-      const problems = validateTranslation(item, result)
+      const problems = this.validate(item, result)
       if (isHardFailure(problems)) {
         completed.delete(item.hash)
         rejected++

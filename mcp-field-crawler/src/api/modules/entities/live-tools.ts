@@ -1,3 +1,4 @@
+import type { Locale } from '../../../core/types.ts'
 import type { ProbeResult } from '../../../probe/mcp-remote.ts'
 import type { EntityService } from './entity.service.ts'
 import { presentTool } from './presenters.ts'
@@ -19,7 +20,7 @@ export class LiveToolsService {
   ) {}
 
   /** 服务不存在返回 null；不是远程服务返回 unsupported */
-  async get(slug: string) {
+  async get(slug: string, locale: Locale = 'en') {
     const server = await this.servers.get(slug)
     if (!server) return null
     const remotes = (server.remotes ?? []) as { url: string; transport: string }[]
@@ -34,6 +35,10 @@ export class LiveToolsService {
     // 网络错误不缓存，下次可以立即重试
     if ('error' in result && result.error === 'network') this.cache.delete(slug)
     const fetchedAt = new Date(entry.at).toISOString()
-    return 'tools' in result ? { tools: result.tools.map(presentTool), fetchedAt } : { ...result, fetchedAt }
+    if (!('tools' in result)) return { ...result, fetchedAt }
+    // 实时读取的工具大多与收录的相同，已有译文直接用；不会为它新翻译
+    const tools = result.tools.map(presentTool)
+    await this.servers.localizeTools(tools, locale)
+    return { tools, fetchedAt }
   }
 }

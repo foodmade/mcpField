@@ -8,17 +8,49 @@ import type { OverviewStore } from './store.ts'
 import { overviewKey, type OverviewInput, type OverviewResult, type OverviewWriter } from './types.ts'
 import { validateOverview } from './validate.ts'
 
-/** 分页读取草稿并构造输入（README 用 GitHub 的）；README 不足的条目跳过。按星数从高到低排，热门条目先生成 */
-export async function collectOverviewInputs(db: Db, kinds: readonly EntityKind[], minStars = 0): Promise<{ inputs: OverviewInput[]; skipped: number }> {
+/**
+ * 分页读取草稿并构造输入（README 用 GitHub 的）；README 不足的条目跳过。按星数从高到低排，热门条目先生成。
+ * keep：按页筛掉不需要生成的（已是最新的），只把要生成的留在内存里——12 万条输入连同 README 全部留着要 1.4GB 左右，
+ * 每日任务实际只需要其中新增或有变化的几百条
+ */
+export async function collectOverviewInputs(
+  db: Db,
+  kinds: readonly EntityKind[],
+  minStars = 0,
+  keep?: (page: OverviewInput[]) => Promise<OverviewInput[]>,
+): Promise<{ inputs: OverviewInput[]; total: number; skipped: number }> {
   const inputs: OverviewInput[] = []
+  let page: OverviewInput[] = []
+  let total = 0
   let skipped = 0
+  const flush = async () => {
+    inputs.push(...(keep ? await keep(page) : page))
+    page = []
+  }
   for await (const { draft, readme, stars } of draftsWithReadme(db, kinds)) {
     const input = inputFromDraft(draft, readme?.content ?? '', stars)
-    if (!input || (input.stars ?? 0) < minStars) skipped++
-    else inputs.push(input)
+    if (!input || (input.stars ?? 0) < minStars) {
+      skipped++
+      continue
+    }
+    total++
+    page.push(input)
+    if (page.length >= 500) await flush()
   }
+  await flush()
   inputs.sort((a, b) => (b.stars ?? -1) - (a.stars ?? -1))
-  return { inputs, skipped }
+  return { inputs, total, skipped }
+}
+
+/** 是否需要（重新）生成：还没有、缺某种语言、输入变了；--stale 时旧版提示词生成的也重做，--force 全部重做 */
+export function needsOverview(
+  input: OverviewInput,
+  prev: { inputHash: string; promptVersion: number; locales: number } | undefined,
+  options: { stale?: boolean; force?: boolean },
+  promptVersion: number,
+): boolean {
+  if (options.force || !prev || prev.locales < 3 || prev.inputHash !== input.inputHash) return true
+  return !!options.stale && prev.promptVersion < promptVersion
 }
 
 export interface OverviewOptions extends BatchOptions {
@@ -46,11 +78,7 @@ export class OverviewRunner {
 
   async run(inputs: OverviewInput[], options: OverviewOptions): Promise<OverviewStats> {
     const existing = options.force ? new Map() : await this.store.existing(inputs)
-    let pending = inputs.filter((input) => {
-      const prev = existing.get(overviewKey(input))
-      if (!prev || prev.locales < 3 || prev.inputHash !== input.inputHash) return true
-      return !!options.stale && prev.promptVersion < this.writers.standard.promptVersion
-    })
+    let pending = inputs.filter((input) => needsOverview(input, existing.get(overviewKey(input)), options, this.writers.standard.promptVersion))
     if (options.limit !== undefined) pending = pending.slice(0, options.limit)
 
     const { premium, premiumMinStars } = this.writers

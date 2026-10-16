@@ -24,8 +24,9 @@ import type { LlmConfig, LlmProvider } from '../llm/provider.ts'
 import { TranslationFailures } from '../translate/failures.ts'
 import { TranslationMemory } from '../translate/memory.ts'
 import { collectSources, TranslateRunner } from '../translate/runner.ts'
-import { collectOverviewInputs, OverviewRunner } from '../overview/runner.ts'
+import { collectOverviewInputs, needsOverview, OverviewRunner } from '../overview/runner.ts'
 import { OverviewStore } from '../overview/store.ts'
+import { overviewKey } from '../overview/types.ts'
 import { LlmOverviewWriter } from '../overview/writer.ts'
 import type { ReadmeLocale } from '../readme/prompt.ts'
 import { collectReadmeTargets, loadReadmes, ReadmeTranslateRunner } from '../readme/runner.ts'
@@ -338,18 +339,25 @@ async function overview() {
   const { db, pool } = createDb(config.databaseUrl)
   try {
     const llm = llmConfig(config.overviewProvider)
-    const { inputs, skipped } = await collectOverviewInputs(db, kinds, values['min-stars'] ? Number(values['min-stars']) : 0)
-    logger.info({ inputs: inputs.length, skipped }, 'README 不足或星数不够的条目已跳过')
     const model = values.model ?? config.overviewModel
     const premiumModel = values['premium-model'] ?? config.overviewPremiumModel
+    const standard = new LlmOverviewWriter({ ...llm, model })
+    const store = new OverviewStore(db)
+    // 边读边比对已有的介绍，只把新增或有变化的留下（每日任务是增量的，不用把 12 万条 README 都留在内存里）
+    const filter = { stale: values.stale, force: values.force }
+    const { inputs, total, skipped } = await collectOverviewInputs(db, kinds, values['min-stars'] ? Number(values['min-stars']) : 0, async (page) => {
+      const existing = filter.force ? new Map() : await store.existing(page)
+      return page.filter((input) => needsOverview(input, existing.get(overviewKey(input)), filter, standard.promptVersion))
+    })
+    logger.info({ total, pending: inputs.length, skipped }, '已找出需要生成的条目（README 不足或星数不够的跳过）')
     const runner = new OverviewRunner(
       {
-        standard: new LlmOverviewWriter({ ...llm, model }),
+        standard,
         // 只有单独设置了热门模型（且与普通模型不同）时才按星数分档
         premium: premiumModel && premiumModel !== model ? new LlmOverviewWriter({ ...llm, model: premiumModel }) : undefined,
         premiumMinStars: values['premium-min-stars'] ? Number(values['premium-min-stars']) : 1000,
       },
-      new OverviewStore(db),
+      store,
       logger,
     )
     const stats = await runner.run(inputs, {

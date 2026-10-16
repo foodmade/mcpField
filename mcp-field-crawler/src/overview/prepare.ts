@@ -31,6 +31,15 @@ export function prepareReadme(markdown: string, maxChars = MAX_README_CHARS): st
   return s.slice(0, cut > maxChars * 0.6 ? cut : maxChars).trim() + '\n…'
 }
 
+/**
+ * 输入指纹：README、名称、简介、标签、网站变了才重新生成。
+ * 分类不算在内（仍会交给模型作参考）：分类器重跑会一次改掉大批条目的分类（2026-10 改了 1.4 万条），
+ * 介绍内容基本取决于 README，为此全部重写不值得，每日任务也会因此从增量变成大批量
+ */
+export function overviewInputHash(kind: EntityDraft['kind'], f: Pick<OverviewInput, 'name' | 'tagline' | 'tags' | 'website' | 'readme'>): string {
+  return sha256(stableJson({ kind, name: f.name, tagline: f.tagline, tags: f.tags, website: f.website, readme: f.readme }))
+}
+
 /** 从草稿和它的 GitHub README（见 readme/source.ts）构造生成介绍的输入；没有足够 README 内容时返回 null */
 export function inputFromDraft(draft: EntityDraft, readmeRaw: string, stars: number | null): OverviewInput | null {
   const readme = prepareReadme(readmeRaw)
@@ -45,6 +54,6 @@ export function inputFromDraft(draft: EntityDraft, readmeRaw: string, stars: num
     externalId: draft.externalId,
     ...fields,
     stars,
-    inputHash: sha256(stableJson({ kind: draft.kind, ...fields })),
+    inputHash: overviewInputHash(draft.kind, fields),
   }
 }

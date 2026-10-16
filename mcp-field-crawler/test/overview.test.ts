@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Logger } from '../src/core/logger.ts'
 import { longestCopiedRun } from '../src/llm/checks.ts'
-import { prepareReadme } from '../src/overview/prepare.ts'
-import { OverviewRunner } from '../src/overview/runner.ts'
+import { overviewInputHash, prepareReadme } from '../src/overview/prepare.ts'
+import { needsOverview, OverviewRunner } from '../src/overview/runner.ts'
 import { overviewKey, type OverviewContent, type OverviewInput, type OverviewResult, type OverviewWriter } from '../src/overview/types.ts'
 import { validateOverview } from '../src/overview/validate.ts'
 
@@ -114,5 +114,30 @@ describe('OverviewRunner', () => {
     expect(calls).toEqual({ haiku: ['a'], sonnet: ['b'] })
     expect(saved.sort()).toEqual(['a', 'b'])
     expect(stats).toMatchObject({ inputs: 3, pending: 2, premium: 1, ok: 2, failed: 0 })
+  })
+})
+
+describe('每日增量：哪些条目需要（重新）生成介绍', () => {
+  const fields = { name: 'Demo', tagline: 'A demo MCP server', tags: ['search'], website: null, readme: '# Demo\n\nSearch the web.' }
+
+  it('分类不影响指纹，README、标签变了指纹才变', () => {
+    const base = overviewInputHash('server', fields)
+    // 分类不是指纹的一部分：OverviewInput 带着 category，但只交给模型参考
+    expect(overviewInputHash('server', input({ ...fields, category: 'desktop' }))).toBe(base)
+    expect(overviewInputHash('server', input({ ...fields, category: 'search' }))).toBe(base)
+    expect(overviewInputHash('server', { ...fields, readme: '# Demo\n\nSearch the web and fetch pages.' })).not.toBe(base)
+    expect(overviewInputHash('server', { ...fields, tags: ['search', 'web'] })).not.toBe(base)
+  })
+
+  it('没有、缺语言、输入变了才生成；--stale 重做旧版提示词的，--force 全部重做', () => {
+    const current = input({ inputHash: 'h1' })
+    const done = { inputHash: 'h1', promptVersion: 2, locales: 3 }
+    expect(needsOverview(current, undefined, {}, 2)).toBe(true)
+    expect(needsOverview(current, { ...done, locales: 2 }, {}, 2)).toBe(true)
+    expect(needsOverview(current, { ...done, inputHash: 'old' }, {}, 2)).toBe(true)
+    expect(needsOverview(current, done, {}, 2)).toBe(false)
+    expect(needsOverview(current, { ...done, promptVersion: 1 }, {}, 2)).toBe(false)
+    expect(needsOverview(current, { ...done, promptVersion: 1 }, { stale: true }, 2)).toBe(true)
+    expect(needsOverview(current, done, { force: true }, 2)).toBe(true)
   })
 })

@@ -36,7 +36,8 @@ const heading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
   return ({ node: _node, ...props }: React.ComponentProps<'h1'> & { node?: unknown }) => <Tag {...props} className={`md-h${level}`} />
 }
 
-const components: Components = {
+/** imageAlt：README 图片（尤其是内嵌 HTML 的徽章、logo、截图）常常没写 alt，缺失或为空时依次用 title、通用文案兜底，否则 Bing 网站管理员工具会报缺少替代文本 */
+const readmeComponents = (imageAlt: string): Components => ({
   h1: heading(1),
   h2: heading(2),
   h3: heading(3),
@@ -44,8 +45,8 @@ const components: Components = {
   h5: heading(5),
   h6: heading(6),
   a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer nofollow ugc" />,
-  img: ({ node: _node, ...props }) => <img {...props} loading="lazy" decoding="async" referrerPolicy="no-referrer" />,
-}
+  img: ({ node: _node, alt, ...props }) => <img {...props} alt={alt?.trim() || props.title?.trim() || imageAlt} loading="lazy" decoding="async" referrerPolicy="no-referrer" />,
+})
 
 /** 中英文切换的分段按钮 */
 function Toggle({ value, onChange }: { value: 'translated' | 'original'; onChange: (v: 'translated' | 'original') => void }) {
@@ -77,6 +78,7 @@ export function MarkdownReadme({ content, format, base, translation }: { content
   const [expanded, setExpanded] = useState(!englishOnly)
   const t = m.detail.readmeAi
   const rehypePlugins = useMemo(() => [rehypeRaw, rehypeSanitize, rehypeGithubAlerts(m.detail.alerts)], [m])
+  const components = useMemo(() => readmeComponents(m.detail.readmeImage), [m])
 
   return (
     <div>

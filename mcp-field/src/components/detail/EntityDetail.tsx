@@ -14,7 +14,7 @@ import { LOCALE_META } from '../../i18n/locales'
 import { ROUTE, type BaseItem, type DetailBase, type Kind } from '../../lib/api/entities'
 import { categoryOf } from '../../lib/categories'
 import { daysSince, developerOf, domainOf } from '../../lib/entity'
-import { absoluteUrl } from '../../lib/seo'
+import { absoluteUrl, detailTitle } from '../../lib/seo'
 import { parseJson, useStorage } from '../../lib/storage'
 import { EntityIcon } from '../EntityIcon'
 import { ErrorPage } from '../ErrorPage'
@@ -74,7 +74,7 @@ export function DetailSeo({ kind, d, section }: { kind: Kind; d: BaseItem & Deta
       },
     ],
   }
-  return <Seo title={`${d.name} · ${section} · MCP Field`} description={description} path={path} image={d.iconUrl} type="article" jsonLd={jsonLd} />
+  return <Seo title={detailTitle(d.name, section)} description={description} path={path} image={d.iconUrl} type="article" jsonLd={jsonLd} />
 }
 
 const BADGE_ICON = { green: 'text-accent', gold: 'text-gold', blue: 'text-sky', violet: 'text-violet', gray: 'text-text3' }

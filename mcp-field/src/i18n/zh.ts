@@ -463,6 +463,7 @@ export const zh = {
     noMatch: (q: string) => `没有名为“${q}”的工具`,
     readme: '详细介绍',
     readmeOriginal: 'README 原文',
+    readmeImage: 'README 配图',
     englishBadge: 'English',
     readmeTabs: { translated: '中文译文', original: '原文' },
     readmeAi: { outdated: '原文在翻译后有更新，译文可能不是最新。', englishHint: 'README 暂无中文译文，以下为英文原文；中文介绍见上方。', expand: '展开全文', collapse: '收起' },

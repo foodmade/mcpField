@@ -465,6 +465,7 @@ export const en: Messages = {
     noMatch: (q) => `No tool named “${q}”`,
     readme: 'Details',
     readmeOriginal: 'README',
+    readmeImage: 'README image',
     englishBadge: 'English',
     readmeTabs: { translated: 'Translation', original: 'Original' },
     readmeAi: { outdated: 'The original has changed since this translation was made.', englishHint: '', expand: 'Show all', collapse: 'Collapse' },

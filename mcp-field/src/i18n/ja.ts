@@ -465,6 +465,7 @@ export const ja: Messages = {
     noMatch: (q) => `「${q}」という名前のツールはありません`,
     readme: '詳細',
     readmeOriginal: 'README（原文）',
+    readmeImage: 'README の画像',
     englishBadge: 'English',
     readmeTabs: { translated: '日本語訳', original: '原文' },
     readmeAi: { outdated: '翻訳後に原文が更新されています。最新の内容は原文をご確認ください。', englishHint: 'この README の日本語訳はまだありません。以下は英語の原文です。日本語の紹介はページ上部をご覧ください。', expand: 'すべて表示', collapse: '折りたたむ' },

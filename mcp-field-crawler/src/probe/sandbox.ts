@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { promisify } from 'node:util'
 import type { ProbeTarget } from './local-targets.ts'
 import type { LocalProbeResult, LocalProbeStatus } from './tools-store.ts'
@@ -235,7 +236,13 @@ export class DockerSandbox {
         return { status: (exited ? 'start_failed' : 'timeout') as LocalProbeStatus, error: [exited ? `exit ${rpc.exitCode}` : (error as Error).message, tail(rpc.output)].filter(Boolean).join(': ') }
       } finally {
         await run('docker', ['kill', container]).catch(() => {})
-        await rpc.closed
+        // 镜像拉取慢时，超时那一刻容器可能还没建好，kill 落空，容器之后起来会一直挂着（2026-10-16 有两个挂了 19 小时）：
+        // 最多等 15 秒，还没退出就强制删容器、杀掉 docker run
+        if (!(await Promise.race([rpc.closed.then(() => true), sleep(15_000).then(() => false)]))) {
+          await run('docker', ['rm', '-f', container]).catch(() => {})
+          child.kill('SIGKILL')
+          await Promise.race([rpc.closed, sleep(5_000)])
+        }
       }
     })()
   }

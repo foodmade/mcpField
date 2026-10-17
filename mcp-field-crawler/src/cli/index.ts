@@ -51,7 +51,10 @@ import { importSkillsShReadmes } from '../sources/skills-sh/readme.ts'
 import { collectProbeTargets } from '../probe/local-targets.ts'
 import { readJsonl, runLocalProbes, writeJsonl } from '../probe/local-runner.ts'
 import { DockerSandbox } from '../probe/sandbox.ts'
+import { dispatchProbes } from '../probe/dispatch.ts'
+import { connectQueue } from '../probe/queue.ts'
 import { ProbedToolsStore, type LocalProbeResult } from '../probe/tools-store.ts'
+import { runProbeWorker } from '../probe/worker.ts'
 import type { MediaType } from '../core/draft.ts'
 import { join } from 'node:path'
 import type { TextField } from '../core/draft.ts'
@@ -84,6 +87,8 @@ MCP Field 数据采集
   probe-targets           列出要实测工具列表的本地服务（没有工具列表、有 npm / PyPI 包，按包去重、星数从高到低），写成 JSONL
   probe-local             在 Docker 沙箱里装包、断网启动，用 stdio 读出工具列表，结果追加写入 JSONL（不需要数据库，在单独的实测机上跑）
   probe-import            把实测结果导入 ingest_enrichments，之后 publish 给没有工具列表的服务补上
+  probe                   每日任务用：导入实测机交回的结果，把没有工具列表的本地包和远程服务投递到队列（PROBE_REDIS_URL），最多等新收录的结果 60 分钟
+  probe-worker            实测机常驻：从队列取目标，本地包在 Docker 沙箱里测、远程服务直接读 tools/list，结果写回队列（不需要数据库）
   search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）和标签表 ingest_tags；publish 结束时两张都同步，github / translate / describe 结束时只同步搜索表
   stats                   查看采集层统计（需要 MySQL）
 
@@ -177,7 +182,12 @@ probe-targets / probe-local / probe-import 选项：
   --input <file>          probe-local 读的目标文件、probe-import 读的结果文件，默认同上
   --min-stars <n>         probe-targets 只列星数不低于 n 的服务
   --limit <n>             probe-targets 最多列 n 个包；probe-local 本次最多测 n 个（结果文件里已有的跳过，可以接着跑）
-  --concurrency <n>       probe-local 并发数，默认 4
+  --concurrency <n>       probe-local 并发数，默认 4；probe-worker 本地包的并发数，默认 8
+
+probe / probe-worker 选项：
+  --wait <分钟>           probe 最多等新收录服务的结果多久，默认 60；0 表示投递完就退出
+  --limit <n>             probe 最多投递 n 个目标（试跑用）
+  --remote-concurrency <n> probe-worker 远程服务的并发数，默认 16
 
 owner-icons 选项：
   --limit / --concurrency / --store / --force / --retry-all   同 assets（--limit 按头像张数计）
@@ -202,6 +212,8 @@ const { positionals, values } = parseArgs({
     'premium-model': { type: 'string' },
     'premium-min-stars': { type: 'string' },
     'retry-failed': { type: 'boolean' },
+    wait: { type: 'string' },
+    'remote-concurrency': { type: 'string' },
     locale: { type: 'string' },
     'licensed-only': { type: 'boolean', default: false },
     media: { type: 'string' },
@@ -656,6 +668,51 @@ async function probeImport() {
   }
 }
 
+async function probe() {
+  if (!config.databaseUrl) throw new Error('probe 需要 DATABASE_URL')
+  if (!config.probe.redisUrl) throw new Error('probe 需要 PROBE_REDIS_URL（实测任务队列）')
+  const controller = new AbortController()
+  process.once('SIGINT', () => {
+    logger.warn('收到中断信号，不再等结果，导入已交回的后退出……')
+    controller.abort()
+  })
+  const { db, pool } = createDb(config.databaseUrl)
+  const queue = await connectQueue(config.probe.redisUrl, logger)
+  try {
+    const stats = await dispatchProbes(db, queue, logger, {
+      waitMinutes: values.wait !== undefined ? Number(values.wait) : 60,
+      limit: values.limit ? Number(values.limit) : undefined,
+      signal: controller.signal,
+    })
+    logger.info(stats, '实测投递与结果导入完成，publish 后生效')
+  } finally {
+    await queue.close()
+    await pool.end()
+  }
+}
+
+async function probeWorker() {
+  if (!config.probe.redisUrl) throw new Error('probe-worker 需要 PROBE_REDIS_URL（实测任务队列，用受限账号）')
+  const controller = new AbortController()
+  const stop = () => {
+    logger.warn('收到停止信号，不再领新任务，等进行中的实测完成后退出……')
+    controller.abort()
+  }
+  process.once('SIGINT', stop)
+  process.once('SIGTERM', stop)
+  const queue = await connectQueue(config.probe.redisUrl, logger)
+  try {
+    const stats = await runProbeWorker(queue, new DockerSandbox(config.probe), logger, {
+      local: values.concurrency ? Number(values.concurrency) : 8,
+      remote: values['remote-concurrency'] ? Number(values['remote-concurrency']) : 16,
+      signal: controller.signal,
+    })
+    logger.info(stats, '实测 worker 已退出')
+  } finally {
+    await queue.close()
+  }
+}
+
 async function mergePlan() {
   if (!config.databaseUrl) throw new Error('merge-plan 需要 DATABASE_URL')
   const kinds = parseKinds(values.kind, ENTITY_KINDS)
@@ -833,6 +890,10 @@ async function main() {
       return probeLocal()
     case 'probe-import':
       return probeImport()
+    case 'probe':
+      return probe()
+    case 'probe-worker':
+      return probeWorker()
     case 'search-index':
       return searchIndex()
     case 'stats':

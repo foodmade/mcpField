@@ -23,7 +23,7 @@ export async function writeJsonl(file: string, items: unknown[]): Promise<void> 
 /** 剩余空间低于这个值时暂停领新任务：几个带 torch 的 Python 环境同时在装就是几十 GB */
 const MIN_FREE_BYTES = 15 * 1024 ** 3
 
-async function waitForDisk(path: string, logger: Logger, signal?: AbortSignal): Promise<void> {
+export async function waitForDisk(path: string, logger: Logger, signal?: AbortSignal): Promise<void> {
   let warned = false
   for (;;) {
     const { bavail, bsize } = await statfs(path)

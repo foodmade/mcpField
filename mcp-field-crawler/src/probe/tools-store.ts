@@ -1,16 +1,22 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { EntityDraft } from '../core/draft.ts'
-import { npmKey, parseRepositoryUrl, pypiKey, repoKey } from '../core/identity.ts'
+import { npmKey, parseRepositoryUrl, pypiKey, remoteKey, repoKey } from '../core/identity.ts'
 import type { Db } from '../db/client.ts'
 import { ingestEnrichments } from '../db/schema/index.ts'
 import { toToolDrafts } from '../extract/mcp-tools.ts'
 
-/* 本地服务工具列表的实测结果：存在 ingest_enrichments（enricher = probe_tools，一个安装包一行），publish 时补给没有工具列表的服务 */
+/*
+ * 工具列表的实测结果：存在 ingest_enrichments（enricher = probe_tools），publish 时补给没有工具列表的服务。
+ * 本地服务一个安装包一行（npm:… / pypi:…，probe/local-*），远程服务一个地址一行（remote:…，probe/remote.ts）
+ */
 
 export const PROBE_TOOLS_ENRICHER = 'probe_tools'
 
 /** ok / install_failed：装不上 / no_bin：包里没有可执行入口 / start_failed：启动后退出 / timeout / protocol：MCP 握手或 tools/list 出错 */
 export type LocalProbeStatus = 'ok' | 'install_failed' | 'no_bin' | 'start_failed' | 'timeout' | 'protocol'
+
+/** 远程服务另外几种：auth：要鉴权 / network：连不上或超时 / unsupported：只有 SSE / blocked：地址不是公网 HTTPS */
+export type ProbeStatus = LocalProbeStatus | 'auth' | 'network' | 'unsupported' | 'blocked'
 
 /** 实测结果，JSONL 的一行（实测机写出，probe-import 读入） */
 export interface LocalProbeResult {
@@ -31,18 +37,27 @@ export interface LocalProbeResult {
   probedAt: string
 }
 
+/** 本地或远程的实测结果（存储和队列传输都用它） */
+export type ToolsProbeResult = Omit<LocalProbeResult, 'status'> & { status: ProbeStatus }
+
 export type ProbedTools = Pick<LocalProbeResult, 'repository' | 'mcpName' | 'version' | 'tools' | 'probedAt'>
 
 const DAY = 24 * 60 * 60 * 1000
-/** 成功的 30 天后重测（包会更新）；超时多半是机器忙，7 天后重试；其余失败 30 天内不再测 */
-const ttl = (status: LocalProbeStatus) => (status === 'timeout' ? 7 : 30) * DAY
+/**
+ * 本地包：成功的 30 天后重测（包会更新）；超时多半是机器忙，7 天后重试；其余失败 30 天内不再测。
+ * 远程服务：工具随部署更新，成功的 7 天后重读；连不上的 3 天后重试；要鉴权、只有 SSE、地址不合规的 30 天后再看
+ */
+const ttl = (status: ProbeStatus, key: string) => {
+  if (!key.startsWith('remote:')) return (status === 'timeout' ? 7 : 30) * DAY
+  return (status === 'ok' || status === 'protocol' ? 7 : status === 'network' ? 3 : 30) * DAY
+}
 
 const CHUNK = 500
 
 export class ProbedToolsStore {
   constructor(private readonly db: Db) {}
 
-  async save(results: LocalProbeResult[]): Promise<void> {
+  async save(results: ToolsProbeResult[]): Promise<void> {
     for (let i = 0; i < results.length; i += CHUNK) {
       const rows = results.slice(i, i + CHUNK).map((r) => {
         const fetchedAt = new Date(r.probedAt)
@@ -54,7 +69,7 @@ export class ProbedToolsStore {
           data,
           error: error?.slice(0, 1024) ?? null,
           fetchedAt,
-          expiresAt: new Date(fetchedAt.getTime() + ttl(status)),
+          expiresAt: new Date(fetchedAt.getTime() + ttl(status, key)),
         }
       })
       await this.db
@@ -84,12 +99,13 @@ export class ProbedToolsStore {
   }
 }
 
-/** 没有工具列表的服务的 npm / PyPI 包键；其余条目返回空 */
+/** 没有工具列表的服务的实测键：npm / PyPI 包键在前，远程地址键在后；其余条目返回空 */
 export function probeKeys(draft: EntityDraft): string[] {
   if (draft.kind !== 'server' || draft.detail.tools.length > 0) return []
-  return draft.detail.packages
-    .map((p) => (p.registryType === 'npm' ? npmKey(p.identifier) : p.registryType === 'pypi' ? pypiKey(p.identifier) : undefined))
-    .filter((k): k is string => !!k)
+  return [
+    ...draft.detail.packages.map((p) => (p.registryType === 'npm' ? npmKey(p.identifier) : p.registryType === 'pypi' ? pypiKey(p.identifier) : undefined)),
+    ...draft.detail.remotes.map((r) => remoteKey(r.url)),
+  ].filter((k): k is string => !!k)
 }
 
 /** npm 的仓库简写：owner/repo、github:owner/repo、gitlab:owner/repo */
@@ -119,7 +135,8 @@ export function applyProbedTools(draft: EntityDraft, probes: Map<string, ProbedT
   if (draft.kind !== 'server') return false
   for (const key of probeKeys(draft)) {
     const probe = probes.get(key)
-    if (!probe?.tools?.length || !probeBelongs(draft, probe)) continue
+    // 远程地址取自条目自己的收录数据，不用再核对归属；安装包要核对（见 probeBelongs）
+    if (!probe?.tools?.length || (!key.startsWith('remote:') && !probeBelongs(draft, probe))) continue
     draft.detail.tools = toToolDrafts(probe.tools)
     return draft.detail.tools.length > 0
   }

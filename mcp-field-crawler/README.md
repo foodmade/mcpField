@@ -2,7 +2,8 @@
 
 MCP Field 的数据采集服务：可插拔的多源爬虫，数据写入与 mcp-field 共用的 MySQL（`mcp_field` 库）。
 
-设计说明见 [docs/DESIGN.md](docs/DESIGN.md)，采集、去重与分类的计划和进展见 [docs/PLAN.md](docs/PLAN.md)。
+设计说明见 [docs/DESIGN.md](docs/DESIGN.md)，采集、去重与分类的计划和进展见 [docs/PLAN.md](docs/PLAN.md)，
+后台整体运行流程、每日定时任务的步骤与各步增量规则见 [docs/PIPELINE.md](docs/PIPELINE.md)。
 
 ## 准备
 

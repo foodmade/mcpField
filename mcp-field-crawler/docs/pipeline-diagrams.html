@@ -1,0 +1,203 @@
+<!doctype html>
+<!-- MCP Field 后台流程图源文件：用浏览器打开即可查看；docs/images/pipeline-*.png 由它截图生成（见 PIPELINE.md） -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>MCP Field 后台运行流程</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  body { margin: 0; padding: 24px; background: #f4f6f8; font-family: -apple-system, "PingFang SC", "Noto Sans CJK SC", sans-serif; color: #1f2937; }
+  .card { background: #fff; border-radius: 12px; padding: 20px 24px 12px; margin-bottom: 28px; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: inline-block; }
+  h2 { margin: 0 0 4px; font-size: 20px; }
+  p.sub { margin: 0 0 12px; color: #6b7280; font-size: 13px; }
+  .mermaid { font-size: 15px; }
+  table { border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f9fafb; }
+  td.k { white-space: nowrap; font-family: ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body>
+
+<div class="card" id="fig1">
+<h2>图 1 · 全局数据流：来源 → 采集层 → 发布层 → 生成层 → 网站</h2>
+<p class="sub">发布层 ingest_published 是分水岭：除 crawl 和 describe 外，所有任务都从它取条目；译文和介绍不写回发布层，接口读取时按语言拼装</p>
+<pre class="mermaid">
+flowchart TB
+  classDef src fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef ingest fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+  classDef pub fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+  classDef gen fill:#f3e8ff,stroke:#9333ea,color:#581c87
+  classDef enrich fill:#ffe4e6,stroke:#e11d48,color:#881337
+  classDef web fill:#e5e7eb,stroke:#4b5563,color:#111827
+
+  subgraph SRC["外部来源"]
+    direction LR
+    REG["官方 MCP Registry<br/>（server）"]:::src
+    SK["skills.sh 官方 API<br/>（skill）"]:::src
+    MCPSO["mcp.so<br/>（已冻结，数据保留）"]:::src
+  end
+
+  subgraph ING["采集层（每个来源各存一份草稿，互不覆盖）"]
+    direction LR
+    T["ingest_targets<br/>目标"]:::ingest --> D["ingest_documents<br/>原始文档"]:::ingest --> R["ingest_records<br/>源记录"]:::ingest --> DR["ingest_drafts<br/>草稿"]:::ingest
+  end
+
+  REG -- "① crawl --since auto" --> T
+  SK -- "① crawl 翻榜 + 详情" --> T
+  MCPSO -. "不再抓取" .-> DR
+
+  subgraph ENR["补全（publish 时合并进发布层）"]
+    direction LR
+    CL["ingest_classifications<br/>② classify 分类结果"]:::enrich
+    E["ingest_enrichments<br/>github_repo 星数 · github_readme 正文<br/>skills_sh_installs 安装量 · probe_tools 实测工具"]:::enrich
+    MA["media_assets + R2<br/>④ assets ⑤ owner-icons 图标"]:::enrich
+  end
+  GH["GitHub API"]:::src -- "⑥ github" --> E
+
+  DR -- "③ publish：过滤凑数 → 按身份键合并 → 补分类 / 头像 / 安装量 → 事务内整体重建" --> P
+  ENR --> P
+  P["ingest_published<br/>发布层（全站唯一读取入口）"]:::pub
+  P --> SI["ingest_search / ingest_tags<br/>搜索表、标签表"]:::pub
+  P -- "IndexNow" --> IDX["Bing / Yandex…"]:::web
+  P -. "② classify / ④⑤ 图标 / ⑥ github 都从发布层取条目" .-> ENR
+
+  subgraph GEN["生成层（大模型，按原文指纹存表，不写回发布层）"]
+    direction LR
+    TM["翻译记忆库<br/>ingest_translation_sources<br/>ingest_translations（zh/en/ja）<br/>⑦ translate ⑧ translate-tools ⑪ readme 片段"]:::gen
+    OV["ingest_overviews<br/>ingest_overview_items<br/>⑩ overview（server/client/skill）<br/>⑨ describe（loop/cli/agent）"]:::gen
+    GT["ingest_generated_texts<br/>ingest_generated_steps<br/>⑨ describe 自撰简介、步骤"]:::gen
+    RT["ingest_readme_translations<br/>⑪ readme 整篇 zh/ja"]:::gen
+  end
+  P -- "⑦ 简介 ⑧ 工具描述" --> TM
+  E -- "⑩ README" --> OV
+  E -- "⑪ README" --> RT
+  R -- "⑨ 源记录里的事实" --> GT
+
+  P --> API
+  SI --> API
+  MA --> API
+  GEN --> API
+  API["mcpfield-api（pm2 :3100）<br/>按请求语言拼装：发布层 + 译文 + 介绍 + README 译文 + R2 图标"]:::web
+  API --> WEB["mcpfield-web（pm2 :3000，SSR）→ Nginx 443 → Cloudflare → 访客"]:::web
+</pre>
+</div>
+
+<div class="card" id="fig2">
+<h2>图 2 · 每日定时任务：03:30 北京时间，11 步顺序执行</h2>
+<p class="sub">crontab → flock 加锁 → nice -n 10 → scripts/daily.sh；任意一步失败只记日志、继续下一步。括号内是线上实测耗时（10-14 至 10-16，旧配置）或预估</p>
+<pre class="mermaid">
+flowchart LR
+  classDef crawl fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef pub fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+  classDef img fill:#ffe4e6,stroke:#e11d48,color:#881337
+  classDef gh fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+  classDef llm fill:#f3e8ff,stroke:#9333ea,color:#581c87
+  classDef note fill:#f9fafb,stroke:#9ca3af,color:#374151,stroke-dasharray:3 3
+
+  S0(["03:30 crontab 触发<br/>flock /tmp/mcpfield-daily.lock<br/>nice -n 10"])
+  S1["① crawl<br/>mcp-registry --since auto<br/>（周日全量兜底）<br/>skills-sh 翻榜 + 新 / 到期 Skill<br/>（预计十几分钟）"]:::crawl
+  S2["② classify<br/>来源没分类的条目 → 大模型分类<br/>只分新增 / 输入变化的<br/>（读上一次发布的条目）"]:::llm
+  S3["③ publish<br/>合并各来源 → 整体重建发布层<br/>→ 同步搜索表 + 标签表<br/>→ IndexNow 推送<br/>（约 7 分钟）"]:::pub
+  S4["④ assets<br/>图标 → WebP → R2<br/>（约 1 分钟）"]:::img
+  S5["⑤ owner-icons<br/>缺图标的用仓库所有者头像<br/>（十几秒）"]:::img
+  S6["⑥ github<br/>全量刷 4.9 万仓库星数（41 分钟）<br/>→ 导入 skills.sh 的 SKILL.md<br/>→ README 增量（ETag，几十秒）<br/>→ 同步搜索表（合计约 43 分钟）"]:::gh
+  S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6
+  N1["之后所有步骤都从发布层取条目"]:::note
+  S3 -.- N1
+  S6 --> NEXT(["接下一行"])
+</pre>
+<pre class="mermaid">
+flowchart LR
+  classDef llm fill:#f3e8ff,stroke:#9333ea,color:#581c87
+  classDef note fill:#f9fafb,stroke:#9ca3af,color:#374151,stroke-dasharray:3 3
+
+  PREV(["接上一行"])
+  S7["⑦ translate<br/>新简介译三语<br/>→ 同步搜索表<br/>（1～3 分钟）"]:::llm
+  S8["⑧ translate-tools<br/>新工具描述 / 参数说明译三语<br/>热门服务先翻"]:::llm
+  S9["⑨ describe<br/>Loop / CLI / Agent 自撰内容<br/>→ 同步搜索表<br/>（3～10 分钟）"]:::llm
+  S10["⑩ overview<br/>按 README 生成三语介绍<br/>只做输入指纹变化的"]:::llm
+  S11["⑪ readme<br/>README 整篇译 zh/ja<br/>按片段去重、增量<br/>最重，放最后"]:::llm
+  S12(["写入 logs/daily.log<br/>旧配置约 06:45 结束"])
+  PREV --> S7 --> S8 --> S9 --> S10 --> S11 --> S12
+  N2["⑦⑧⑩⑪ 的输入来自发布层和 ⑥ 抓的 README；<br/>⑨ 的输入是 mcp.so 源记录里的事实"]:::note
+  S9 -.- N2
+</pre>
+</div>
+
+<div class="card" id="fig3">
+<h2>图 3 · 一个新条目从被抓到到页面信息完整：两天节奏</h2>
+<p class="sub">classify 读的是上一次发布的条目，所以新条目第一天先无分类上线，第二天分类才生效</p>
+<pre class="mermaid">
+flowchart LR
+  classDef d1 fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+  classDef state fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+  DAY1(["第 D 天 03:30"])
+  A1["crawl<br/>抓到新条目草稿"]:::d1 --> A2["classify<br/>看不到它<br/>（还没进发布层）"]:::d1 --> A3["publish<br/>新条目上线"]:::d1 --> A4["github<br/>抓它的 README、星数"]:::d1 --> A5["translate<br/>简介三语"]:::d1 --> A6["translate-tools<br/>工具描述三语"]:::d1 --> A7["overview<br/>AI 介绍"]:::d1 --> A8["readme<br/>README 译文"]:::d1
+  DAY1 --> A1
+  A8 --> ST1["页面状态：有简介译文、介绍、README 译文<br/>但分类为空、图标可能缺"]:::state
+</pre>
+<pre class="mermaid">
+flowchart LR
+  classDef d2 fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef state fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+  DAY2(["第 D+1 天 03:30"])
+  B1["classify<br/>用 README 开头给它分类"]:::d2 --> B2["publish<br/>分类写进发布层"]:::d2 --> B3["owner-icons<br/>缺图标补所有者头像"]:::d2
+  DAY2 --> B1
+  B3 --> ST2["页面状态：信息完整"]:::state
+</pre>
+</div>
+
+<div class="card" id="fig4">
+<h2>图 4 · 三条翻译链共用一个翻译记忆库</h2>
+<p class="sub">原文按指纹去重，三种语言都有译文才算完成；人工译文（origin = manual）永不被覆盖。模型由服务器 .env 的 TRANSLATE_PROVIDER / TRANSLATE_MODEL 决定</p>
+<pre class="mermaid">
+flowchart LR
+  classDef in fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+  classDef job fill:#f3e8ff,stroke:#9333ea,color:#581c87
+  classDef mem fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+  classDef out fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef chk fill:#f9fafb,stroke:#9ca3af,color:#374151,stroke-dasharray:3 3
+
+  I1["发布层 tagline / description<br/>（所有类型）"]:::in --> J1["translate<br/>批 40 条 ≤ 8,000 字<br/>并发 TRANSLATE_CONCURRENCY"]:::job
+  I2["发布层 server 的<br/>tools[].description + 参数说明"]:::in --> J2["translate-tools<br/>批 20 条，热门服务先翻<br/>加校验：snake_case 原样、行数不变"]:::job
+  I3["GitHub README<br/>ingest_enrichments(github_readme)"]:::in --> J3a["代码块换成占位符 ⟦CODE n⟧<br/>按标题切成 ≤ 4,000 字片段"]:::job --> J3["readme<br/>每次一个片段<br/>主模型 429 → 后备模型"]:::job
+
+  J1 & J2 & J3 --> M["翻译记忆库<br/>ingest_translation_sources（原文指纹）<br/>ingest_translations（指纹 × zh/en/ja）<br/>记录 model、promptVersion、origin、校验问题"]:::mem
+
+  M --> O1["接口按语言替换简介"]:::out
+  M --> O2["接口按语言替换工具描述"]:::out
+  M --> J3b["所有正文片段都有译文后<br/>拼回整篇、还原代码块"]:::job --> O3["ingest_readme_translations<br/>整篇 zh/ja + 原文哈希 + 许可证"]:::out
+  J3 -- "多次失败的片段" --> F["ingest_translation_failures<br/>之后跳过，--retry-failed 再补"]:::chk
+
+  C["通用批处理 src/llm/batch.ts<br/>分批 → 并发 → 截断拆批 → 校验不合格小批重做（≤3 次）<br/>ok = 合格 · review = 保存但待抽查 · failed = 放弃"]:::chk
+  J1 -.- C
+</pre>
+</div>
+
+<div class="card" id="fig5">
+<h2>图 5 · 每一步的"增量"依据</h2>
+<p class="sub">项目里没有统一的增量开关，每个任务各有判断依据；改任何一步前先看这里</p>
+<table>
+<tr><th>步骤</th><th>判断依据</th><th>什么时候会重做</th><th>强制选项</th></tr>
+<tr><td class="k">crawl mcp-registry</td><td>--since auto = 上次成功且不带 --limit 的抓取开始时间 − 1 小时 → 接口 updated_since；周日不带 since 全量兜底</td><td>Registry 记录的 updatedAt 变新</td><td class="k">--since &lt;日期&gt; / --force</td></tr>
+<tr><td class="k">crawl skills-sh</td><td>lastmod = min(max(仓库推送时间, 现在−90 天), 现在−7 天)，晚于上次抓取才重抓；新 Skill 必抓；安装量每天整批更新</td><td>上次抓取后仓库有推送且隔 7 天以上；90 天没推送也刷一次</td><td class="k">--force</td></tr>
+<tr><td class="k">classify</td><td>输入指纹（名称、简介、标签、工具名、包名、仓库、源站分类、README 开头 1,200 字、分类体系版本）或提示词版本</td><td>条目信息变化、改 taxonomy、改提示词</td><td class="k">--force / --all（评估）</td></tr>
+<tr><td class="k">publish</td><td>不增量：事务内整体重建；slug 沿用上次；content_changed_at 只在内容哈希变化时更新</td><td>每天</td><td>—</td></tr>
+<tr><td class="k">assets / owner-icons</td><td>media_assets 已成功的跳过；失败 1h → 4h → 16h… 最长 7 天退避；skipped / gone 不再试</td><td>新图标地址、原图失效</td><td class="k">--force / --retry-all</td></tr>
+<tr><td class="k">github 仓库统计</td><td>不增量：每天全量刷新全部仓库（约 4.9 万，41 分钟）</td><td>每天</td><td>—</td></tr>
+<tr><td class="k">github README</td><td>成功的 7 天后 ETag 条件请求（304 不占额度）；not_found / too_large 30 天后再试；临时错误退避最长 7 天</td><td>到期</td><td class="k">--force</td></tr>
+<tr><td class="k">translate / translate-tools</td><td>原文指纹在记忆库里三种语言齐全即完成；人工译文永远算完成</td><td>原文变化（指纹变 = 新原文）</td><td class="k">--stale / --recheck / --force</td></tr>
+<tr><td class="k">describe</td><td>事实指纹没变就跳过；照抄源站说明（连续 6 英文词 / 12 汉字）重写 3 次仍不合格则跳过</td><td>源记录事实变化</td><td class="k">--stale / --force</td></tr>
+<tr><td class="k">overview</td><td>输入指纹（名称、简介、标签、README 哈希，不含分类）变化或缺某种语言；README 不足或星数低于门槛跳过</td><td>README 更新、简介变化</td><td class="k">--stale / --force / --min-stars</td></tr>
+<tr><td class="k">readme</td><td>整篇按 README 哈希；片段按内容指纹查记忆库，跨项目相同段落只翻一次；多次失败片段 deferred</td><td>README 更新 → 只重翻变化的片段</td><td class="k">--stale / --force / --retry-failed</td></tr>
+<tr><td class="k">搜索表 ingest_search</td><td>按发布层 + 译文 + 自撰简介 + 星数算行指纹，只改有变化的行</td><td>publish / github / translate / describe 之后自动</td><td class="k">search-index</td></tr>
+<tr><td class="k">IndexNow</td><td>只推 content_changed_at 不早于本次 publish 开始的条目，每条推 zh/en/ja 三个地址</td><td>publish 之后自动</td><td class="k">indexnow --since / --dry-run</td></tr>
+</table>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'loose', flowchart: { htmlLabels: true, curve: 'basis', nodeSpacing: 30, rankSpacing: 56, useMaxWidth: false }, themeVariables: { fontFamily: '-apple-system, "PingFang SC", sans-serif', fontSize: '16px' } });
+</script>
+</body>
+</html>

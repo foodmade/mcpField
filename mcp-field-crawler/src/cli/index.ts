@@ -48,6 +48,10 @@ import { LlmClassifier } from '../classify/classifier.ts'
 import { ClassifyRunner, collectClassifyInputs } from '../classify/runner.ts'
 import { ClassificationStore } from '../classify/store.ts'
 import { importSkillsShReadmes } from '../sources/skills-sh/readme.ts'
+import { collectProbeTargets } from '../probe/local-targets.ts'
+import { readJsonl, runLocalProbes, writeJsonl } from '../probe/local-runner.ts'
+import { DockerSandbox } from '../probe/sandbox.ts'
+import { ProbedToolsStore, type LocalProbeResult } from '../probe/tools-store.ts'
 import type { MediaType } from '../core/draft.ts'
 import { join } from 'node:path'
 import type { TextField } from '../core/draft.ts'
@@ -77,6 +81,9 @@ MCP Field 数据采集
   classify                给来源没有分类的条目分类（按 classify/taxonomy.ts 的分类体系），之后 publish 写入发布层
   publish                 发布：过滤凑数条目，把各来源的同一个东西合并成一条，重建 ingest_published（网站和各生成任务读它）
   indexnow                把内容有变化的页面推送给 IndexNow（Bing 等，Google 不支持）；配置了 INDEXNOW_KEY 时 publish 结束后自动推送本次变化的
+  probe-targets           列出要实测工具列表的本地服务（没有工具列表、有 npm / PyPI 包，按包去重、星数从高到低），写成 JSONL
+  probe-local             在 Docker 沙箱里装包、断网启动，用 stdio 读出工具列表，结果追加写入 JSONL（不需要数据库，在单独的实测机上跑）
+  probe-import            把实测结果导入 ingest_enrichments，之后 publish 给没有工具列表的服务补上
   search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）和标签表 ingest_tags；publish 结束时两张都同步，github / translate / describe 结束时只同步搜索表
   stats                   查看采集层统计（需要 MySQL）
 
@@ -165,6 +172,13 @@ indexnow 选项：
   --kind <a,b>            只推这些类型，默认全部
   --dry-run               只列出要推送的地址数和前几个，不发请求（不需要 INDEXNOW_KEY）
 
+probe-targets / probe-local / probe-import 选项：
+  --output <file>         probe-targets 的输出、probe-local 的结果文件，默认 data/probe/targets.jsonl、data/probe/results.jsonl
+  --input <file>          probe-local 读的目标文件、probe-import 读的结果文件，默认同上
+  --min-stars <n>         probe-targets 只列星数不低于 n 的服务
+  --limit <n>             probe-targets 最多列 n 个包；probe-local 本次最多测 n 个（结果文件里已有的跳过，可以接着跑）
+  --concurrency <n>       probe-local 并发数，默认 4
+
 owner-icons 选项：
   --limit / --concurrency / --store / --force / --retry-all   同 assets（--limit 按头像张数计）
 `
@@ -194,6 +208,8 @@ const { positionals, values } = parseArgs({
     'retry-all': { type: 'boolean', default: false },
     all: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    input: { type: 'string' },
+    output: { type: 'string' },
     help: { type: 'boolean', short: 'h', default: false },
   },
 })
@@ -586,6 +602,60 @@ async function ownerIcons() {
   }
 }
 
+const probeTargetsFile = () => join(config.dataDir, 'probe', 'targets.jsonl')
+const probeResultsFile = () => join(config.dataDir, 'probe', 'results.jsonl')
+
+async function probeTargets() {
+  if (!config.databaseUrl) throw new Error('probe-targets 需要 DATABASE_URL')
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const targets = await collectProbeTargets(db, { minStars: values['min-stars'] ? Number(values['min-stars']) : undefined })
+    const picked = targets.slice(0, values.limit ? Number(values.limit) : undefined)
+    const file = values.output ?? probeTargetsFile()
+    await writeJsonl(file, picked)
+    const npm = picked.filter((t) => t.registryType === 'npm').length
+    logger.info({ file, total: picked.length, npm, pypi: picked.length - npm, withArgs: picked.filter((t) => t.args.length).length }, '实测目标已写入')
+  } finally {
+    await pool.end()
+  }
+}
+
+async function probeLocal() {
+  const controller = new AbortController()
+  process.once('SIGINT', () => {
+    logger.warn('收到中断信号，等待进行中的实测完成后退出……')
+    controller.abort()
+  })
+  const stats = await runLocalProbes(new DockerSandbox(config.probe), values.input ?? probeTargetsFile(), values.output ?? probeResultsFile(), logger, {
+    concurrency: values.concurrency ? Number(values.concurrency) : 4,
+    limit: values.limit ? Number(values.limit) : undefined,
+    signal: controller.signal,
+  })
+  logger.info(stats, '实测完成')
+}
+
+async function probeImport() {
+  if (!config.databaseUrl) throw new Error('probe-import 需要 DATABASE_URL')
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const store = new ProbedToolsStore(db)
+    const counts: Record<string, number> = {}
+    let batch: LocalProbeResult[] = []
+    for await (const result of readJsonl<LocalProbeResult>(values.input ?? probeResultsFile())) {
+      counts[result.status] = (counts[result.status] ?? 0) + 1
+      batch.push(result)
+      if (batch.length >= 200) {
+        await store.save(batch)
+        batch = []
+      }
+    }
+    await store.save(batch)
+    logger.info(counts, '实测结果已导入，publish 后生效')
+  } finally {
+    await pool.end()
+  }
+}
+
 async function mergePlan() {
   if (!config.databaseUrl) throw new Error('merge-plan 需要 DATABASE_URL')
   const kinds = parseKinds(values.kind, ENTITY_KINDS)
@@ -757,6 +827,12 @@ async function main() {
       return publishCommand()
     case 'indexnow':
       return indexNow()
+    case 'probe-targets':
+      return probeTargets()
+    case 'probe-local':
+      return probeLocal()
+    case 'probe-import':
+      return probeImport()
     case 'search-index':
       return searchIndex()
     case 'stats':

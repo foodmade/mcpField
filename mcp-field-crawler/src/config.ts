@@ -65,6 +65,9 @@ const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: optionalString,
   /** IndexNow 密钥（与 mcp-field/public/<密钥>.txt 一致）；不设置时 publish 不推送，本地跑 publish 不会把本地数据推给搜索引擎 */
   INDEXNOW_KEY: optionalString,
+  /** probe-local 装包用的 npm 源、PyPI 索引；不设置时用官方源。实测机公网出口被限速时改用云厂商内网镜像（腾讯云 https://mirrors.tencentyun.com/npm/、…/pypi/simple/） */
+  PROBE_NPM_REGISTRY: optionalString,
+  PROBE_PYPI_INDEX: optionalString,
   /** 网站地址：IndexNow 推送的页面地址用它拼 */
   SITE_URL: z.string().trim().default('https://mcpfield.com'),
 })
@@ -102,6 +105,7 @@ export interface AppConfig {
   siteUrl: string
   /** 配置了 INDEXNOW_KEY 才启用 */
   indexNow?: { key: string; siteUrl: string }
+  probe: { npmRegistry?: string; pypiIndex?: string }
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -140,5 +144,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
         : undefined,
     siteUrl: parsed.SITE_URL.replace(/\/+$/, ''),
     indexNow: parsed.INDEXNOW_KEY ? { key: parsed.INDEXNOW_KEY, siteUrl: parsed.SITE_URL.replace(/\/+$/, '') } : undefined,
+    probe: { npmRegistry: parsed.PROBE_NPM_REGISTRY, pypiIndex: parsed.PROBE_PYPI_INDEX },
   }
 }

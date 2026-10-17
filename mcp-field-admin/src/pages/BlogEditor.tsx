@@ -9,6 +9,7 @@ import {
   ImageSquare,
   Info,
   LinkSimple,
+  MagicWand,
   ListBullets,
   ListNumbers,
   PencilSimple,
@@ -24,12 +25,13 @@ import {
 import clsx from 'clsx'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
+import { AllDialog, BodyDialog, newProgress, ProgressPanel, track, type AllParams, type BodyParams, type Progress } from '../components/AiPanels'
 import { useShell } from '../components/Layout'
 import { MarkdownPreview } from '../components/MarkdownPreview'
 import { TranslationPill } from '../components/TranslationBadge'
 import { Button, ErrorBox, Loading } from '../components/ui'
-import { api } from '../lib/api'
-import { BLOG_CATEGORIES, CATEGORY_LABEL, LOCALE_LABEL, uploadImage, type BlogInput, type BlogPost, type TranslateLocale } from '../lib/blog'
+import { api, useApi } from '../lib/api'
+import { aiStream, LOCALE_LABEL, uploadImage, type AiEvent, type AiOptions, type BlogInput, type BlogPost, type ImageSource, type TranslateLocale } from '../lib/blog'
 import { compact, dateTime } from '../lib/format'
 import { KIND_LABEL, type Kind } from '../lib/labels'
 
@@ -45,7 +47,7 @@ interface Form extends Omit<BlogInput, 'tags' | 'publishedAt'> {
 const toLocal = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 16) : '')
 const fromLocal = (v: string) => (v ? `${v}:00+08:00` : null)
 
-const emptyForm = (author: string): Form => ({ slug: '', title: '', summary: '', body: '', category: 'tutorial', tags: '', coverUrl: null, authorName: author, status: 'draft', pinned: false, publishedAt: '' })
+const emptyForm = (author: string): Form => ({ slug: '', title: '', summary: '', body: '', tags: '', coverUrl: null, authorName: author, status: 'draft', pinned: false, publishedAt: '' })
 const formOf = (p: BlogPost): Form => ({ ...p, tags: p.tags.join(', '), publishedAt: toLocal(p.publishedAt) })
 const payload = (f: Form, status: BlogInput['status']): BlogInput => ({
   ...f,
@@ -120,6 +122,11 @@ export function BlogEditorPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [mode, setMode] = useState<'edit' | 'split' | 'preview'>('split')
+  const { data: ai } = useApi<AiOptions>('/blog/ai/options')
+  const [dialog, setDialog] = useState<'body' | 'all' | null>(null)
+  const [progress, setProgress] = useState<Progress | null>(null)
+  const aiAbort = useRef<AbortController | null>(null)
+  const generating = progress?.done === null
   const textarea = useRef<HTMLTextAreaElement>(null)
   /** 已经在编辑的文章 id：新建保存后地址换成 /blog/<id>，不需要再加载一次（也免得冲掉刚输入的内容） */
   const loaded = useRef<number | null>(null)
@@ -272,6 +279,88 @@ export function BlogEditorPage() {
     return () => window.removeEventListener('keydown', onKey)
   }) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ========== AI 生成 ========== */
+
+  /** 跑一次流式生成：进度记进浮层，内容由 apply 回填到表单 */
+  const runAi = async (label: string, path: string, body: unknown, applyEvent: (e: AiEvent) => void) => {
+    const controller = new AbortController()
+    aiAbort.current = controller
+    setProgress(newProgress(label))
+    setMsg(null)
+    try {
+      await aiStream(
+        path,
+        body,
+        (e) => {
+          if (e.type === 'ping') return
+          setProgress((p) => (p ? track(p, e) : p))
+          applyEvent(e)
+        },
+        controller.signal,
+      )
+      setProgress((p) => (p && p.done === null ? { ...p, done: true } : p))
+    } catch (e) {
+      const message = controller.signal.aborted ? '已停止' : (e as Error).message
+      setProgress((p) => (p ? { ...p, done: false, error: message } : p))
+    } finally {
+      aiAbort.current = null
+    }
+  }
+
+  /** 正文流式写入；插图生成好后把占位行换成真实图片 */
+  const applyBody = (e: AiEvent) => {
+    if (e.type === 'delta') setForm((f) => ({ ...f, body: f.body + e.text }))
+    else if (e.type === 'image') setForm((f) => ({ ...f, body: e.markdown ? f.body.replace(e.line, e.markdown) : f.body.replace(`${e.line}\n`, '').replace(e.line, '') }))
+    else if (e.type === 'body') setForm((f) => ({ ...f, body: e.body }))
+  }
+
+  const generateBody = (p: BodyParams) => {
+    setDialog(null)
+    if (form.body.trim() && !confirm('会替换现在的正文，继续？')) return
+    setForm((f) => ({ ...f, body: '' }))
+    setMode('split')
+    void runAi('AI 写正文', '/body', { ...p, title: form.title }, applyBody)
+  }
+
+  const generateAll = (p: AllParams) => {
+    setDialog(null)
+    if ((form.title.trim() || form.body.trim()) && !confirm('会替换现在的标题、摘要、正文、地址、标签和封面，继续？')) return
+    setForm((f) => ({ ...f, title: '', summary: '', body: '', ...(post ? {} : { slug: '' }), tags: '', coverUrl: p.cover === 'none' ? f.coverUrl : null }))
+    setMode('split')
+    void runAi('AI 一键生成', '/all', p, (e) => {
+      // 已有文章（改过地址会让旧链接失效）不自动改地址
+      if (e.type === 'meta') setForm((f) => ({ ...f, title: e.title, tags: e.tags.join(', '), ...(post && f.slug ? {} : { slug: e.slug }) }))
+      else if (e.type === 'summary') setForm((f) => ({ ...f, summary: e.summary }))
+      else if (e.type === 'cover') setForm((f) => ({ ...f, coverUrl: e.url }))
+      else applyBody(e)
+    })
+  }
+
+  const generateCover = (source: ImageSource) => {
+    if (!form.title.trim()) return setMsg({ ok: false, text: '先填写标题再生成封面' })
+    void runAi(source === 'ai' ? 'AI 生成封面' : '从图库找封面', '/cover', { title: form.title, summary: form.summary, source }, (e) => {
+      if (e.type === 'cover') setForm((f) => ({ ...f, coverUrl: e.url }))
+    })
+  }
+
+  const generateSummary = async () => {
+    setBusy('summary')
+    setMsg(null)
+    try {
+      const { summary } = await api<{ summary: string }>('/blog/ai/summary', { method: 'POST', body: { title: form.title, body: form.body } })
+      set('summary', summary)
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // 生成正文时编辑区跟着滚到底部
+  useEffect(() => {
+    if (generating && textarea.current) textarea.current.scrollTop = textarea.current.scrollHeight
+  }, [form.body, generating])
+
   const chars = useMemo(() => form.body.replace(/\s/g, '').length, [form.body])
 
   if (loadError) {
@@ -305,7 +394,10 @@ export function BlogEditorPage() {
               在网站查看
             </a>
           )}
-          {post && <Button danger icon={<Trash className="size-[15px]" />} onClick={remove} disabled={!!busy} />}
+          <Button icon={<MagicWand className="size-[15px] text-accent" />} onClick={() => setDialog('all')} disabled={!ai || generating}>
+            AI 一键生成
+          </Button>
+          {post && <Button danger icon={<Trash className="size-[15px]" />} onClick={remove} disabled={!!busy || generating} />}
           {published ? (
             <>
               <Button onClick={() => save('draft')} disabled={!!busy}>
@@ -331,18 +423,31 @@ export function BlogEditorPage() {
       <div className="flex gap-6 px-8 pb-10 pt-6">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <input value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="文章标题" className="bg-transparent text-[26px] font-bold tracking-tight outline-none placeholder:text-text3/60" />
-          <textarea
-            value={form.summary}
-            onChange={(e) => set('summary', e.target.value)}
-            rows={2}
-            maxLength={500}
-            placeholder="摘要：显示在文章列表和搜索结果里，一两句话说清楚这篇讲什么"
-            className="resize-none rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm leading-relaxed outline-none placeholder:text-text3 focus:border-text3"
-          />
+          <div className="relative">
+            <textarea
+              value={form.summary}
+              onChange={(e) => set('summary', e.target.value)}
+              rows={2}
+              maxLength={500}
+              readOnly={generating}
+              placeholder="摘要：显示在文章列表和搜索结果里，一两句话说清楚这篇讲什么"
+              className="w-full resize-none rounded-lg border border-line bg-surface py-2.5 pl-3.5 pr-24 text-sm leading-relaxed outline-none placeholder:text-text3 focus:border-text3"
+            />
+            <button
+              type="button"
+              onClick={generateSummary}
+              disabled={!ai?.text || generating || !!busy || form.body.trim().length < 50}
+              title={!ai?.text ? '先在「AI 设置」里配置文本模型' : form.body.trim().length < 50 ? '正文写一些内容后才能生成摘要' : '根据标题和正文生成摘要'}
+              className="absolute bottom-2.5 right-2.5 flex h-7 items-center gap-1 rounded-md border border-line bg-bg px-2 text-xs text-text2 hover:border-accent/50 hover:text-accent disabled:opacity-40 disabled:hover:border-line disabled:hover:text-text2"
+            >
+              {busy === 'summary' ? <CircleNotch className="size-3.5 animate-spin" /> : <MagicWand className="size-3.5" />}
+              AI 生成
+            </button>
+          </div>
 
           <section className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface">
             <div className="flex items-center justify-between gap-3 border-b border-line px-2.5 py-1.5">
-              <div className="flex items-center gap-0.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-0.5">
                 {TOOLS.map(({ icon: Icon, title, edit, gap }) => (
                   <span key={title} className="flex items-center">
                     {gap && <span className="mx-1.5 h-4 w-px bg-line" />}
@@ -359,9 +464,14 @@ export function BlogEditorPage() {
                     e.target.value = ''
                   }} />
                 </label>
+                <span className="mx-1.5 h-4 w-px bg-line" />
+                <button type="button" onClick={() => setDialog('body')} disabled={!ai || generating} className="flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs text-accent hover:bg-accent/10 disabled:opacity-40">
+                  <MagicWand className="size-3.5" />
+                  AI 写正文
+                </button>
               </div>
               <div className="flex items-center gap-3">
-                <span className="font-mono text-[11px] text-text3">{chars.toLocaleString('en-US')} 字</span>
+                <span className="hidden whitespace-nowrap font-mono text-[11px] text-text3 2xl:inline">{chars.toLocaleString('en-US')} 字</span>
                 <div className="flex gap-0.5 rounded-lg bg-subtle p-0.5">
                   {(
                     [
@@ -370,7 +480,7 @@ export function BlogEditorPage() {
                       ['preview', Eye, '预览'],
                     ] as const
                   ).map(([m, Icon, label]) => (
-                    <button key={m} onClick={() => setMode(m)} className={clsx('flex h-7 items-center gap-1 rounded-md px-2 text-xs', mode === m ? 'bg-white/10 font-medium text-ink' : 'text-text3 hover:text-ink')}>
+                    <button key={m} onClick={() => setMode(m)} title={label} className={clsx('flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs', mode === m ? 'bg-white/10 font-medium text-ink' : 'text-text3 hover:text-ink')}>
                       <Icon className="size-3.5" />
                       {label}
                     </button>
@@ -381,6 +491,7 @@ export function BlogEditorPage() {
             <div className="flex h-[calc(100vh-150px)] min-h-[520px]">
               <textarea
                 ref={textarea}
+                readOnly={generating}
                 value={form.body}
                 onChange={(e) => set('body', e.target.value)}
                 onPaste={(e) => {
@@ -418,15 +529,6 @@ export function BlogEditorPage() {
                 <input value={form.slug} onChange={(e) => set('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="remote-mcp-guide" className="h-full min-w-0 flex-1 bg-transparent pr-3 font-mono text-[13px] outline-none placeholder:text-text3/60" />
               </div>
             </Field>
-            <Field label="栏目">
-              <select value={form.category} onChange={(e) => set('category', e.target.value as Form['category'])} className={clsx(input, 'cursor-pointer')}>
-                {BLOG_CATEGORIES.map((c) => (
-                  <option key={c} value={c} className="bg-surface">
-                    {CATEGORY_LABEL[c]}
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label="标签" hint="逗号分隔，最多 8 个，自动转小写">
               <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="claude-code, remote, oauth" className={clsx(input, 'font-mono')} />
             </Field>
@@ -457,7 +559,7 @@ export function BlogEditorPage() {
               <label className="flex aspect-[16/9] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-line text-xs text-text3 hover:border-text3 hover:text-text2">
                 {busy === 'cover' ? <CircleNotch className="size-5 animate-spin" /> : <UploadSimple className="size-5" />}
                 上传封面（16:9）
-                <span className="text-[11px]">不传时按栏目显示默认封面</span>
+                <span className="text-[11px]">不传时显示默认封面</span>
                 <input type="file" accept="image/png,image/jpeg,image/webp,image/avif" hidden onChange={(e) => {
                     void uploadCover(e.target.files?.[0])
                     e.target.value = ''
@@ -465,6 +567,15 @@ export function BlogEditorPage() {
               </label>
             )}
             <input value={form.coverUrl ?? ''} onChange={(e) => set('coverUrl', e.target.value || null)} placeholder="或填图片地址 https://…" className={clsx(input, 'font-mono text-xs')} />
+            <div className="flex gap-2">
+              <Button className="flex-1" icon={<MagicWand className="size-[15px] text-accent" />} onClick={() => generateCover('ai')} disabled={!ai?.image || !ai.text || generating} >
+                AI 生成封面
+              </Button>
+              <Button onClick={() => generateCover('stock')} disabled={!ai?.stock || !ai.text || generating}>
+                图库
+              </Button>
+            </div>
+            {ai && (!ai.image || !ai.text) && <p className="text-[11px] leading-snug text-text3">AI 生成封面需要先在「AI 设置」里配置文本模型和生图模型</p>}
           </Panel>
 
           {post && (
@@ -545,6 +656,9 @@ export function BlogEditorPage() {
           )}
         </aside>
       </div>
+      {dialog === 'body' && ai && <BodyDialog options={ai} title={form.title} onClose={() => setDialog(null)} onStart={generateBody} />}
+      {dialog === 'all' && ai && <AllDialog options={ai} onClose={() => setDialog(null)} onStart={generateAll} />}
+      {progress && <ProgressPanel progress={progress} onStop={() => aiAbort.current?.abort()} onClose={() => setProgress(null)} />}
     </>
   )
 }

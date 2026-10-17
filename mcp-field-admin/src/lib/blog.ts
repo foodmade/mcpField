@@ -2,11 +2,6 @@ import { ApiError } from './api'
 
 /* 博客文章（mcp-field-crawler/src/admin-api/blog.ts） */
 
-export const BLOG_CATEGORIES = ['product', 'tutorial', 'ecosystem', 'testing', 'case'] as const
-export type BlogCategory = (typeof BLOG_CATEGORIES)[number]
-
-export const CATEGORY_LABEL: Record<BlogCategory, string> = { product: '产品更新', tutorial: '上手教程', ecosystem: '生态观察', testing: '实测记录', case: '案例拆解' }
-
 export type BlogStatus = 'draft' | 'published'
 
 export interface BlogMention {
@@ -39,7 +34,6 @@ export interface BlogRow {
   id: number
   slug: string
   title: string
-  category: BlogCategory
   status: BlogStatus
   /** 已发布但发布时间还没到 */
   scheduled: boolean
@@ -64,7 +58,6 @@ export interface BlogPost {
   title: string
   summary: string
   body: string
-  category: BlogCategory
   tags: string[]
   coverUrl: string | null
   authorName: string
@@ -84,7 +77,7 @@ export interface BlogPost {
 }
 
 /** 编辑表单：保存时整份提交 */
-export type BlogInput = Pick<BlogPost, 'slug' | 'title' | 'summary' | 'body' | 'category' | 'tags' | 'coverUrl' | 'authorName' | 'status' | 'pinned' | 'publishedAt'>
+export type BlogInput = Pick<BlogPost, 'slug' | 'title' | 'summary' | 'body' | 'tags' | 'coverUrl' | 'authorName' | 'status' | 'pinned' | 'publishedAt'>
 
 /** 上传图片，返回公开地址 */
 export async function uploadImage(file: File): Promise<string> {
@@ -103,4 +96,72 @@ export function translationLabel(state: TranslationState | null): { label: strin
   if (state.status === 'failed') return { label: '翻译失败', tone: 'err' }
   if (state.status === 'pending') return state.nextAttemptAt ? { label: '稍后重试', tone: 'warn' } : { label: state.hasContent ? '等待更新' : '排队中', tone: 'run' }
   return state.outdated ? { label: '译文较旧', tone: 'warn' } : { label: '已完成', tone: 'ok' }
+}
+
+/* ========== AI 生成（mcp-field-crawler/src/admin-api/blog-ai.ts、settings.ts） ========== */
+
+export interface AiOptions {
+  directions: { id: string; label: string; guide: string }[]
+  /** 文本模型、生图、图库是否已配置 */
+  text: boolean
+  image: boolean
+  stock: boolean
+}
+
+export type ImageSource = 'ai' | 'stock'
+
+/** 流式生成的事件（一行一个 JSON） */
+export type AiEvent =
+  | { type: 'ping' }
+  | { type: 'stage'; stage: 'materials' | 'plan' | 'body' | 'images' | 'summary' | 'cover'; message: string }
+  | { type: 'materials'; items: { name: string; path: string }[] }
+  | { type: 'meta'; title: string; slug: string; tags: string[]; outline: string[] }
+  | { type: 'delta'; text: string }
+  | { type: 'image'; line: string; markdown: string | null; error?: string }
+  | { type: 'body'; body: string }
+  | { type: 'summary'; summary: string }
+  | { type: 'cover'; url: string }
+  | { type: 'warning'; message: string }
+  | { type: 'done'; failed: string[] }
+  | { type: 'error'; message: string }
+
+/** 调用流式生成接口，逐个事件回调；收到 error 事件时抛错 */
+export async function aiStream(path: string, body: unknown, onEvent: (e: AiEvent) => void, signal?: AbortSignal): Promise<void> {
+  const res = await fetch(`/api/admin/blog/ai${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin', signal })
+  if (!res.ok || !res.body) {
+    const json = (await res.json().catch(() => ({}))) as { error?: { code: string; message: string } }
+    throw new ApiError(res.status, json.error?.code ?? 'error', json.error?.message ?? `请求失败（${res.status}）`)
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let i: number
+    while ((i = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, i).trim()
+      buffer = buffer.slice(i + 1)
+      if (!line) continue
+      const event = JSON.parse(line) as AiEvent
+      if (event.type === 'error') throw new Error(event.message)
+      onEvent(event)
+    }
+  }
+}
+
+export interface AiEndpointView {
+  baseURL: string
+  model: string
+  /** 掩码，如 sk-6…5e28 */
+  apiKey: string
+  hasKey: boolean
+  ready: boolean
+}
+
+export interface AiSettings {
+  text: AiEndpointView
+  image: AiEndpointView & { size: string }
+  stock: { apiKey: string; hasKey: boolean; ready: boolean }
 }

@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono'
 import { z } from 'zod'
-import { BLOG_CATEGORIES, BLOG_SLUG_RE } from '../../../blog/post.ts'
+import { BLOG_SLUG_RE } from '../../../blog/post.ts'
 import { ApiError } from '../../http/errors.ts'
 import { LOCALES } from '../../../core/types.ts'
 import { parseQuery } from '../../http/query.ts'
@@ -10,7 +10,6 @@ import type { BlogService } from './blog.service.ts'
 const localeSchema = z.object({ locale: z.enum(LOCALES).default('zh') })
 
 const listSchema = z.object({
-  category: z.enum(BLOG_CATEGORIES).optional(),
   tag: z
     .string()
     .trim()
@@ -38,7 +37,7 @@ const slugOf = (c: Context): string => {
 /**
  * 博客接口（挂在 /api/blog 下），只返回已发布且发布时间已到的文章。locale 是请求语言（默认 zh）：
  * 有这种语言的译文时标题、摘要、正文换成译文，没有时用中文原文（返回的 locale 字段标明实际语言）。
- * GET  /posts?category&tag&q&locale&page&pageSize   列表，附带不受筛选影响的汇总（栏目计数、置顶、热门、常用标签）
+ * GET  /posts?tag&q&locale&page&pageSize            列表，附带不受筛选影响的汇总（置顶、热门、常用标签）
  * GET  /posts/:slug?locale                          全文（Markdown）+ 上一篇 / 下一篇 + 相关文章
  * GET  /all?locale                                  全部文章（不带正文），sitemap 和 RSS 用
  * POST /posts/:slug/views                         浏览数 +1（浏览器里打开文章时发）

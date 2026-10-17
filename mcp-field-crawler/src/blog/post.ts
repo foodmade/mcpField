@@ -4,10 +4,6 @@ import { ENTITY_KINDS, type EntityKind } from '../core/types.ts'
 
 /* 博客文章的取值约定和纯函数：后台接口保存时、网站接口读取时共用 */
 
-/** 栏目：product 产品更新 / tutorial 上手教程 / ecosystem 生态观察 / testing 实测记录 / case 案例拆解 */
-export const BLOG_CATEGORIES = ['product', 'tutorial', 'ecosystem', 'testing', 'case'] as const
-export type BlogCategory = (typeof BLOG_CATEGORIES)[number]
-
 export const BLOG_STATUSES = ['draft', 'published'] as const
 export type BlogStatus = (typeof BLOG_STATUSES)[number]
 

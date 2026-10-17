@@ -1,10 +1,10 @@
 import clsx from 'clsx'
 import type { BlogCard } from '../../lib/api/blog'
-import { CATEGORY_STYLE } from '../../lib/blog'
+import { coverStyle } from '../../lib/blog'
 
-/** 文章封面：有上传的图就用图；没有时按栏目颜色画一张渐变底 + 图标的默认封面（large 时左上角加文件路径） */
-export function BlogCover({ post, large, className }: { post: Pick<BlogCard, 'slug' | 'category' | 'coverUrl' | 'title'>; large?: boolean; className?: string }) {
-  const { color, icon: Icon } = CATEGORY_STYLE[post.category] ?? CATEGORY_STYLE.product
+/** 文章封面：有封面图就用图；没有时画一张渐变底 + 图标的默认封面，颜色按地址固定（large 时左上角加文件路径） */
+export function BlogCover({ post, large, className }: { post: Pick<BlogCard, 'slug' | 'coverUrl' | 'title'>; large?: boolean; className?: string }) {
+  const { color, icon: Icon } = coverStyle(post.slug)
   if (post.coverUrl) {
     return (
       <div className={clsx('overflow-hidden border border-line bg-subtle', className)}>

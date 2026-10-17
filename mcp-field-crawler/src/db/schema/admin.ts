@@ -8,6 +8,7 @@ import { at, kindCol, pk, ref, sha256, sourceIdCol, timestamps } from './columns
  *   admin_job_runs                一个命令的一次运行：状态、进度、统计、最后几条警告和错误
  *   admin_item_status             每个发布条目一行的宽表：各补全步骤的状态灯 + 列表要显示的冗余字段
  *   admin_coverage                各类型 × 各步骤的状态计数，仪表盘直接读
+ *   admin_settings                后台可修改的配置（博客 AI 生成的模型服务）
  * 条目状态由 admin/sync.ts 从各结果表推导后写入（每步结束时只刷新相关的列），任务本身不逐条埋点。
  */
 
@@ -175,3 +176,14 @@ export const adminCoverage = mysqlTable(
   },
   (t) => [primaryKey({ columns: [t.kind, t.stage] })],
 )
+
+/**
+ * 后台可修改的配置：一行一项，值是 JSON。目前放博客 AI 生成用的模型服务（blog-ai）：文本模型、生图模型、Pexels 图库。
+ * API Key 明文存放（和 .env 一样只在服务器上），接口只回显掩码。
+ */
+export const adminSettings = mysqlTable('admin_settings', {
+  key: varchar('key', { length: 64 }).primaryKey(),
+  value: json('value').notNull(),
+  updatedBy: varchar('updated_by', { length: 64 }),
+  ...timestamps(),
+})

@@ -1,4 +1,3 @@
-import { BLOG_CATEGORIES, type BlogCategory } from '../../../blog/post.ts'
 import type { Locale } from '../../../core/types.ts'
 import { pageMeta, type PageMeta } from '../../http/query.ts'
 import { TtlCache } from '../../http/ttl-cache.ts'
@@ -7,7 +6,6 @@ import type { BlogCard, BlogListQuery, BlogPostFull, BlogRepository } from './bl
 export interface BlogSummary {
   /** 已发布文章总数（不受筛选影响，下同） */
   total: number
-  categories: Record<BlogCategory, number>
   /** 最近一篇的发布时间 */
   latestAt: string | null
   /** 置顶文章：没有置顶时为空 */
@@ -16,6 +14,8 @@ export interface BlogSummary {
   popular: BlogCard[]
   /** 最常用的标签 */
   tags: { tag: string; count: number }[]
+  /** 用到的标签总数 */
+  tagCount: number
 }
 
 export interface BlogList {
@@ -35,18 +35,16 @@ const TOP_TAGS = 12
 const RELATED = 3
 
 export function summarize(posts: BlogCard[]): BlogSummary {
-  const categories = Object.fromEntries(BLOG_CATEGORIES.map((c) => [c, 0])) as Record<BlogCategory, number>
   const tags = new Map<string, number>()
   for (const p of posts) {
-    categories[p.category] = (categories[p.category] ?? 0) + 1
     for (const t of p.tags) tags.set(t, (tags.get(t) ?? 0) + 1)
   }
   return {
     total: posts.length,
-    categories,
     latestAt: posts[0]?.publishedAt ?? null,
     pinned: posts.find((p) => p.pinned) ?? null,
     popular: [...posts].sort((a, b) => b.views - a.views || b.publishedAt.localeCompare(a.publishedAt)).slice(0, POPULAR),
+    tagCount: tags.size,
     tags: [...tags].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, TOP_TAGS).map(([tag, count]) => ({ tag, count })),
   }
 }

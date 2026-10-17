@@ -14,7 +14,7 @@ import { LOCALE_META, LOCALES } from '../i18n/locales'
 import { ROUTE } from '../lib/api/entities'
 import { sendBlogView, type BlogCard, type BlogPost as Post } from '../lib/api/blog'
 import { loadBlogPost } from '../lib/api/loaders'
-import { blogDate, CATEGORY_STYLE, tableOfContents, type TocItem } from '../lib/blog'
+import { blogDate, coverStyle, tableOfContents, type TocItem } from '../lib/blog'
 import { absoluteUrl, clip } from '../lib/seo'
 import type { Route } from './+types/BlogPost'
 
@@ -74,17 +74,14 @@ function ShareButtons({ post }: { post: Post }) {
 
 function RelatedCard({ post }: { post: BlogCard }) {
   const { m, to } = useI18n()
-  const color = CATEGORY_STYLE[post.category]?.color
+  const { color } = coverStyle(post.slug)
   return (
     <Link
       to={to(`/blog/${post.slug}`)}
       className="group flex flex-col gap-3 rounded-xl border border-line p-5 transition-colors hover:border-fg/20"
       style={{ background: `radial-gradient(120% 140% at 100% 0%, ${color}22, transparent 60%), var(--color-bg)` }}
     >
-      <span className="flex items-center gap-2 text-xs text-text2">
-        <span className="size-1.5 rounded-full" style={{ background: color }} />
-        {m.blog.categories[post.category]}
-      </span>
+      {post.tags.length > 0 && <span className="truncate font-mono text-xs text-text3">{post.tags.slice(0, 3).map((t) => `#${t}`).join('  ')}</span>}
       <span className="line-clamp-2 text-base font-semibold leading-normal transition-colors group-hover:text-accent">{post.title}</span>
       <span className="font-mono text-xs text-text3">
         {blogDate(post.publishedAt)} · {m.blog.minutes(post.readingMinutes)}
@@ -100,7 +97,6 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
   const enter = useEnterAnimation()
   const toc = useMemo(() => tableOfContents(post.body), [post.body])
   const active = useActiveHeading(toc)
-  const color = CATEGORY_STYLE[post.category]?.color
   const published = blogDate(post.publishedAt)
   const updated = blogDate(post.updatedAt)
 
@@ -134,11 +130,6 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
         <motion.div initial={enter ? { opacity: 0, y: 14 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="mx-auto flex max-w-[1248px] flex-col gap-4 px-6 pb-9 pt-10">
           <nav aria-label="breadcrumb" className="flex items-center gap-2 text-[13px] text-text3">
             <Link to={to('/blog')} className="hover:text-ink">{t.title}</Link>
-            <span>/</span>
-            <Link to={to(`/blog?category=${post.category}`)} className="flex items-center gap-1.5 text-text2 hover:text-ink">
-              <span className="size-1.5 rounded-full" style={{ background: color }} />
-              {t.categories[post.category]}
-            </Link>
           </nav>
           <h1 className="max-w-[880px] text-[30px] font-bold leading-[1.3] tracking-[-0.02em] sm:text-[38px]">{post.title}</h1>
           {post.summary && <p className="max-w-[760px] text-base leading-[1.7] text-text2">{post.summary}</p>}

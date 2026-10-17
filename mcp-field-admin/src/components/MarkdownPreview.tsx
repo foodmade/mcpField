@@ -1,6 +1,6 @@
-import { Check, Copy } from '@phosphor-icons/react'
+import { Check, CircleNotch, Copy } from '@phosphor-icons/react'
 import { memo, useState, type ReactNode } from 'react'
-import Markdown, { type Components } from 'react-markdown'
+import Markdown, { defaultUrlTransform, type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { rehypeGithubAlerts } from '../lib/githubAlerts'
 
@@ -53,6 +53,15 @@ const components: Components = {
     </div>
   ),
   img: ({ node: _n, src, alt, title }) => {
+    // AI 写正文时的插图占位 ![说明](image: 提示词)：图片生成好后会换成真实地址
+    if (typeof src === 'string' && src.startsWith('image:')) {
+      return (
+        <span className="my-2 flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed border-line text-xs text-text3">
+          <CircleNotch className="size-4 animate-spin" />
+          插图待生成：{alt}
+        </span>
+      )
+    }
     const img = <img src={typeof src === 'string' ? src : undefined} alt={alt ?? ''} loading="lazy" />
     return title ? (
       <figure>
@@ -66,12 +75,17 @@ const components: Components = {
   a: ({ node: _n, ...p }) => <a {...p} target="_blank" rel="noreferrer" />,
 }
 
+const urlTransform = (url: string) => (url.startsWith('image:') ? url : defaultUrlTransform(url))
+
+/** 插图占位行里的提示词带空格，不是合法的图片地址：预览前换成 image:pending 才能渲染成占位框 */
+const markPending = (md: string) => md.replace(/^[ \t]*!\[([^\]\n]*)\]\(\s*image:[^)\n]*\)[ \t]*$/gm, '![$1](image:pending)')
+
 export const MarkdownPreview = memo(function MarkdownPreview({ source, empty }: { source: string; empty?: ReactNode }) {
   if (!source.trim()) return <div className="py-20 text-center text-sm text-text3">{empty ?? '正文是空的'}</div>
   return (
     <div className="blog-md">
-      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} components={components}>
-        {source}
+      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} components={components} urlTransform={urlTransform}>
+        {markPending(source)}
       </Markdown>
     </div>
   )

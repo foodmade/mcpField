@@ -1,15 +1,21 @@
-import { Binoculars, BookOpen, Flask, Sparkle, Stack, type Icon } from '@phosphor-icons/react'
-import type { BlogCategory } from './api/blog'
+import { Article, Binoculars, BookOpen, Flask, Sparkle, Stack, type Icon } from '@phosphor-icons/react'
 
-/* 博客页面共用：栏目的颜色和图标、正文目录、日期显示 */
+/* 博客页面共用：默认封面、正文目录、日期显示 */
 
-/** 栏目颜色用于色点和没有封面时的默认封面 */
-export const CATEGORY_STYLE: Record<BlogCategory, { color: string; icon: Icon }> = {
-  product: { color: '#3DDC97', icon: Sparkle },
-  tutorial: { color: '#2B7FFF', icon: BookOpen },
-  ecosystem: { color: '#A78BFA', icon: Binoculars },
-  testing: { color: '#D9944A', icon: Flask },
-  case: { color: '#F472B6', icon: Stack },
+/** 没有封面图时的默认封面：按地址固定挑一种颜色和图标，同一篇文章每次都一样 */
+const COVERS: { color: string; icon: Icon }[] = [
+  { color: '#3DDC97', icon: Sparkle },
+  { color: '#2B7FFF', icon: BookOpen },
+  { color: '#A78BFA', icon: Binoculars },
+  { color: '#D9944A', icon: Flask },
+  { color: '#F472B6', icon: Stack },
+  { color: '#22D3EE', icon: Article },
+]
+
+export function coverStyle(slug: string): { color: string; icon: Icon } {
+  let h = 0
+  for (const c of slug) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return COVERS[h % COVERS.length]!
 }
 
 export const BLOG_PAGE_SIZE = 10

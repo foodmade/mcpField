@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, isNotNull, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/mysql-core'
-import { blogSourceHash, type BlogCategory, type BlogMention } from '../../../blog/post.ts'
+import { blogSourceHash, type BlogMention } from '../../../blog/post.ts'
 import type { Locale } from '../../../core/types.ts'
 import type { Db } from '../../../db/client.ts'
 import { blogPosts, blogPostTranslations } from '../../../db/schema/index.ts'
@@ -10,7 +10,6 @@ export interface BlogCard {
   slug: string
   title: string
   summary: string
-  category: BlogCategory
   tags: string[]
   coverUrl: string | null
   authorName: string
@@ -34,7 +33,6 @@ export interface BlogPostFull extends BlogCard {
 }
 
 export interface BlogListQuery {
-  category?: BlogCategory
   tag?: string
   q?: string
   page: number
@@ -61,7 +59,6 @@ const cardColumns = (locale: Locale) => ({
   slug: blogPosts.slug,
   title: sql<string>`COALESCE(${tr.title}, ${blogPosts.title})`,
   summary: sql<string>`COALESCE(${tr.summary}, ${blogPosts.summary})`,
-  category: blogPosts.category,
   tags: blogPosts.tags,
   coverUrl: blogPosts.coverUrl,
   authorName: blogPosts.authorName,
@@ -101,7 +98,6 @@ export class MysqlBlogRepository implements BlogRepository {
 
   async list(query: BlogListQuery, now: Date) {
     const conditions: SQL[] = [visible(now)]
-    if (query.category) conditions.push(eq(blogPosts.category, query.category))
     if (query.tag) conditions.push(sql`JSON_CONTAINS(${blogPosts.tags}, JSON_QUOTE(${query.tag}))`)
     // 关键词同时搜原文和请求语言的译文
     if (query.q) {
@@ -161,8 +157,8 @@ export class MysqlBlogRepository implements BlogRepository {
   async related(post: BlogCard, limit: number, locale: Locale, now: Date) {
     const rows = await this.cards(locale)
       .where(and(visible(now), ne(blogPosts.slug, post.slug)))
-      // 同栏目的排前面，其次按发布时间
-      .orderBy(sql`${blogPosts.category} = ${post.category} DESC`, desc(blogPosts.publishedAt))
+      // 有相同标签的排前面，其次按发布时间
+      .orderBy(sql`JSON_OVERLAPS(${blogPosts.tags}, ${JSON.stringify(post.tags)}) DESC`, desc(blogPosts.publishedAt))
       .limit(limit)
     return rows.map(toCard)
   }

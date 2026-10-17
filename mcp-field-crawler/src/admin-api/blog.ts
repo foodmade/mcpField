@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import type { AssetStorage } from '../assets/storage.ts'
-import { BLOG_CATEGORIES, BLOG_SLUG_RE, BLOG_STATUSES, BLOG_TRANSLATE_LOCALES, blogSourceHash, extractMentionTargets, normalizeTags, readingMinutes, type BlogMention } from '../blog/post.ts'
+import { BLOG_SLUG_RE, BLOG_STATUSES, BLOG_TRANSLATE_LOCALES, blogSourceHash, extractMentionTargets, normalizeTags, readingMinutes, type BlogMention } from '../blog/post.ts'
 import type { BlogTranslationQueue } from '../blog/worker.ts'
 import { ApiError } from '../api/http/errors.ts'
 import { parseQuery } from '../api/http/query.ts'
@@ -46,7 +46,6 @@ const postSchema = z.object({
   title: z.string().trim().min(1, '请填写标题').max(200),
   summary: z.string().trim().max(500).default(''),
   body: z.string().max(500_000),
-  category: z.enum(BLOG_CATEGORIES),
   tags: z.array(z.string().max(40)).max(20).default([]),
   coverUrl: z
     .string()
@@ -81,7 +80,6 @@ const listColumns = {
   id: blogPosts.id,
   slug: blogPosts.slug,
   title: blogPosts.title,
-  category: blogPosts.category,
   status: blogPosts.status,
   pinned: blogPosts.pinned,
   views: blogPosts.views,
@@ -112,7 +110,6 @@ async function values(db: Db, input: PostInput, previous: { publishedAt: Date | 
     title: input.title,
     summary: input.summary,
     body: input.body,
-    category: input.category,
     tags: normalizeTags(input.tags),
     coverUrl: input.coverUrl,
     authorName: input.authorName,

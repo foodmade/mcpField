@@ -4,6 +4,9 @@ import type { BlogCard, BlogListQuery, BlogPostFull, BlogRepository } from '../s
 import { BlogService, summarize, type BlogList, type BlogPostDetail } from '../src/api/modules/blog/blog.service.ts'
 import { blogSourceHash, extractMentionTargets, normalizeTags, readingMinutes } from '../src/blog/post.ts'
 import { BlogTranslationError, BlogTranslator, validateBlogChunk } from '../src/blog/translate.ts'
+import { cleanSlug, directionGuide, imageMarkers, resolveImages } from '../src/blog/generate.ts'
+import { searchTerms } from '../src/blog/materials.ts'
+import { maskKey } from '../src/admin-api/settings.ts'
 import type { Llm } from '../src/llm/provider.ts'
 import type { Logger } from '../src/core/logger.ts'
 import type { Locale } from '../src/core/types.ts'
@@ -14,7 +17,6 @@ const card = (slug: string, over: Partial<BlogCard> = {}): BlogCard => ({
   slug,
   title: slug,
   summary: '',
-  category: 'tutorial',
   tags: [],
   coverUrl: null,
   authorName: 'MCP Field',
@@ -60,14 +62,14 @@ describe('文章工具函数', () => {
 })
 
 describe('BlogService', () => {
-  it('汇总栏目计数、置顶、热门和常用标签', () => {
+  it('汇总置顶、热门和常用标签', () => {
     const s = summarize([
-      card('a', { category: 'product', tags: ['mcp', 'admin'], views: 5, publishedAt: '2026-10-12T00:00:00.000Z' }),
+      card('a', { tags: ['mcp', 'admin'], views: 5, publishedAt: '2026-10-12T00:00:00.000Z' }),
       card('b', { tags: ['mcp'], views: 20, pinned: true, publishedAt: '2026-10-09T00:00:00.000Z' }),
-      card('c', { category: 'case', views: 1, publishedAt: '2026-10-01T00:00:00.000Z' }),
+      card('c', { views: 1, publishedAt: '2026-10-01T00:00:00.000Z' }),
     ])
     expect(s.total).toBe(3)
-    expect(s.categories).toEqual({ product: 1, tutorial: 1, ecosystem: 0, testing: 0, case: 1 })
+    expect(s.tagCount).toBe(2)
     expect(s.latestAt).toBe('2026-10-12T00:00:00.000Z')
     expect(s.pinned?.slug).toBe('b')
     expect(s.popular.map((p) => p.slug)).toEqual(['b', 'a', 'c'])
@@ -132,7 +134,7 @@ describe('BlogService', () => {
     const repo = new FakeRepo()
     expect((await app(repo).request('/api/blog/posts/nope')).status).toBe(404)
     expect((await app(repo).request('/api/blog/posts/Bad_Slug')).status).toBe(404)
-    expect((await app(repo).request('/api/blog/posts?category=unknown')).status).toBe(400)
+    expect((await app(repo).request('/api/blog/posts?pageSize=500')).status).toBe(400)
     expect((await app(repo).request('/api/blog/posts/middle/views', { method: 'POST' })).status).toBe(204)
     expect(repo.views).toBe(1)
   })
@@ -195,5 +197,46 @@ describe('博客翻译', () => {
     expect(blogSourceHash({ ...source })).toBe(h)
     expect(blogSourceHash({ ...source, title: 'x' })).not.toBe(h)
     expect(blogSourceHash({ ...source, body: source.body.replace(/\n/g, '\r\n') })).toBe(h)
+  })
+})
+
+describe('博客 AI 生成', () => {
+  it('插图占位：成功的回填成图片和图注，失败的整行删掉', async () => {
+    const body = ['开头一段。', '', '![架构示意](image: a diagram of agents calling tools)', '', '中间一段。', '![第二张](image:  server room )', '', '结尾。'].join('\n')
+    expect(imageMarkers(body).map((m) => [m.alt, m.prompt])).toEqual([
+      ['架构示意', 'a diagram of agents calling tools'],
+      ['第二张', 'server room'],
+    ])
+    const events: (string | null)[] = []
+    const { body: out, failed } = await resolveImages(
+      body,
+      async (prompt) => {
+        if (prompt === 'server room') throw new Error('没有找到')
+        return { url: 'https://assets.mcpfield.com/blog/a.webp', caption: '架构 "示意"' }
+      },
+      (e) => events.push(e.markdown),
+    )
+    expect(out).toBe(['开头一段。', '', '![架构示意](https://assets.mcpfield.com/blog/a.webp "架构 示意")', '', '中间一段。', '', '结尾。'].join('\n'))
+    expect(failed).toEqual(['第二张：没有找到'])
+    expect(events).toEqual(['![架构示意](https://assets.mcpfield.com/blog/a.webp "架构 示意")', null])
+  })
+
+  it('模型给的地址整理成合法 slug；预设方向换成写法说明，自定义方向原样保留', () => {
+    expect(cleanSlug('Postgres MCP Tools: Comparison 2026!')).toBe('postgres-mcp-tools-comparison-2026')
+    expect(cleanSlug('数据库')).toBe('')
+    expect(directionGuide('tutorial')).toContain('上手教程')
+    expect(directionGuide('  给产品经理讲 MCP  ')).toBe('给产品经理讲 MCP')
+  })
+
+  it('站内素材的搜索词：关键词全要，标题只取英文技术名，去掉太常见的词', () => {
+    expect(searchTerms('远程服务, OAuth', '10 分钟在 Claude Code 里接入第一个远程 MCP 服务')).toEqual(['远程服务', 'oauth', 'claude', 'code'])
+    expect(searchTerms('mcp、postgres；数据库')).toEqual(['postgres', '数据库'])
+    expect(searchTerms(undefined, '纯中文标题')).toEqual([])
+  })
+
+  it('API Key 只回显头尾几位', () => {
+    expect(maskKey('')).toBe('')
+    expect(maskKey('short')).toBe('••••')
+    expect(maskKey('sk-1234567890abcdef')).toBe('sk-1…cdef')
   })
 })

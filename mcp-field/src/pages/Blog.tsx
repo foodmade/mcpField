@@ -7,9 +7,9 @@ import { SearchBox } from '../components/directory/Sidebar'
 import { Seo } from '../components/Seo'
 import { useEnterAnimation } from '../fx/hydration'
 import { useI18n } from '../i18n/context'
-import { BLOG_CATEGORIES, type BlogCard, type BlogCategory } from '../lib/api/blog'
+import type { BlogCard } from '../lib/api/blog'
 import { loadBlogList, parseBlogQuery } from '../lib/api/loaders'
-import { blogDate, CATEGORY_STYLE } from '../lib/blog'
+import { blogDate } from '../lib/blog'
 import { absoluteUrl } from '../lib/seo'
 import type { Route } from './+types/Blog'
 
@@ -23,7 +23,6 @@ type Query = ReturnType<typeof parseBlogQuery>
 /** 列表页的查询串：去掉默认值，键按固定顺序 */
 const searchOf = (q: Partial<Query>) => {
   const sp = new URLSearchParams()
-  if (q.category) sp.set('category', q.category)
   if (q.tag) sp.set('tag', q.tag)
   if (q.q) sp.set('q', q.q)
   if (q.page && q.page > 1) sp.set('page', String(q.page))
@@ -32,10 +31,6 @@ const searchOf = (q: Partial<Query>) => {
 const to = (q: Partial<Query>): To => {
   const s = searchOf(q)
   return { search: s ? `?${s}` : '' }
-}
-
-function CategoryDot({ category, className }: { category: BlogCategory; className?: string }) {
-  return <span className={clsx('size-1.5 shrink-0 rounded-full', className)} style={{ background: CATEGORY_STYLE[category]?.color }} />
 }
 
 /** 英文、日文页面上还没有译文、显示中文的文章：标一个“中文” */
@@ -69,9 +64,8 @@ function Pinned({ post }: { post: BlogCard }) {
       </div>
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2.5 text-[13px]">
-          <span className="font-semibold" style={{ color: CATEGORY_STYLE[post.category]?.color }}>{t.categories[post.category]}</span>
-          <span className="text-text3">·</span>
           <time dateTime={post.publishedAt} className="font-mono text-text3">{blogDate(post.publishedAt)}</time>
+          {post.tags.slice(0, 3).map((tag) => <span key={tag} className="font-mono text-xs text-text3">#{tag}</span>)}
           <ZhBadge post={post} />
         </div>
         <h2 className="text-[26px] font-bold leading-snug tracking-[-0.01em] transition-colors group-hover:text-accent sm:text-[30px]">{post.title}</h2>
@@ -104,9 +98,7 @@ function Row({ post, q }: { post: BlogCard; q: Query }) {
       </time>
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">
         <div className="flex items-center gap-2 text-xs">
-          <CategoryDot category={post.category} />
-          <span className="font-medium text-text2">{t.categories[post.category]}</span>
-          <span className="text-text3">· {t.minutes(post.readingMinutes)}</span>
+          <span className="text-text3">{t.minutes(post.readingMinutes)}</span>
           <span className="font-mono text-text3 sm:hidden">· {blogDate(post.publishedAt)}</span>
           <ZhBadge post={post} />
         </div>
@@ -218,13 +210,14 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
   const busy = navigation.state === 'loading' && navigation.location.pathname === location.pathname
   const q = parseBlogQuery(new URLSearchParams(location.search))
   const s = data.summary
-  const filtered = !!(q.category || q.tag || q.q)
+  const filtered = !!(q.tag || q.q)
   const pinned = !filtered && q.page === 1 ? s.pinned : null
   const rows = pinned ? data.data.filter((p) => p.slug !== pinned.slug) : data.data
-  const usedCategories = BLOG_CATEGORIES.filter((c) => s.categories[c] > 0)
+  // 列表上方的快捷标签：最常用的几个，加上当前筛选的标签（不在其中时）
+  const quickTags = [...new Set([...s.tags.slice(0, 6).map((x) => x.tag), ...(q.tag ? [q.tag] : [])])]
 
   const canonical = searchOf({ ...q, q: '' })
-  const title = [q.category ? t.categories[q.category] : null, q.tag ? `#${q.tag}` : null, q.page > 1 ? m.dir.pageTitle(q.page) : null, t.seoTitle].filter(Boolean).join(' · ')
+  const title = [q.tag ? `#${q.tag}` : null, q.page > 1 ? m.dir.pageTitle(q.page) : null, t.seoTitle].filter(Boolean).join(' · ')
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Blog',
@@ -234,7 +227,7 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
   }
   const stats = [
     [fmt(s.total), t.stats.posts, true],
-    [String(usedCategories.length), t.stats.categories, false],
+    [fmt(s.tagCount), t.stats.tags, false],
     [s.latestAt ? blogDate(s.latestAt).slice(5).replace('-', '.') : '—', t.stats.updated, false],
   ] as const
 
@@ -265,13 +258,13 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
 
       <div className="mx-auto flex max-w-[1248px] flex-col gap-8 px-6 pb-24 pt-6">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line">
-          <nav aria-label={t.categoriesLabel} className="-mb-px flex max-w-full gap-7 overflow-x-auto [scrollbar-width:none]">
-            {[null, ...usedCategories].map((c) => {
-              const active = q.category === c
+          <nav aria-label={t.tagsLabel} className="-mb-px flex max-w-full gap-7 overflow-x-auto [scrollbar-width:none]">
+            {[null, ...quickTags].map((tag) => {
+              const active = q.tag === tag
               return (
-                <Link key={c ?? 'all'} to={to({ ...q, category: c, page: 1 })} preventScrollReset aria-current={active ? 'page' : undefined} className={clsx('flex shrink-0 items-center gap-1.5 border-b-2 pb-3 pt-1.5 text-sm transition-colors', active ? 'border-accent font-semibold text-ink' : 'border-transparent text-text2 hover:text-ink')}>
-                  {c ? t.categories[c] : t.all}
-                  <span className={clsx('font-mono text-xs font-normal', active ? 'text-accent' : 'text-text3')}>{c ? s.categories[c] : s.total}</span>
+                <Link key={tag ?? 'all'} to={to({ ...q, tag, page: 1 })} preventScrollReset aria-current={active ? 'page' : undefined} className={clsx('flex shrink-0 items-center gap-1.5 border-b-2 pb-3 pt-1.5 text-sm transition-colors', active ? 'border-accent font-semibold text-ink' : 'border-transparent text-text2 hover:text-ink', tag && 'font-mono')}>
+                  {tag ? `#${tag}` : t.all}
+                  {!tag && <span className={clsx('font-mono text-xs font-normal', active ? 'text-accent' : 'text-text3')}>{s.total}</span>}
                 </Link>
               )
             })}

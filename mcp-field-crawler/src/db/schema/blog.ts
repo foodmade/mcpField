@@ -1,5 +1,5 @@
 import { boolean, index, int, json, mediumtext, mysqlTable, smallint, timestamp, tinyint, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
-import type { BlogCategory, BlogMention, BlogStatus, BlogTranslateLocale, BlogTranslationStatus } from '../../blog/post.ts'
+import type { BlogMention, BlogStatus, BlogTranslateLocale, BlogTranslationStatus } from '../../blog/post.ts'
 import { at, localeCol, pk, ref, sha256, timestamps } from './columns.ts'
 
 /*
@@ -17,7 +17,6 @@ export const blogPosts = mysqlTable(
     summary: varchar('summary', { length: 500 }).notNull().default(''),
     /** Markdown 原文 */
     body: mediumtext('body').notNull(),
-    category: varchar('category', { length: 24 }).$type<BlogCategory>().notNull(),
     tags: json('tags').$type<string[]>().notNull(),
     coverUrl: varchar('cover_url', { length: 1024 }),
     authorName: varchar('author_name', { length: 64 }).notNull(),

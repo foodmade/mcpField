@@ -6,7 +6,7 @@ import { PageHeader } from '../components/Layout'
 import { TranslationBadge } from '../components/TranslationBadge'
 import { Button, Empty, ErrorBox, Loading, Pager } from '../components/ui'
 import { qs, useApi } from '../lib/api'
-import { CATEGORY_LABEL, TRANSLATE_LOCALES, type BlogPage, type BlogRow } from '../lib/blog'
+import { TRANSLATE_LOCALES, type BlogPage, type BlogRow } from '../lib/blog'
 import { dateTime, num } from '../lib/format'
 
 const TABS = [
@@ -106,7 +106,6 @@ export function BlogPage() {
                   <thead>
                     <tr className="border-b border-line bg-white/[0.02] text-left text-xs text-text3">
                       <th className="py-2.5 pl-5 font-normal">标题</th>
-                      <th className="w-[100px] font-normal">栏目</th>
                       <th className="w-[100px] font-normal">状态</th>
                       <th className="w-[84px] font-normal" title="英文、日文译文的状态：绿色已完成、蓝色排队或翻译中、黄色较旧或稍后重试、红色失败、灰色未翻译">译文</th>
                       <th className="w-[120px] font-normal">发布时间</th>
@@ -125,7 +124,6 @@ export function BlogPage() {
                           </span>
                           <span className="block truncate font-mono text-xs text-text3">/blog/{row.slug}</span>
                         </td>
-                        <td className="text-text2">{CATEGORY_LABEL[row.category] ?? row.category}</td>
                         <td>
                           <StatusPill row={row} />
                         </td>

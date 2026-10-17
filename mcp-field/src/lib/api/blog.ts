@@ -4,14 +4,10 @@ import { apiGet, apiSend } from './http'
 
 /* 与后端 mcp-field-crawler/src/api/modules/blog 的返回结构保持一致 */
 
-export const BLOG_CATEGORIES = ['product', 'tutorial', 'ecosystem', 'testing', 'case'] as const
-export type BlogCategory = (typeof BLOG_CATEGORIES)[number]
-
 export type BlogCard = {
   slug: string
   title: string
   summary: string
-  category: BlogCategory
   tags: string[]
   coverUrl: string | null
   authorName: string
@@ -42,16 +38,16 @@ export type BlogPost = BlogCard & {
 
 export type BlogSummary = {
   total: number
-  categories: Record<BlogCategory, number>
   latestAt: string | null
   pinned: BlogCard | null
   popular: BlogCard[]
   tags: { tag: string; count: number }[]
+  tagCount: number
 }
 
 export type BlogList = { data: BlogCard[]; meta: PageMeta; summary: BlogSummary }
 
-export type BlogParams = { category?: BlogCategory; tag?: string; q?: string; page?: number; pageSize?: number; locale?: Locale }
+export type BlogParams = { tag?: string; q?: string; page?: number; pageSize?: number; locale?: Locale }
 
 export const fetchBlogList = (params: BlogParams, signal?: AbortSignal) => apiGet<BlogList>('/blog/posts', params, signal)
 export const fetchBlogPost = (slug: string, locale: Locale, signal?: AbortSignal) => apiGet<{ data: BlogPost }>(`/blog/posts/${encodeURIComponent(slug)}`, { locale }, signal).then((r) => r.data)

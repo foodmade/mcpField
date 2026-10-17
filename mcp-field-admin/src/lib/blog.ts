@@ -38,7 +38,6 @@ export interface BlogRow {
   /** 已发布但发布时间还没到 */
   scheduled: boolean
   pinned: boolean
-  views: number
   authorName: string
   publishedAt: string | null
   updatedAt: string
@@ -64,8 +63,6 @@ export interface BlogPost {
   status: BlogStatus
   pinned: boolean
   mentions: BlogMention[]
-  readingMinutes: number
-  views: number
   publishedAt: string | null
   createdAt: string
   updatedAt: string

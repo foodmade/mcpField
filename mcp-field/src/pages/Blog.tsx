@@ -71,10 +71,7 @@ function Pinned({ post }: { post: BlogCard }) {
         <h2 className="text-[26px] font-bold leading-snug tracking-[-0.01em] transition-colors group-hover:text-accent sm:text-[30px]">{post.title}</h2>
         {post.summary && <p className="line-clamp-3 text-[15px] leading-[1.75] text-text2">{post.summary}</p>}
         <div className="flex items-center justify-between pt-2 text-[13px]">
-          <span className="flex items-center gap-2.5">
-            <Author name={post.authorName} />
-            <span className="text-text3">· {t.readTime(post.readingMinutes)}</span>
-          </span>
+          <Author name={post.authorName} />
           <span className="flex items-center gap-1.5 text-sm font-semibold">
             {t.readMore}
             <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
@@ -87,8 +84,7 @@ function Pinned({ post }: { post: BlogCard }) {
 
 /** 列表里的一篇：日期 · 内容 · 缩略图 */
 function Row({ post, q }: { post: BlogCard; q: Query }) {
-  const { m, to: href } = useI18n()
-  const t = m.blog
+  const { to: href, locale } = useI18n()
   const [y, mo, d] = blogDate(post.publishedAt).split('-')
   return (
     <article className="group relative flex gap-5 border-b border-line py-6 last:border-0 sm:gap-7">
@@ -97,9 +93,9 @@ function Row({ post, q }: { post: BlogCard; q: Query }) {
         <span className="font-mono text-xs text-text3">{y}</span>
       </time>
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-text3">{t.minutes(post.readingMinutes)}</span>
-          <span className="font-mono text-text3 sm:hidden">· {blogDate(post.publishedAt)}</span>
+        {/* 手机上日期列隐藏，日期放在这一行；英文日文页面没有译文的文章在这里标“中文” */}
+        <div className={clsx('flex items-center gap-2 text-xs', (locale === 'zh' || post.locale !== 'zh') && 'sm:hidden')}>
+          <span className="font-mono text-text3 sm:hidden">{blogDate(post.publishedAt)}</span>
           <ZhBadge post={post} />
         </div>
         <h3 className="text-[19px] font-semibold leading-[1.45] transition-colors group-hover:text-accent">
@@ -153,7 +149,7 @@ function Pagination({ page, totalPages, q }: { page: number; totalPages: number;
 }
 
 function Sidebar({ data, q }: { data: Route.ComponentProps['loaderData']; q: Query }) {
-  const { m, to: href, locale } = useI18n()
+  const { m, locale } = useI18n()
   const t = m.blog
   const s = data.summary
   const h = 'mb-3.5 text-[13px] font-semibold'
@@ -167,22 +163,6 @@ function Sidebar({ data, q }: { data: Route.ComponentProps['loaderData']; q: Que
         </a>
         {locale !== 'zh' && data.data.some((p) => p.locale === 'zh') && <p className="mt-3 text-[11px] leading-relaxed text-text3">{t.zhOnlyList}</p>}
       </section>
-      {s.popular.length > 0 && (
-        <section>
-          <h2 className={h}>{t.popular}</h2>
-          <ol className="flex flex-col gap-4">
-            {s.popular.map((p, i) => (
-              <li key={p.slug} className="flex gap-3">
-                <span className={clsx('font-mono text-[13px] font-semibold', i === 0 ? 'text-accent' : 'text-text3')}>{String(i + 1).padStart(2, '0')}</span>
-                <span className="min-w-0">
-                  <Link to={href(`/blog/${p.slug}`)} className="block text-[13px] leading-[1.55] transition-colors hover:text-accent">{p.title}</Link>
-                  <span className="font-mono text-[11px] text-text3">{t.views(fmt(p.views))}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
       {s.tags.length > 0 && (
         <section>
           <h2 className={h}>{t.tags}</h2>

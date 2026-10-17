@@ -32,14 +32,6 @@ export interface BlogMention {
   popularity: number | null
 }
 
-/** 中文按每分钟 400 字、英文按每分钟 200 词估算，代码块按一半速度算进去，至少 1 分钟 */
-export function readingMinutes(markdown: string): number {
-  const text = markdown.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\]\([^)]*\)/g, ']')
-  const cjk = text.match(/[぀-ヿ㐀-鿿가-힯]/g)?.length ?? 0
-  const words = text.replace(/[぀-ヿ㐀-鿿가-힯]/g, ' ').match(/[A-Za-z0-9][\w'-]*/g)?.length ?? 0
-  return Math.max(1, Math.round(cjk / 400 + words / 200))
-}
-
 const KIND_BY_ROUTE = new Map(ENTITY_KINDS.map((k) => [ROUTE_BY_KIND[k], k]))
 // [文字](/servers/x)、[文字](https://mcpfield.com/en/skills/y?tab=z)；代码块里的不算
 const LINK_RE = /\]\(\s*(?:https?:\/\/(?:www\.)?mcpfield\.com)?(?:\/(?:en|ja))?\/([a-z-]+)\/([^\s/?#)]+)/g

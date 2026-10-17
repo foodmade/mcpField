@@ -1,6 +1,6 @@
 import type { Locale } from '../../i18n/locales'
 import type { Kind, PageMeta } from './entities'
-import { apiGet, apiSend } from './http'
+import { apiGet } from './http'
 
 /* 与后端 mcp-field-crawler/src/api/modules/blog 的返回结构保持一致 */
 
@@ -12,8 +12,6 @@ export type BlogCard = {
   coverUrl: string | null
   authorName: string
   pinned: boolean
-  views: number
-  readingMinutes: number
   publishedAt: string
   updatedAt: string
   /** 标题、摘要实际用的语言：请求语言还没有译文时是 zh */
@@ -40,7 +38,6 @@ export type BlogSummary = {
   total: number
   latestAt: string | null
   pinned: BlogCard | null
-  popular: BlogCard[]
   tags: { tag: string; count: number }[]
   tagCount: number
 }
@@ -52,5 +49,3 @@ export type BlogParams = { tag?: string; q?: string; page?: number; pageSize?: n
 export const fetchBlogList = (params: BlogParams, signal?: AbortSignal) => apiGet<BlogList>('/blog/posts', params, signal)
 export const fetchBlogPost = (slug: string, locale: Locale, signal?: AbortSignal) => apiGet<{ data: BlogPost }>(`/blog/posts/${encodeURIComponent(slug)}`, { locale }, signal).then((r) => r.data)
 export const fetchBlogAll = (signal?: AbortSignal, locale: Locale = 'zh') => apiGet<{ data: BlogCard[] }>('/blog/all', { locale }, signal).then((r) => r.data)
-/** 浏览数 +1：只在浏览器里打开文章时发，失败不影响页面 */
-export const sendBlogView = (slug: string) => apiSend('POST', `/blog/posts/${encodeURIComponent(slug)}/views`).catch(() => {})

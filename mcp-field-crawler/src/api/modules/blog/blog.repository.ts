@@ -14,8 +14,6 @@ export interface BlogCard {
   coverUrl: string | null
   authorName: string
   pinned: boolean
-  views: number
-  readingMinutes: number
   publishedAt: string
   updatedAt: string
   /** 标题、摘要实际用的语言：请求语言没有译文时是 zh */
@@ -48,7 +46,6 @@ export interface BlogRepository {
   /** 发布时间上相邻的两篇：older 更早的一篇，newer 更新的一篇 */
   neighbors(post: BlogCard, locale: Locale, now: Date): Promise<{ older: BlogCard | null; newer: BlogCard | null }>
   related(post: BlogCard, limit: number, locale: Locale, now: Date): Promise<BlogCard[]>
-  addView(slug: string, now: Date): Promise<boolean>
 }
 
 /** 请求语言的译文（只连有译文内容的行）；请求中文时连不上任何行，字段都回落到原文 */
@@ -63,8 +60,6 @@ const cardColumns = (locale: Locale) => ({
   coverUrl: blogPosts.coverUrl,
   authorName: blogPosts.authorName,
   pinned: blogPosts.pinned,
-  views: blogPosts.views,
-  readingMinutes: blogPosts.readingMinutes,
   publishedAt: blogPosts.publishedAt,
   updatedAt: blogPosts.updatedAt,
   locale: sql<Locale>`IF(${tr.id} IS NULL, 'zh', ${locale})`,
@@ -161,13 +156,5 @@ export class MysqlBlogRepository implements BlogRepository {
       .orderBy(sql`JSON_OVERLAPS(${blogPosts.tags}, ${JSON.stringify(post.tags)}) DESC`, desc(blogPosts.publishedAt))
       .limit(limit)
     return rows.map(toCard)
-  }
-
-  async addView(slug: string, now: Date) {
-    const [result] = await this.db
-      .update(blogPosts)
-      .set({ views: sql`${blogPosts.views} + 1` })
-      .where(and(visible(now), eq(blogPosts.slug, slug)))
-    return (result as { affectedRows?: number }).affectedRows === 1
   }
 }

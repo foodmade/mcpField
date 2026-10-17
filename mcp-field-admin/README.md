@@ -39,6 +39,7 @@ cd mcp-field-admin && npm run dev
 - 多语言：文章用中文写，发布（含定时发布）后自动翻译成英文、日文。保存时原文（标题、摘要、正文）有变化的语言排进表 `blog_post_translations`，翻译任务跑在后台接口进程里（`src/blog/worker.ts`）：保存后立刻开始，另外每分钟扫一遍队列；失败 2 分钟、10 分钟后各重试一次，第 3 次失败标红，等在编辑页点“重新翻译”。进程启动时会把没翻完的、已发布但从没翻译过的文章补排进来。
 - 翻译用和 README 翻译相同的模型配置（`TRANSLATE_PROVIDER`、`README_MODEL`），代码块不发给模型、原样保留（代码里的中文注释不翻译）。正文按章节分段翻译，每段译文按内容指纹存下来，只改了几段时其余段直接复用。
 - 网站：英文、日文页面显示对应译文；还没翻译的文章显示中文原文并提示，这类页面不收录（noindex）。原文改过、新译文没翻完前继续显示旧译文并提示“译文即将更新”。sitemap 和 hreflang 只列有译文的语言；RSS（`https://mcpfield.com/blog/rss.xml`）只有中文。
+- IndexNow（Bing、Yandex 等，Google 不支持）：已发布的文章发布、修改后推送中文地址和列表页，译文翻好后推送对应语言的地址，撤回为草稿或删除时也推一次让搜索引擎移除；定时发布的到点后推送。后台接口进程每分钟扫一遍、保存后立刻唤醒（`src/blog/indexnow.ts`，按 `indexnow_at` 判断推没推过）。需要 `INDEXNOW_KEY`，本地 `.env` 不配所以本地不推。Google 只能靠 sitemap，重要文章可以在 Search Console 里手动请求编入索引。
 - Nginx 给 `/api/admin/blog/` 单独放宽了请求体到 10 MB（其余后台接口仍是 64 KB），改了配置要执行 `mcpfield nginx`。
 
 ## 博客 AI 生成

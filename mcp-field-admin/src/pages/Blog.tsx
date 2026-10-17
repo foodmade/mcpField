@@ -110,7 +110,6 @@ export function BlogPage() {
                       <th className="w-[84px] font-normal" title="英文、日文译文的状态：绿色已完成、蓝色排队或翻译中、黄色较旧或稍后重试、红色失败、灰色未翻译">译文</th>
                       <th className="w-[120px] font-normal">发布时间</th>
                       <th className="w-[120px] font-normal">最后修改</th>
-                      <th className="w-[80px] text-right font-normal">浏览</th>
                       <th className="w-[72px] pr-5 font-normal" />
                     </tr>
                   </thead>
@@ -136,7 +135,6 @@ export function BlogPage() {
                         </td>
                         <td className="font-mono text-xs text-text2">{dateTime(row.publishedAt)}</td>
                         <td className="font-mono text-xs text-text3">{dateTime(row.updatedAt)}</td>
-                        <td className="text-right font-mono text-xs tabular text-text2">{num(row.views)}</td>
                         <td className="pr-5 text-right">
                           {row.status === 'published' && !row.scheduled && (
                             <a href={row.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="在网站上查看" className="inline-flex rounded-md p-1.5 text-text3 hover:bg-white/5 hover:text-ink">

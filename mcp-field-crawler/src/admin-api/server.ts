@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { R2Storage } from '../assets/storage.ts'
+import { BlogIndexNow } from '../blog/indexnow.ts'
 import { BlogTranslator } from '../blog/translate.ts'
 import { BlogTranslationQueue, BlogTranslationWorker } from '../blog/worker.ts'
 import { loadConfig } from '../config.ts'
@@ -22,15 +23,27 @@ const { db, pool } = createDb(config.databaseUrl)
  * 博客翻译任务：跑在这个进程里，保存已发布文章后立刻唤醒，另外每分钟扫一遍队列（失败重试、重启前没做完的）。
  * 模型服务用和 README 翻译相同的配置（TRANSLATE_PROVIDER、README_MODEL）；没配置时只排队，后台提示没有翻译模型
  */
+const appConfig = (() => {
+  try {
+    return loadConfig()
+  } catch (error) {
+    logger.warn({ err: (error as Error).message }, '读取采集配置失败：博客翻译和 IndexNow 推送不可用')
+    return undefined
+  }
+})()
 const queue = new BlogTranslationQueue(db)
 let worker: BlogTranslationWorker | undefined
 try {
-  const appConfig = loadConfig()
+  if (!appConfig) throw new Error('没有采集配置')
   const translator = new BlogTranslator(createLlm({ ...translateLlmConfig(appConfig), timeoutMs: 180_000, maxRetries: 2 }), appConfig.readmeModel, logger)
   worker = new BlogTranslationWorker(queue, translator, logger)
 } catch (error) {
   logger.warn({ err: (error as Error).message }, '没有可用的翻译模型服务，博客译文只排队、不翻译')
 }
+
+/* 博客 IndexNow 推送（Bing 等）：配置了 INDEXNOW_KEY 才启用；本地 .env 故意不配，免得把本地数据推出去 */
+const indexNow = appConfig?.indexNow ? new BlogIndexNow(db, appConfig.indexNow, logger) : undefined
+if (worker && indexNow) worker.onSaved = () => indexNow.kick()
 
 const app = createAdminApp({
   db,
@@ -42,8 +55,10 @@ const app = createAdminApp({
   siteUrl: config.siteUrl,
   storage: config.r2 ? new R2Storage(config.r2) : undefined,
   blogTranslations: { queue, kick: () => worker?.kick(), enabled: !!worker },
+  blogIndexNow: indexNow,
 })
 
+indexNow?.start()
 void worker?.start().catch((error: unknown) => logger.error({ err: (error as Error).message }, '博客翻译任务启动失败'))
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
@@ -54,6 +69,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     logger.info(`收到 ${signal}，正在关闭`)
     worker?.stop()
+    indexNow?.stop()
     server.close(() => void pool.end().then(() => process.exit(0)))
   })
 }

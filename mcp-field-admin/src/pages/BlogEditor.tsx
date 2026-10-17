@@ -646,10 +646,6 @@ export function BlogEditorPage() {
 
           {post && (
             <dl className="grid grid-cols-[72px_1fr] gap-y-1.5 px-1 text-xs">
-              <dt className="text-text3">浏览</dt>
-              <dd className="font-mono">{post.views.toLocaleString('en-US')}</dd>
-              <dt className="text-text3">阅读时长</dt>
-              <dd>约 {post.readingMinutes} 分钟</dd>
               <dt className="text-text3">创建于</dt>
               <dd className="font-mono">{dateTime(post.createdAt)}</dd>
             </dl>

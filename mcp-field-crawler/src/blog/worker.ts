@@ -184,6 +184,8 @@ export class BlogTranslationWorker {
   private draining: Promise<void> | null = null
   private again = false
   private readonly controller = new AbortController()
+  /** 每保存一份译文调用一次（后台接口进程用它唤醒 IndexNow 推送） */
+  onSaved?: () => void
 
   constructor(
     private readonly queue: BlogTranslationQueue,
@@ -241,6 +243,7 @@ export class BlogTranslationWorker {
     try {
       const result = await this.translator.translate(post, task.locale, task.chunks ?? {}, this.controller.signal)
       await this.queue.complete(task.id, hash, { title: result.title, summary: result.summary, body: result.body, chunks: result.chunks, model: this.translator.model }, this.now())
+      this.onSaved?.()
       this.logger.info({ slug: post.slug, locale: task.locale, translatedChunks: result.translatedChunks, reusedChunks: Object.keys(result.chunks).length - result.translatedChunks, seconds: Math.round((Date.now() - started) / 1000) }, '博客译文已保存')
     } catch (error) {
       if (this.controller.signal.aborted) return

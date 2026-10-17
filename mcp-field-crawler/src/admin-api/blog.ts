@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import type { AssetStorage } from '../assets/storage.ts'
-import { BLOG_SLUG_RE, BLOG_STATUSES, BLOG_TRANSLATE_LOCALES, blogSourceHash, extractMentionTargets, normalizeTags, readingMinutes, type BlogMention } from '../blog/post.ts'
+import { BLOG_SLUG_RE, BLOG_STATUSES, BLOG_TRANSLATE_LOCALES, blogSourceHash, extractMentionTargets, normalizeTags, type BlogMention } from '../blog/post.ts'
 import type { BlogTranslationQueue } from '../blog/worker.ts'
 import { ApiError } from '../api/http/errors.ts'
 import { parseQuery } from '../api/http/query.ts'
@@ -22,8 +22,9 @@ import { adminItemStatus, blogPosts } from '../db/schema/index.ts'
  *   DELETE /posts/:id                      删除
  *   POST   /posts/:id/translate            重新翻译（{ locales?, force? }，默认全部语言、强制重翻）
  *   POST   /uploads                        上传图片（multipart 的 file 字段），返回公开地址
- * 保存时算好阅读时长，并从正文链接解析“文中提到的”站内条目（名称、图标取自 admin_item_status）。
+ * 保存时从正文链接解析“文中提到的”站内条目（名称、图标取自 admin_item_status）。
  * 保存后文章是“已发布”（含定时发布）且原文有变化时，把英文、日文排进翻译队列，由 blog/worker.ts 异步翻译；草稿不翻译。
+ * 保存和删除后唤醒 IndexNow 推送（blog/indexnow.ts）。
  */
 
 /** 列表筛选：scheduled = 已发布但发布时间还没到 */
@@ -82,7 +83,6 @@ const listColumns = {
   title: blogPosts.title,
   status: blogPosts.status,
   pinned: blogPosts.pinned,
-  views: blogPosts.views,
   authorName: blogPosts.authorName,
   publishedAt: blogPosts.publishedAt,
   updatedAt: blogPosts.updatedAt,
@@ -116,7 +116,6 @@ async function values(db: Db, input: PostInput, previous: { publishedAt: Date | 
     status: input.status,
     pinned: input.pinned,
     mentions: await resolveMentions(db, input.body),
-    readingMinutes: readingMinutes(input.body),
     publishedAt,
     updatedAt: new Date(),
   }
@@ -134,7 +133,13 @@ export interface BlogTranslations {
 
 const translateSchema = z.object({ locales: z.array(z.enum(BLOG_TRANSLATE_LOCALES)).min(1).optional(), force: z.boolean().default(true) })
 
-export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: Logger; siteUrl: string; translations: BlogTranslations }) {
+/** 博客的 IndexNow 推送（没配置 INDEXNOW_KEY 时为空） */
+export interface BlogIndexNowHooks {
+  kick(): void
+  removed(postId: number): Promise<void>
+}
+
+export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: Logger; siteUrl: string; translations: BlogTranslations; indexNow?: BlogIndexNowHooks }) {
   const { db } = deps
   // 登录校验在外层（app.ts）完成，这里直接取当前账号
   const app = new Hono<{ Variables: { user: AdminUser } }>()
@@ -224,6 +229,7 @@ export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: 
     }
     deps.logger.info({ username: c.get('user').username, id, slug: input.slug, status: input.status }, '新建博客文章')
     await queueTranslations(id, input)
+    deps.indexNow?.kick()
     return c.json({ data: await detail(id) })
   })
 
@@ -239,6 +245,7 @@ export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: 
     }
     deps.logger.info({ username: c.get('user').username, id, slug: input.slug, status: input.status }, '保存博客文章')
     await queueTranslations(id, input)
+    deps.indexNow?.kick()
     return c.json({ data: await detail(id) })
   })
 
@@ -256,6 +263,8 @@ export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: 
 
   app.delete('/posts/:id', async (c) => {
     const id = idOf(c.req.param('id'))
+    // 推送过的文章先通知搜索引擎来抓（会看到 404），再删除
+    await deps.indexNow?.removed(id)
     const [result] = await db.delete(blogPosts).where(eq(blogPosts.id, id))
     if ((result as { affectedRows?: number }).affectedRows !== 1) throw ApiError.notFound('文章不存在')
     deps.logger.info({ username: c.get('user').username, id }, '删除博客文章')

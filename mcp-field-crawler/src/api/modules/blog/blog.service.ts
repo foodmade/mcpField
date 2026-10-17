@@ -10,8 +10,6 @@ export interface BlogSummary {
   latestAt: string | null
   /** 置顶文章：没有置顶时为空 */
   pinned: BlogCard | null
-  /** 浏览最多的几篇 */
-  popular: BlogCard[]
   /** 最常用的标签 */
   tags: { tag: string; count: number }[]
   /** 用到的标签总数 */
@@ -30,7 +28,6 @@ export interface BlogPostDetail extends BlogPostFull {
   related: BlogCard[]
 }
 
-const POPULAR = 4
 const TOP_TAGS = 12
 const RELATED = 3
 
@@ -43,7 +40,6 @@ export function summarize(posts: BlogCard[]): BlogSummary {
     total: posts.length,
     latestAt: posts[0]?.publishedAt ?? null,
     pinned: posts.find((p) => p.pinned) ?? null,
-    popular: [...posts].sort((a, b) => b.views - a.views || b.publishedAt.localeCompare(a.publishedAt)).slice(0, POPULAR),
     tagCount: tags.size,
     tags: [...tags].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, TOP_TAGS).map(([tag, count]) => ({ tag, count })),
   }
@@ -85,9 +81,5 @@ export class BlogService {
   /** sitemap 和 RSS：全部已发布文章（不带正文），标题按请求语言 */
   all(locale: Locale): Promise<BlogCard[]> {
     return this.everything.get(locale, () => this.repo.all(locale, this.now()))
-  }
-
-  addView(slug: string): Promise<boolean> {
-    return this.repo.addView(slug, this.now())
   }
 }

@@ -11,7 +11,7 @@ import { ENTITY_KINDS } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
 import type { AssetStorage } from '../assets/storage.ts'
 import { RUNNABLE_STEPS, type AdminActions } from './actions.ts'
-import { adminBlogRoutes, type BlogTranslations } from './blog.ts'
+import { adminBlogRoutes, type BlogIndexNowHooks, type BlogTranslations } from './blog.ts'
 import { blogAiRoutes } from './blog-ai.ts'
 import { SettingsStore, settingsRoutes } from './settings.ts'
 import { SESSION_TTL_MS, type AdminAuth, type AdminUser } from './auth.ts'
@@ -39,6 +39,8 @@ export interface AdminApiDeps {
   storage?: AssetStorage
   /** 博客翻译队列（保存已发布文章后排队、唤醒翻译任务） */
   blogTranslations: BlogTranslations
+  /** 博客 IndexNow 推送；没配置 INDEXNOW_KEY 时为空 */
+  blogIndexNow?: BlogIndexNowHooks
 }
 
 const COOKIE = 'mf_admin'
@@ -179,7 +181,7 @@ export function createAdminApp(deps: AdminApiDeps) {
   const settings = new SettingsStore(db)
   app.route('/api/admin/settings', settingsRoutes({ store: settings, logger: deps.logger }))
   app.route('/api/admin/blog/ai', blogAiRoutes({ db, settings, storage: deps.storage, logger: deps.logger }))
-  app.route('/api/admin/blog', adminBlogRoutes({ db, storage: deps.storage, logger: deps.logger, siteUrl: deps.siteUrl, translations: deps.blogTranslations }))
+  app.route('/api/admin/blog', adminBlogRoutes({ db, storage: deps.storage, logger: deps.logger, siteUrl: deps.siteUrl, translations: deps.blogTranslations, indexNow: deps.blogIndexNow }))
 
   app.notFound((c) => c.json({ error: { code: 'not_found', message: `接口不存在：${c.req.method} ${c.req.path}` } }, 404))
   app.onError((err, c) => {

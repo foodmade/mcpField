@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, CalendarBlank, Check, Clock, Eye, LinkSimple, ShareNetwork, Translate } from '@phosphor-icons/react'
+import { ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, CalendarBlank, Check, LinkSimple, ShareNetwork, Translate } from '@phosphor-icons/react'
 import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
@@ -12,7 +12,7 @@ import { useEnterAnimation, useHydrated } from '../fx/hydration'
 import { useI18n } from '../i18n/context'
 import { LOCALE_META, LOCALES } from '../i18n/locales'
 import { ROUTE } from '../lib/api/entities'
-import { sendBlogView, type BlogCard, type BlogPost as Post } from '../lib/api/blog'
+import type { BlogCard, BlogPost as Post } from '../lib/api/blog'
 import { loadBlogPost } from '../lib/api/loaders'
 import { blogDate, coverStyle, tableOfContents, type TocItem } from '../lib/blog'
 import { absoluteUrl, clip } from '../lib/seo'
@@ -73,7 +73,7 @@ function ShareButtons({ post }: { post: Post }) {
 }
 
 function RelatedCard({ post }: { post: BlogCard }) {
-  const { m, to } = useI18n()
+  const { to } = useI18n()
   const { color } = coverStyle(post.slug)
   return (
     <Link
@@ -84,7 +84,7 @@ function RelatedCard({ post }: { post: BlogCard }) {
       {post.tags.length > 0 && <span className="truncate font-mono text-xs text-text3">{post.tags.slice(0, 3).map((t) => `#${t}`).join('  ')}</span>}
       <span className="line-clamp-2 text-base font-semibold leading-normal transition-colors group-hover:text-accent">{post.title}</span>
       <span className="font-mono text-xs text-text3">
-        {blogDate(post.publishedAt)} · {m.blog.minutes(post.readingMinutes)}
+        {blogDate(post.publishedAt)}
       </span>
     </Link>
   )
@@ -99,10 +99,6 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
   const active = useActiveHeading(toc)
   const published = blogDate(post.publishedAt)
   const updated = blogDate(post.updatedAt)
-
-  useEffect(() => {
-    void sendBlogView(post.slug)
-  }, [post.slug])
 
   const path = `/blog/${post.slug}`
   const versions = LOCALES.filter((l) => l === 'zh' || post.translations.includes(l))
@@ -142,8 +138,6 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
               <span className="hidden h-6 w-px bg-fg/[0.08] sm:block" />
               <span className="flex items-center gap-1.5"><CalendarBlank size={14} className="text-text3" /><time dateTime={post.publishedAt} className="font-mono">{published}</time></span>
               {updated > published && <span className="text-text3">{t.updated(updated.slice(5))}</span>}
-              <span className="flex items-center gap-1.5"><Clock size={14} className="text-text3" />{t.readTime(post.readingMinutes)}</span>
-              {post.views > 0 && <span className="flex items-center gap-1.5"><Eye size={14} className="text-text3" /><span className="font-mono">{compactNumber(post.views)}</span></span>}
             </div>
             <ShareButtons post={post} />
           </div>

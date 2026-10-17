@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/api/app.ts'
 import type { BlogCard, BlogListQuery, BlogPostFull, BlogRepository } from '../src/api/modules/blog/blog.repository.ts'
 import { BlogService, summarize, type BlogList, type BlogPostDetail } from '../src/api/modules/blog/blog.service.ts'
-import { blogSourceHash, extractMentionTargets, normalizeTags, readingMinutes } from '../src/blog/post.ts'
+import { blogSourceHash, extractMentionTargets, normalizeTags } from '../src/blog/post.ts'
 import { BlogTranslationError, BlogTranslator, validateBlogChunk } from '../src/blog/translate.ts'
 import { cleanSlug, directionGuide, imageMarkers, resolveImages } from '../src/blog/generate.ts'
 import { searchTerms } from '../src/blog/materials.ts'
 import { maskKey } from '../src/admin-api/settings.ts'
+import { postUrl } from '../src/blog/indexnow.ts'
 import type { Llm } from '../src/llm/provider.ts'
 import type { Logger } from '../src/core/logger.ts'
 import type { Locale } from '../src/core/types.ts'
@@ -21,8 +22,6 @@ const card = (slug: string, over: Partial<BlogCard> = {}): BlogCard => ({
   coverUrl: null,
   authorName: 'MCP Field',
   pinned: false,
-  views: 0,
-  readingMinutes: 1,
   publishedAt: '2026-10-01T00:00:00.000Z',
   updatedAt: '2026-10-01T00:00:00.000Z',
   locale: 'zh',
@@ -31,14 +30,6 @@ const card = (slug: string, over: Partial<BlogCard> = {}): BlogCard => ({
 })
 
 describe('文章工具函数', () => {
-  it('阅读时长：中文每分钟 400 字、英文每分钟 200 词，至少 1 分钟', () => {
-    expect(readingMinutes('短')).toBe(1)
-    expect(readingMinutes('字'.repeat(2000))).toBe(5)
-    expect(readingMinutes(Array(600).fill('word').join(' '))).toBe(3)
-    // 图片和链接地址不算字数
-    expect(readingMinutes(`![${'图'.repeat(10)}](https://x.com/${'a'.repeat(5000)})`)).toBe(1)
-  })
-
   it('从正文链接解析站内条目：相对地址、带语言前缀、完整地址都认，去重，代码块里的不算', () => {
     const md = [
       '看看 [Linear](/servers/linear) 和 [GitHub](https://mcpfield.com/en/servers/github?tab=tools)',
@@ -62,17 +53,16 @@ describe('文章工具函数', () => {
 })
 
 describe('BlogService', () => {
-  it('汇总置顶、热门和常用标签', () => {
+  it('汇总置顶和常用标签', () => {
     const s = summarize([
-      card('a', { tags: ['mcp', 'admin'], views: 5, publishedAt: '2026-10-12T00:00:00.000Z' }),
-      card('b', { tags: ['mcp'], views: 20, pinned: true, publishedAt: '2026-10-09T00:00:00.000Z' }),
-      card('c', { views: 1, publishedAt: '2026-10-01T00:00:00.000Z' }),
+      card('a', { tags: ['mcp', 'admin'], publishedAt: '2026-10-12T00:00:00.000Z' }),
+      card('b', { tags: ['mcp'], pinned: true, publishedAt: '2026-10-09T00:00:00.000Z' }),
+      card('c', { publishedAt: '2026-10-01T00:00:00.000Z' }),
     ])
     expect(s.total).toBe(3)
     expect(s.tagCount).toBe(2)
     expect(s.latestAt).toBe('2026-10-12T00:00:00.000Z')
     expect(s.pinned?.slug).toBe('b')
-    expect(s.popular.map((p) => p.slug)).toEqual(['b', 'a', 'c'])
     expect(s.tags).toEqual([
       { tag: 'mcp', count: 2 },
       { tag: 'admin', count: 1 },
@@ -81,7 +71,6 @@ describe('BlogService', () => {
 
   class FakeRepo implements BlogRepository {
     posts = [card('newest', { publishedAt: '2026-10-12T00:00:00.000Z' }), card('middle', { publishedAt: '2026-10-09T00:00:00.000Z' }), card('oldest')]
-    views = 0
     async list(q: BlogListQuery) {
       return { rows: this.posts.slice((q.page - 1) * q.pageSize, q.page * q.pageSize), total: this.posts.length }
     }
@@ -100,10 +89,6 @@ describe('BlogService', () => {
     }
     async related(post: BlogCard, limit: number) {
       return this.posts.filter((p) => p.slug !== post.slug).slice(0, limit)
-    }
-    async addView() {
-      this.views++
-      return true
     }
   }
 
@@ -130,13 +115,12 @@ describe('BlogService', () => {
     expect((await app().request('/api/blog/posts/middle?locale=fr')).status).toBe(400)
   })
 
-  it('不存在或地址不合法的文章返回 404；浏览数接口返回 204', async () => {
+  it('不存在或地址不合法的文章返回 404；浏览数接口已删除', async () => {
     const repo = new FakeRepo()
     expect((await app(repo).request('/api/blog/posts/nope')).status).toBe(404)
     expect((await app(repo).request('/api/blog/posts/Bad_Slug')).status).toBe(404)
     expect((await app(repo).request('/api/blog/posts?pageSize=500')).status).toBe(400)
-    expect((await app(repo).request('/api/blog/posts/middle/views', { method: 'POST' })).status).toBe(204)
-    expect(repo.views).toBe(1)
+    expect((await app(repo).request('/api/blog/posts/middle/views', { method: 'POST' })).status).toBe(404)
   })
 })
 
@@ -239,5 +223,13 @@ describe('博客 AI 生成', () => {
     expect(maskKey('')).toBe('')
     expect(maskKey('short')).toBe('••••')
     expect(maskKey('sk-1234567890abcdef')).toBe('sk-1…cdef')
+  })
+})
+
+describe('博客 IndexNow', () => {
+  it('文章地址：中文没有语言前缀，英文日文带前缀', () => {
+    expect(postUrl('https://mcpfield.com', 'a-post')).toBe('https://mcpfield.com/blog/a-post')
+    expect(postUrl('https://mcpfield.com', 'a-post', 'en')).toBe('https://mcpfield.com/en/blog/a-post')
+    expect(postUrl('https://mcpfield.com', 'a-post', 'ja')).toBe('https://mcpfield.com/ja/blog/a-post')
   })
 })

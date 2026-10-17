@@ -1,8 +1,9 @@
 import { motion } from 'motion/react'
-import { ArrowLeft, ArrowRight, Notebook, PushPin, RssSimple, X } from '@phosphor-icons/react'
+import { ArrowLeft, ArrowRight, List, Notebook, PushPin, SquaresFour, X } from '@phosphor-icons/react'
 import clsx from 'clsx'
 import { Link, useLocation, useNavigate, useNavigation, type To } from 'react-router'
 import { BlogCover } from '../components/blog/BlogCover'
+import { RssAlternate, RssSubscribe } from '../components/blog/RssSubscribe'
 import { SearchBox } from '../components/directory/Sidebar'
 import { Seo } from '../components/Seo'
 import { useEnterAnimation } from '../fx/hydration'
@@ -10,6 +11,7 @@ import { useI18n } from '../i18n/context'
 import type { BlogCard } from '../lib/api/blog'
 import { loadBlogList, parseBlogQuery } from '../lib/api/loaders'
 import { blogDate } from '../lib/blog'
+import { useStorage } from '../lib/storage'
 import { absoluteUrl } from '../lib/seo'
 import type { Route } from './+types/Blog'
 
@@ -118,6 +120,43 @@ function Row({ post, q }: { post: BlogCard; q: Query }) {
   )
 }
 
+/** 卡片模式的一篇：正方形，封面占满上方，下面是日期、标题、摘要、标签 */
+function Card({ post, q }: { post: BlogCard; q: Query }) {
+  const { to: href } = useI18n()
+  return (
+    <article className="group relative flex aspect-square flex-col overflow-hidden rounded-2xl border border-line bg-surface transition-colors hover:border-fg/20">
+      <BlogCover post={post} className="min-h-0 flex-1 border-0 border-b" />
+      <div className="flex flex-col gap-2 p-4">
+        <div className="flex items-center gap-2 text-xs">
+          <time dateTime={post.publishedAt} className="font-mono text-text3">{blogDate(post.publishedAt)}</time>
+          <ZhBadge post={post} />
+        </div>
+        <h3 className="line-clamp-2 text-base font-semibold leading-snug transition-colors group-hover:text-accent">
+          <Link to={href(`/blog/${post.slug}`)} className="after:absolute after:inset-0">{post.title}</Link>
+        </h3>
+        {post.summary && <p className="line-clamp-2 text-[13px] leading-[1.6] text-text2">{post.summary}</p>}
+        {post.tags.length > 0 && (
+          <div className="relative z-[1] flex flex-wrap gap-1.5 pt-0.5">
+            {post.tags.slice(0, 3).map((tag) => (
+              <Link key={tag} to={to({ ...q, tag, page: 1 })} preventScrollReset className={clsx('rounded-md px-1.5 py-0.5 font-mono text-[11px] transition-colors', tag === q.tag ? 'bg-accent/15 text-accent' : 'bg-subtle text-text3 hover:text-ink')}>
+                #{tag}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
+type Layout = 'list' | 'grid'
+
+/** 列表 / 卡片两种展示方式：记在浏览器里，下次打开沿用（服务端渲染和水合时按列表） */
+function useLayout(): [Layout, (l: Layout) => void] {
+  const [saved, save] = useStorage('mcpfield.blogLayout')
+  return [saved === 'grid' ? 'grid' : 'list', save]
+}
+
 function Pagination({ page, totalPages, q }: { page: number; totalPages: number; q: Query }) {
   const { m } = useI18n()
   const pages = [...new Set([1, page - 1, page, page + 1, totalPages])].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b)
@@ -158,9 +197,7 @@ function Sidebar({ data, q }: { data: Route.ComponentProps['loaderData']; q: Que
       <section className="rounded-xl border border-line p-5" style={{ background: 'radial-gradient(120% 100% at 100% 0%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 60%), var(--color-surface)' }}>
         <h2 className={h}>{t.rss.title}</h2>
         <p className="text-[13px] leading-relaxed text-text2">{t.rss.hint}</p>
-        <a href="/blog/rss.xml" className="mt-4 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-accent text-[13px] font-semibold text-accent-ink transition-[filter] hover:brightness-110">
-          <RssSimple size={15} weight="bold" />{t.rss.button}
-        </a>
+        <RssSubscribe />
         {locale !== 'zh' && data.data.some((p) => p.locale === 'zh') && <p className="mt-3 text-[11px] leading-relaxed text-text3">{t.zhOnlyList}</p>}
       </section>
       {s.tags.length > 0 && (
@@ -193,8 +230,7 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
   const filtered = !!(q.tag || q.q)
   const pinned = !filtered && q.page === 1 ? s.pinned : null
   const rows = pinned ? data.data.filter((p) => p.slug !== pinned.slug) : data.data
-  // 列表上方的快捷标签：最常用的几个，加上当前筛选的标签（不在其中时）
-  const quickTags = [...new Set([...s.tags.slice(0, 6).map((x) => x.tag), ...(q.tag ? [q.tag] : [])])]
+  const [layout, setLayout] = useLayout()
 
   const canonical = searchOf({ ...q, q: '' })
   const title = [q.tag ? `#${q.tag}` : null, q.page > 1 ? m.dir.pageTitle(q.page) : null, t.seoTitle].filter(Boolean).join(' · ')
@@ -214,6 +250,7 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
   return (
     <>
       <Seo title={title} description={t.seoDesc} path={PATH} query={canonical} noindex={!!q.q} jsonLd={jsonLd} />
+      <RssAlternate />
       <section className="relative overflow-hidden border-b border-fg/[0.04]" style={{ background: 'radial-gradient(60% 220% at 20% 0%, #2B7FFF1F, transparent 60%), radial-gradient(40% 200% at 85% 0%, #3DDC9714, transparent 60%)' }}>
         <motion.div
           initial={enter ? { opacity: 0, y: 14 } : false}
@@ -237,20 +274,29 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
       </section>
 
       <div className="mx-auto flex max-w-[1248px] flex-col gap-8 px-6 pb-24 pt-6">
-        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line">
-          <nav aria-label={t.tagsLabel} className="-mb-px flex max-w-full gap-7 overflow-x-auto [scrollbar-width:none]">
-            {[null, ...quickTags].map((tag) => {
-              const active = q.tag === tag
-              return (
-                <Link key={tag ?? 'all'} to={to({ ...q, tag, page: 1 })} preventScrollReset aria-current={active ? 'page' : undefined} className={clsx('flex shrink-0 items-center gap-1.5 border-b-2 pb-3 pt-1.5 text-sm transition-colors', active ? 'border-accent font-semibold text-ink' : 'border-transparent text-text2 hover:text-ink', tag && 'font-mono')}>
-                  {tag ? `#${tag}` : t.all}
-                  {!tag && <span className={clsx('font-mono text-xs font-normal', active ? 'text-accent' : 'text-text3')}>{s.total}</span>}
-                </Link>
-              )
-            })}
-          </nav>
-          <div className="mb-3 w-full sm:w-[260px]">
-            <SearchBox q={q.q} placeholder={t.searchPh} onQuery={(v) => navigate(to({ ...q, q: v, page: 1 }), { replace: true, preventScrollReset: true })} />
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+          <div className="flex min-w-0 items-center gap-2.5 text-[13px] text-text3">
+            <span>
+              <span className="font-mono text-ink">{fmt(data.meta.total)}</span> {t.stats.posts}
+            </span>
+            {q.tag && (
+              <Link to={to({ ...q, tag: null, page: 1 })} preventScrollReset className="flex h-7 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 font-mono text-accent" aria-label={t.clearFilter}>
+                #{q.tag}<X size={11} />
+              </Link>
+            )}
+          </div>
+          <div className="flex w-full items-center gap-2.5 sm:w-auto">
+            <div className="min-w-0 flex-1 sm:w-[260px] sm:flex-none">
+              <SearchBox q={q.q} placeholder={t.searchPh} onQuery={(v) => navigate(to({ ...q, q: v, page: 1 }), { replace: true, preventScrollReset: true })} />
+            </div>
+            <div className="flex shrink-0 gap-0.5 rounded-[10px] border border-fg/10 bg-fg/[0.04] p-[3px]">
+              {([['list', List, m.dir.list], ['grid', SquaresFour, m.dir.grid]] as const).map(([k, I, label]) => (
+                <button key={k} onClick={() => setLayout(k)} aria-label={label} title={label} aria-pressed={layout === k} className={clsx('relative grid size-[30px] place-items-center rounded-[7px]', layout === k ? 'text-ink' : 'text-text3 hover:text-ink')}>
+                  {layout === k && <motion.span layoutId="blog-layout-pill" className="absolute inset-0 rounded-[7px] bg-fg/10" transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
+                  <I size={16} className="relative" />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -258,14 +304,6 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
 
         <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-14">
           <div className={clsx('flex min-w-0 flex-col transition-opacity duration-200', busy && 'opacity-60')}>
-            {q.tag && (
-              <div className="flex items-center gap-2 pb-2 pt-2 text-[13px] text-text3">
-                <Link to={to({ ...q, tag: null, page: 1 })} preventScrollReset className="flex h-7 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 font-mono text-accent" aria-label={t.clearFilter}>
-                  #{q.tag}<X size={11} />
-                </Link>
-                {fmt(data.meta.total)}
-              </div>
-            )}
             {rows.length === 0 && !pinned ? (
               <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-2xl border border-line px-6 text-center">
                 <Notebook size={28} className="text-text3" />
@@ -276,6 +314,10 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
                     <Link to={to({})} className="mt-1 flex h-[38px] items-center rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink">{t.empty.clear}</Link>
                   </>
                 )}
+              </div>
+            ) : layout === 'grid' ? (
+              <div className="grid gap-5 sm:grid-cols-2">
+                {rows.map((p) => <Card key={p.slug} post={p} q={q} />)}
               </div>
             ) : (
               rows.map((p) => <Row key={p.slug} post={p} q={q} />)

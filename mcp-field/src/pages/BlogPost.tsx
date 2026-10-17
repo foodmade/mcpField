@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { BlogCover } from '../components/blog/BlogCover'
 import { BlogMarkdown } from '../components/blog/BlogMarkdown'
+import { RssAlternate } from '../components/blog/RssSubscribe'
 import { copyText } from '../components/detail/CopyButton'
 import { EntityIcon } from '../components/EntityIcon'
 import { Seo } from '../components/Seo'
@@ -22,7 +23,7 @@ export const loader = (args: Route.LoaderArgs) => loadBlogPost(args)
 
 const compactNumber = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : String(n))
 
-/** 目录高亮：滚动时取已经滚过页面上方 160px 的最后一个标题 */
+/** 目录高亮：滚动时取已经滚过页面上方 120px 的最后一个标题 */
 function useActiveHeading(toc: TocItem[]) {
   const [active, setActive] = useState<string | null>(toc[0]?.id ?? null)
   useEffect(() => {
@@ -31,7 +32,7 @@ function useActiveHeading(toc: TocItem[]) {
       let current = toc[0]!.id
       for (const item of toc) {
         const el = document.getElementById(item.id)
-        if (el && el.getBoundingClientRect().top < 160) current = item.id
+        if (el && el.getBoundingClientRect().top < 120) current = item.id
       }
       setActive(current)
     }
@@ -122,6 +123,7 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
     <>
       {/* hreflang 只列有译文的语言；还没翻译、显示中文原文的英文日文页面不收录，避免重复内容 */}
       <Seo title={`${post.title} · MCP Field`} description={post.summary} path={path} image={post.coverUrl} type="article" noindex={post.locale !== locale} locales={versions} jsonLd={jsonLd} />
+      <RssAlternate />
       <header className="border-b border-line" style={{ background: 'radial-gradient(60% 220% at 20% 0%, #2B7FFF1F, transparent 60%), radial-gradient(40% 200% at 85% 0%, #3DDC9714, transparent 60%)' }}>
         <motion.div initial={enter ? { opacity: 0, y: 14 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="mx-auto flex max-w-[1248px] flex-col gap-4 px-6 pb-9 pt-10">
           <nav aria-label="breadcrumb" className="flex items-center gap-2 text-[13px] text-text3">
@@ -186,7 +188,7 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
         </article>
 
         <aside className="hidden lg:block">
-          <div className="sticky top-[132px] flex max-h-[calc(100vh-150px)] flex-col gap-8 overflow-y-auto pb-6 [scrollbar-width:none]">
+          <div className="sticky top-[calc(var(--nav-h,68px)+24px)] flex max-h-[calc(100vh-var(--nav-h,68px)-40px)] flex-col gap-8 overflow-y-auto pb-6 [scrollbar-width:none]">
             {toc.length > 0 && (
               <nav aria-label={t.toc}>
                 <h2 className="mb-3 text-xs font-semibold tracking-wide text-text3">{t.toc}</h2>

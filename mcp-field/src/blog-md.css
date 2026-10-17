@@ -20,7 +20,8 @@
   font-weight: 700;
   line-height: 1.4;
   letter-spacing: -0.01em;
-  scroll-margin-top: 140px;
+  /* 点目录跳转时标题不被吸顶的导航挡住（--nav-h 由 Nav 组件写入） */
+  scroll-margin-top: calc(var(--nav-h, 68px) + 24px);
 }
 .blog-md h2 {
   margin-top: 2em;

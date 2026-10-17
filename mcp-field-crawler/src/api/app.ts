@@ -5,6 +5,8 @@ import type { EntityKind } from '../core/types.ts'
 import type { AuthVerifier } from './auth/supabase-auth.ts'
 import { ApiError } from './http/errors.ts'
 import { localeQuerySchema, parseQuery, sitemapQuerySchema, tagsQuerySchema } from './http/query.ts'
+import { blogRoutes } from './modules/blog/blog.routes.ts'
+import type { BlogService } from './modules/blog/blog.service.ts'
 import { commentRoutes } from './modules/comments/comment.routes.ts'
 import type { CommentService } from './modules/comments/comment.service.ts'
 import { entityRoutes } from './modules/entities/entity.routes.ts'
@@ -29,6 +31,8 @@ export interface ApiDeps {
   tags?: TagService
   /** 评论；没有 auth 时只能读，写接口返回 503 */
   comments?: CommentService
+  /** 博客（已发布的文章） */
+  blog?: BlogService
   /** Supabase 登录令牌校验 */
   auth?: AuthVerifier
   logger: Logger
@@ -71,6 +75,7 @@ export function createApp(deps: ApiDeps) {
   const tags = deps.tags
   if (tags) app.get('/api/tags', async (c) => c.json(await tags.list(parseQuery(c, tagsQuerySchema))))
   if (deps.comments) app.route('/api/comments', commentRoutes(deps.comments, deps.auth))
+  if (deps.blog) app.route('/api/blog', blogRoutes(deps.blog))
   const services = Object.entries(deps.entities) as [EntityKind, EntityService<EntityKind>][]
   // GET /api/sitemap —— 各类型的条目总数；GET /api/sitemap/:kind?page&pageSize —— 分页列出 slug 与最后更新时间
   app.get('/api/sitemap', async (c) => {

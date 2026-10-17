@@ -1,5 +1,6 @@
 import { LOCALE_META, LOCALES, type Locale } from '../i18n/locales'
 import { fetchFacets, ROUTE, type Kind } from '../lib/api/entities'
+import { fetchBlogAll } from '../lib/api/blog'
 import { fetchSitemapPage } from '../lib/api/sitemap'
 import { CATEGORIES } from '../lib/categories'
 import { absoluteUrl } from '../lib/seo'
@@ -39,9 +40,17 @@ async function pagesSitemap(signal: AbortSignal) {
   return urlset(LOCALES.flatMap((l) => paths.map(([path, query]) => urlEntry(l, path, query))))
 }
 
-/** sitemaps/pages.xml，或 sitemaps/<类型>-<语言>-<页码>.xml */
+/** 博客：文章只有中文，只列中文地址，不带其他语言版本 */
+async function blogSitemap(signal: AbortSignal) {
+  const posts = await fetchBlogAll(signal)
+  const entry = (path: string, lastmod?: string) => `<url><loc>${escapeXml(absoluteUrl('zh', path))}</loc>${lastmod ? `<lastmod>${lastmod.slice(0, 10)}</lastmod>` : ''}</url>`
+  return urlset([entry('/blog', posts[0]?.updatedAt), ...posts.map((p) => entry(`/blog/${p.slug}`, p.updatedAt))])
+}
+
+/** sitemaps/pages.xml、sitemaps/blog.xml，或 sitemaps/<类型>-<语言>-<页码>.xml */
 export async function loader({ params, request }: Route.LoaderArgs) {
   if (params.file === 'pages.xml') return pagesSitemap(request.signal)
+  if (params.file === 'blog.xml') return blogSitemap(request.signal)
   const m = /^([a-z-]+)-(zh|en|ja)-(\d+)\.xml$/.exec(params.file)
   const kind = m ? KIND_BY_ROUTE[m[1]!] : undefined
   if (!m || !kind) throw new Response('Not Found', { status: 404 })

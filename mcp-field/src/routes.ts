@@ -8,6 +8,7 @@ export default [
   route('robots.txt', 'routes/robots.ts'),
   route('sitemap.xml', 'routes/sitemap-index.ts'),
   route('sitemaps/:file', 'routes/sitemap.ts'),
+  route('blog/rss.xml', 'routes/blog-rss.ts'),
   // 登录页是独立页面，不在站点外壳（导航、页脚）里
   route(':lang?/login', 'pages/Login.tsx'),
   route(':lang?', 'routes/site.tsx', [
@@ -27,6 +28,8 @@ export default [
     route('agents/:slug', 'pages/AgentDetail.tsx'),
     route('tags', 'pages/Tags.tsx'),
     route('rankings', 'pages/Rankings.tsx'),
+    route('blog', 'pages/Blog.tsx'),
+    route('blog/:slug', 'pages/BlogPost.tsx'),
     route('privacy', 'pages/Privacy.tsx'),
     route('*', 'routes/not-found.tsx'),
   ]),

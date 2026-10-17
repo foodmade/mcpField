@@ -9,7 +9,9 @@ import { parseQuery } from '../api/http/query.ts'
 import type { Logger } from '../core/logger.ts'
 import { ENTITY_KINDS } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
+import type { AssetStorage } from '../assets/storage.ts'
 import { RUNNABLE_STEPS, type AdminActions } from './actions.ts'
+import { adminBlogRoutes } from './blog.ts'
 import { SESSION_TTL_MS, type AdminAuth, type AdminUser } from './auth.ts'
 import { dailyRun, dashboard, itemFacets, listItems, runDetail } from './queries.ts'
 
@@ -18,6 +20,7 @@ import { dailyRun, dashboard, itemFacets, listItems, runDetail } from './queries
  *   POST /api/admin/auth/login | logout | password，GET /api/admin/auth/me
  *   GET  /api/admin/dashboard、/api/admin/daily?date、/api/admin/runs/:id、/api/admin/items、/api/admin/items/facets、/api/admin/logs/:name
  *   POST /api/admin/actions/run（单步）、/api/admin/actions/daily（整套每日任务）
+ *   /api/admin/blog/*：博客文章的增删改查、图片上传（见 blog.ts）
  * 除登录外都要登录；改动类请求另外校验 Origin（csrf 中间件），会话 cookie 是 HttpOnly + SameSite=Strict。
  */
 
@@ -29,6 +32,8 @@ export interface AdminApiDeps {
   origins: string[]
   cookieSecure: boolean
   siteUrl: string
+  /** 博客图片上传到的对象存储；没配置 R2 时不能上传 */
+  storage?: AssetStorage
 }
 
 const COOKIE = 'mf_admin'
@@ -165,6 +170,8 @@ export function createAdminApp(deps: AdminApiDeps) {
     deps.logger.info({ username: c.get('user').username, steps }, '后台手动运行每日任务')
     return c.json({ data: { ok: true } })
   })
+
+  app.route('/api/admin/blog', adminBlogRoutes({ db, storage: deps.storage, logger: deps.logger, siteUrl: deps.siteUrl }))
 
   app.notFound((c) => c.json({ error: { code: 'not_found', message: `接口不存在：${c.req.method} ${c.req.path}` } }, 404))
   app.onError((err, c) => {

@@ -4,10 +4,10 @@ import { SITE } from '../lib/seo'
 import { xmlResponse } from './sitemap'
 import type { Route } from './+types/sitemap-index'
 
-/** sitemap 索引：目录页一个文件，详情页按"类型 × 语言 × 分页"拆分 */
+/** sitemap 索引：目录页、博客各一个文件，详情页按"类型 × 语言 × 分页"拆分 */
 export async function loader({ request }: Route.LoaderArgs) {
   const summary = await fetchSitemapSummary(request.signal)
-  const files = ['pages.xml']
+  const files = ['pages.xml', 'blog.xml']
   for (const { route, total } of summary) {
     for (const locale of LOCALES) {
       for (let n = 1; n <= Math.ceil(total / SITEMAP_PAGE_SIZE); n++) files.push(`${route}-${locale}-${n}.xml`)

@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './blog-md.css';
 
 /*
  * 主题：<html data-theme="dark|light">，由 root 里的内联脚本在首次绘制前设置（跟随系统，可手动切换）。

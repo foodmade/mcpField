@@ -7,6 +7,8 @@ import { fetchDetail, fetchFacets, fetchList, type Kind, type ListParams } from 
 import { fetchFeatured, fetchStats } from './home'
 import { ApiError } from './http'
 import { fetchTags } from './tags'
+import { BLOG_CATEGORIES, fetchBlogList, fetchBlogPost, type BlogCategory } from './blog'
+import { BLOG_PAGE_SIZE } from '../blog'
 
 /*
  * 各页面 loader 的数据加载逻辑：在服务端执行（首屏 HTML 直接带数据），
@@ -123,4 +125,30 @@ export async function loadRankings({ request, params }: Args) {
     fetchStats(request.signal).catch(() => null),
   ])
   return { rows: list.data, total: stats?.totals.server ?? null }
+}
+
+/** 博客列表：URL 里的栏目、标签、关键词、页码 */
+export function parseBlogQuery(sp: URLSearchParams) {
+  const category = sp.get('category')
+  const page = Number(sp.get('page') ?? 1)
+  return {
+    category: (BLOG_CATEGORIES as readonly string[]).includes(category ?? '') ? (category as BlogCategory) : null,
+    tag: sp.get('tag')?.trim().toLowerCase().slice(0, 64) || null,
+    q: sp.get('q')?.trim().slice(0, 100) || '',
+    page: Number.isInteger(page) && page >= 1 ? page : 1,
+  }
+}
+
+export async function loadBlogList({ request }: Args) {
+  const q = parseBlogQuery(new URL(request.url).searchParams)
+  const list = await fetchBlogList({ category: q.category ?? undefined, tag: q.tag ?? undefined, q: q.q || undefined, page: q.page, pageSize: BLOG_PAGE_SIZE }, request.signal)
+  if (q.page > 1 && list.data.length === 0) throw notFound()
+  return list
+}
+
+export async function loadBlogPost({ request, params }: Args) {
+  if (!params.slug) throw notFound()
+  return fetchBlogPost(params.slug, request.signal).catch((e: unknown) => {
+    throw e instanceof ApiError && e.notFound ? notFound() : e
+  })
 }

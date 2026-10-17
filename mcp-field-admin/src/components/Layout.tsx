@@ -1,4 +1,4 @@
-import { ArrowsClockwise, CalendarCheck, Database, SignOut, SquaresFour, TerminalWindow, UserGear } from '@phosphor-icons/react'
+import { ArrowsClockwise, CalendarCheck, Database, Notebook, SignOut, SquaresFour, TerminalWindow, UserGear } from '@phosphor-icons/react'
 import clsx from 'clsx'
 import { createContext, useContext, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
@@ -22,6 +22,7 @@ const NAV = [
   { to: '/', label: '仪表盘', icon: SquaresFour, end: true },
   { to: '/daily', label: '每日采集', icon: CalendarCheck },
   { to: '/items', label: '数据管理', icon: Database },
+  { to: '/blog', label: '博客文章', icon: Notebook },
   { to: '/logs', label: '运行日志', icon: TerminalWindow },
   { to: '/account', label: '账号设置', icon: UserGear },
 ]

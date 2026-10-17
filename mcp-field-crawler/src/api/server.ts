@@ -13,6 +13,8 @@ import { createApp, type ApiDeps } from './app.ts'
 import { SupabaseAuth } from './auth/supabase-auth.ts'
 import { loadApiConfig } from './config.ts'
 import { listRemoteTools } from '../probe/mcp-remote.ts'
+import { MysqlBlogRepository } from './modules/blog/blog.repository.ts'
+import { BlogService } from './modules/blog/blog.service.ts'
 import { MysqlCommentRepository } from './modules/comments/comment.repository.ts'
 import { CommentService } from './modules/comments/comment.service.ts'
 import { EntityService } from './modules/entities/entity.service.ts'
@@ -58,6 +60,7 @@ const app = createApp({
   field: new FieldService({ server: entities.server!, skill: entities.skill! }),
   tags: new TagService(new PublishedTagReader(db)),
   comments: new CommentService(new MysqlCommentRepository(db)),
+  blog: new BlogService(new MysqlBlogRepository(db)),
   auth: config.supabaseUrl ? new SupabaseAuth(config.supabaseUrl) : undefined,
   logger,
   corsOrigins: config.corsOrigins,

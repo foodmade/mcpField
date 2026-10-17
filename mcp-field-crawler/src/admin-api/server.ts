@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server'
+import { R2Storage } from '../assets/storage.ts'
 import { createDb } from '../db/client.ts'
 import { createLogger } from '../infra/logger.ts'
 import { AdminActions } from './actions.ts'
@@ -20,6 +21,7 @@ const app = createAdminApp({
   origins: config.origins,
   cookieSecure: config.cookieSecure,
   siteUrl: config.siteUrl,
+  storage: config.r2 ? new R2Storage(config.r2) : undefined,
 })
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {

@@ -178,6 +178,8 @@ export class ReadmeTranslateRunner {
       await this.runSlice(loaded, options, stats, version, `${i / size + 1}/${Math.ceil(pending.length / size)}`)
       // 处理完释放正文：内存里同时只有一片
       if (this.load) for (const t of slice) t.readme = undefined
+      // 整体进度（按篇）：后台的任务进度条用它，片内批次的 progress 只是这一片的
+      this.logger.info({ stepProgress: `${Math.min(i + size, pending.length)}/${pending.length}`, assembled: stats.assembled }, 'README 翻译进度')
     }
     stats.seconds = Math.round((Date.now() - started) / 1000)
     return stats

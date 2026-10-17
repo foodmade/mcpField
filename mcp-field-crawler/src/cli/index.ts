@@ -12,7 +12,10 @@ import { isRecordSource, type IngestStore } from '../core/store.ts'
 import { assembleKit } from '../core/source.ts'
 import { ENTITY_KINDS, isEntityKind, type EntityKind } from '../core/types.ts'
 import { createDb } from '../db/client.ts'
-import { createLogger } from '../infra/logger.ts'
+import { createLogger, type LogObserver } from '../infra/logger.ts'
+import { finishBatch, JobTracker, markStaleRuns, startBatch } from '../admin/jobs.ts'
+import { STAGES_AFTER, syncItemStatus, type Stage, STAGES } from '../admin/sync.ts'
+import { setAdminPassword } from '../admin/users.ts'
 import { FileStore } from '../store/file-store.ts'
 import { MySqlIngestStore } from '../store/mysql-store.ts'
 import { GithubClient } from '../github/client.ts'
@@ -88,6 +91,9 @@ MCP Field 数据采集
   probe-local             在 Docker 沙箱里装包、断网启动，用 stdio 读出工具列表，结果追加写入 JSONL（不需要数据库，在单独的实测机上跑）
   probe-import            把实测结果导入 ingest_enrichments，之后 publish 给没有工具列表的服务补上
   probe                   每日任务用：导入实测机交回的结果，把没有工具列表的本地包和远程服务投递到队列（PROBE_REDIS_URL），最多等新收录的结果 60 分钟
+  admin-sync              同步后台的条目状态表（各补全步骤的状态灯）；每日任务的每一步结束时会自动同步相关的列
+  admin-user              创建管理后台账号或重设密码：--username <名> --password <密码>
+  job-batch start|finish  每日任务（daily.sh）的批次记录，后台按批次展示每天的运行情况
   probe-worker            实测机常驻：从队列取目标，本地包在 Docker 沙箱里测、远程服务直接读 tools/list，结果写回队列（不需要数据库）
   search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）和标签表 ingest_tags；publish 结束时两张都同步，github / translate / describe 结束时只同步搜索表
   stats                   查看采集层统计（需要 MySQL）
@@ -222,12 +228,21 @@ const { positionals, values } = parseArgs({
     'dry-run': { type: 'boolean', default: false },
     input: { type: 'string' },
     output: { type: 'string' },
+    id: { type: 'string' },
+    status: { type: 'string' },
+    steps: { type: 'string' },
+    trigger: { type: 'string' },
+    stages: { type: 'string' },
+    username: { type: 'string' },
+    password: { type: 'string' },
     help: { type: 'boolean', short: 'h', default: false },
   },
 })
 
 const config = loadConfig()
-const logger = createLogger(config.logLevel)
+/** 任务埋点通过它拿到日志里的进度和警告（见 tracked） */
+const logObserver: { current?: LogObserver } = {}
+const logger = createLogger(config.logLevel, logObserver)
 const registry = createRegistry()
 const command = positionals[0]
 
@@ -275,6 +290,7 @@ async function run(mode: 'discover' | 'crawl') {
     const stats = await runner.run(options)
     logger.info({ store: storeKind, ...stats }, mode === 'discover' ? '发现完成' : '抓取完成')
     if (store instanceof FileStore) logger.info(`输出目录：${store.outputDir}`)
+    return stats
   } finally {
     await store.close()
   }
@@ -301,6 +317,7 @@ async function remap() {
   try {
     const stats = await remapRecords({ kit: assembleKit(factory, ctx), store, events: new CrawlEvents(), logger: ctx.logger }, parseKinds(values.kind, factory.meta.kinds))
     logger.info({ records: stats.records, drafts: stats.drafts, failed: stats.failed }, '草稿重建完成')
+    return stats
   } finally {
     await store.close()
   }
@@ -324,10 +341,11 @@ async function github() {
     const limit = values.limit ? Number(values.limit) : undefined
     const repoStats = await new GithubRepoRunner(new GithubRepoFetcher(client), new GithubRepoStore(db), logger).run(repos, { batchSize: 50, concurrency: 2, limit, signal: controller.signal })
     logger.info(repoStats, 'GitHub 仓库统计更新完成')
-    if (controller.signal.aborted) return
+    if (controller.signal.aborted) return { repos: repoStats }
     // skills.sh 已经给出 SKILL.md 的 Skill 直接导入，不再请求 GitHub
     const readmeStore = new GithubReadmeStore(db)
-    logger.info(await importSkillsShReadmes(db, readmeStore, readmes), 'skills.sh 的 SKILL.md 已导入')
+    const imported = await importSkillsShReadmes(db, readmeStore, readmes)
+    logger.info(imported, 'skills.sh 的 SKILL.md 已导入')
     const readmeStats = await new GithubReadmeRunner(new GithubReadmeFetcher(client), readmeStore, logger).run(readmes, {
       concurrency: values.concurrency ? Number(values.concurrency) : 4,
       force: values.force,
@@ -337,6 +355,7 @@ async function github() {
     logger.info(readmeStats, 'GitHub README 抓取完成')
     // 星数变了，热门顺序跟着变
     if (!controller.signal.aborted) await syncSearchIndex(db, kinds, logger)
+    return { repos: repoStats, skillsSh: imported, readme: readmeStats }
   } finally {
     await pool.end()
   }
@@ -374,6 +393,7 @@ async function translate() {
     logger.info({ ...stats, model: translator.model }, '翻译完成')
     // 新译文要能搜到
     if (!controller.signal.aborted) await syncSearchIndex(db, kinds, logger)
+    return { ...stats, model: translator.model }
   } finally {
     await pool.end()
   }
@@ -403,6 +423,7 @@ async function translateTools() {
       signal: controller.signal,
     })
     logger.info({ ...stats, model: translator.model }, '工具描述翻译完成')
+    return { ...stats, model: translator.model }
   } finally {
     await pool.end()
   }
@@ -452,6 +473,7 @@ async function overview() {
       signal: controller.signal,
     })
     logger.info(stats, '介绍生成完成')
+    return { ...stats, total, skipped }
   } finally {
     await pool.end()
   }
@@ -506,6 +528,7 @@ async function readme() {
       signal: controller.signal,
     })
     logger.info(stats, 'README 翻译完成')
+    return stats
   } finally {
     await pool.end()
   }
@@ -541,6 +564,7 @@ async function describe() {
     logger.info(stats, '内容生成完成')
     // 新撰写的简介要能搜到
     if (!controller.signal.aborted) await syncSearchIndex(db, kinds, logger)
+    return stats
   } finally {
     await pool.end()
   }
@@ -580,6 +604,7 @@ async function assets() {
     const items = await collectMediaUrls(db, kinds, media, values.source)
     const stats = await new AssetMirror(storage, new AssetStore(db), logger, config.userAgent).run(items, mirrorOptions(controller.signal))
     logger.info({ ...stats, uploadedMB: +(stats.uploadedBytes / 1024 / 1024).toFixed(1) }, '图片转存完成')
+    return stats
   } finally {
     await pool.end()
   }
@@ -609,6 +634,7 @@ async function ownerIcons() {
     // 中断时也写入：已经转存成功的头像不白做
     const applied = await applyOwnerIcons(db, store, entries, broken)
     logger.info({ ...stats, uploadedMB: +(stats.uploadedBytes / 1024 / 1024).toFixed(1), applied }, '图标补全完成')
+    return { ...stats, entries: entries.length, applied }
   } finally {
     await pool.end()
   }
@@ -663,6 +689,7 @@ async function probeImport() {
     }
     await store.save(batch)
     logger.info(counts, '实测结果已导入，publish 后生效')
+    return counts
   } finally {
     await pool.end()
   }
@@ -685,6 +712,7 @@ async function probe() {
       signal: controller.signal,
     })
     logger.info(stats, '实测投递与结果导入完成，publish 后生效')
+    return stats
   } finally {
     await queue.close()
     await pool.end()
@@ -778,6 +806,7 @@ async function classify() {
       signal: controller.signal,
     })
     logger.info(stats, '分类完成（运行 publish 后在网站上生效）')
+    return stats
   } finally {
     await pool.end()
   }
@@ -795,6 +824,7 @@ async function publishCommand() {
     await syncTagIndex(db, kinds, logger)
     // 推送失败不影响发布结果，之后可以用 indexnow --since 补推
     if (config.indexNow) await pushChanged(db, config.indexNow, kinds, started, logger).catch((error: unknown) => logger.warn({ err: error instanceof Error ? error.message : String(error) }, 'IndexNow 推送失败'))
+    return stats
   } finally {
     await pool.end()
   }
@@ -850,8 +880,96 @@ async function stats() {
   }
 }
 
+/** 记入后台（admin_job_runs）的命令：每日任务的步骤和常用的手动命令；调试、只读和实测机上的命令不记 */
+const TRACKED = new Set(['discover', 'crawl', 'remap', 'github', 'translate', 'translate-tools', 'overview', 'readme', 'assets', 'owner-icons', 'describe', 'classify', 'publish', 'probe', 'probe-import', 'search-index', 'indexnow', 'admin-sync'])
+
+/**
+ * 运行命令并记入后台：开始、心跳和进度、结束时的统计；成功跑完后刷新条目状态表里这一步相关的列。
+ * 埋点和同步出错只打警告，不影响命令本身的结果
+ */
+async function tracked(task: () => Promise<unknown>): Promise<unknown> {
+  if (!TRACKED.has(command!) || !config.databaseUrl || values.store === 'file' || values['dry-run']) return task()
+  const { db, pool } = createDb(config.databaseUrl)
+  const batchId = Number(process.env.MCPFIELD_BATCH_ID) || undefined
+  const tracker = await JobTracker.start(db, { step: command!, args: process.argv.slice(3).join(' '), batchId }, (obj, msg) => logger.warn(obj, msg))
+  if (!tracker) {
+    await pool.end()
+    return task()
+  }
+  logObserver.current = (level, obj, msg) => tracker.observe(level, obj, msg)
+  // 命令自己处理了中断信号的（等进行中的请求完成再退出），这里只记一笔；没处理的照默认行为退出
+  const onSignal = (signal: NodeJS.Signals) => {
+    tracker.interrupted = true
+    if (process.listenerCount(signal) === 1) void tracker.finish({}).finally(() => process.exit(signal === 'SIGINT' ? 130 : 143))
+  }
+  process.on('SIGINT', onSignal)
+  process.on('SIGTERM', onSignal)
+  try {
+    const stats = await task()
+    await tracker.finish({ stats })
+    const stages = STAGES_AFTER[command!]
+    if (stages?.length && !tracker.interrupted) {
+      await syncItemStatus(db, stages, logger).catch((error: unknown) => logger.warn({ err: (error as Error).message }, '条目状态同步失败'))
+    }
+    return stats
+  } catch (error) {
+    await tracker.finish({ error })
+    throw error
+  } finally {
+    logObserver.current = undefined
+    await pool.end()
+  }
+}
+
+/** 每日任务的批次：start 打印批次号（daily.sh 放进 MCPFIELD_BATCH_ID），finish 收尾 */
+async function jobBatch() {
+  if (!config.databaseUrl) throw new Error('job-batch 需要 DATABASE_URL')
+  const action = positionals[1]
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    if (action === 'start') {
+      await markStaleRuns(db)
+      console.log(await startBatch(db, { trigger: values.trigger ?? 'cron', steps: (values.steps ?? '').split(/\s+/).filter(Boolean) }))
+    } else if (action === 'finish') {
+      const status = values.status === 'succeeded' || values.status === 'interrupted' ? values.status : 'failed'
+      await finishBatch(db, Number(values.id), status)
+    } else throw new Error('用法：job-batch start --steps "<步骤…>" [--trigger cron|manual] | job-batch finish --id <批次号> --status succeeded|failed')
+  } finally {
+    await pool.end()
+  }
+}
+
+async function adminSync() {
+  if (!config.databaseUrl) throw new Error('admin-sync 需要 DATABASE_URL')
+  const stages = (values.stages?.split(',').map((s) => s.trim()) ?? [...STAGES]) as Stage[]
+  const invalid = stages.filter((s) => !(STAGES as readonly string[]).includes(s))
+  if (invalid.length) throw new Error(`不支持的步骤：${invalid.join(', ')}（可用：${STAGES.join(', ')}）`)
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    return await syncItemStatus(db, stages, logger)
+  } finally {
+    await pool.end()
+  }
+}
+
+async function adminUser() {
+  if (!config.databaseUrl) throw new Error('admin-user 需要 DATABASE_URL')
+  if (!values.username || !values.password) throw new Error('用法：admin-user --username <名> --password <密码>')
+  const { db, pool } = createDb(config.databaseUrl)
+  try {
+    const created = await setAdminPassword(db, values.username, values.password)
+    logger.info({ username: values.username }, created ? '后台账号已创建' : '后台账号密码已重设，已登录的会话全部失效')
+  } finally {
+    await pool.end()
+  }
+}
+
 async function main() {
   if (values.help || !command) return console.log(HELP)
+  return tracked(dispatch)
+}
+
+async function dispatch(): Promise<unknown> {
   switch (command) {
     case 'sources':
       return console.table(registry.list().map(({ meta }) => ({ id: meta.id, name: meta.name, kinds: meta.kinds.join(','), rps: meta.politeness.requestsPerSecond })))
@@ -898,6 +1016,12 @@ async function main() {
       return searchIndex()
     case 'stats':
       return stats()
+    case 'admin-sync':
+      return adminSync()
+    case 'admin-user':
+      return adminUser()
+    case 'job-batch':
+      return jobBatch()
     default:
       console.log(HELP)
       process.exitCode = 1

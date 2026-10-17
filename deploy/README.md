@@ -39,6 +39,14 @@ mcpfield backup            # 备份数据库到本机 backups/
 mcpfield db / ssh          # 数据库命令行 / 登录服务器
 ```
 
+## 管理后台 admin.mcpfield.com
+
+- 页面是 `mcp-field-admin` 在本机构建的静态文件（`mcp-field-admin/dist`），Nginx 直接提供；接口是 pm2 进程 `mcpfield-admin-api`（127.0.0.1:3200，代码在 `mcp-field-crawler/src/admin-api`），和网站 API 分开。
+- 发布：`mcpfield deploy admin`（只发后台）；`mcpfield deploy` 全部发布时也包含后台。Nginx 配置在 `deploy/nginx/mcpfield.com.conf` 的第二个 server 块，改完 `mcpfield nginx`。
+- 证书用的是同一张 Cloudflare 源服务器证书（`*.mcpfield.com`）；Cloudflare 里要有一条 `admin` 的代理（橙色云朵）记录指向服务器。
+- 账号：`mcpfield run admin-user --username <名> --password '<密码>'` 创建或重设密码（重设后已登录的会话全部失效）；登录后在“账号设置”里改密码。连续输错 5 次锁定 15 分钟。
+- 后台的“手动运行 / 重新运行”在服务器上起的进程和 `mcpfield data` / `mcpfield run` 一样（nice、同一把锁、同名命令只允许一个），日志也写在同样的 `logs/` 文件里。
+
 ## 更换证书
 
 在 Cloudflare 后台 SSL/TLS → 源服务器 创建新证书后：

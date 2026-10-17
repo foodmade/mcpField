@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/geist-mono';
+
+/* 与网站深色主题同一套颜色（mcp-field/src/index.css），另加状态灯颜色 */
+:root {
+  --mf-bg: #0a0b0d;
+  --mf-surface: #121418;
+  --mf-subtle: #181b20;
+  --mf-ink: #f3f4f6;
+  --mf-text2: #a9aeb6;
+  --mf-text3: #7d838c;
+  --mf-line: #23272e;
+  --mf-accent: #3ddc97;
+  --st-ok: #3ddc97;
+  --st-run: #5aa9ff;
+  --st-warn: #f5b544;
+  --st-err: #f2555a;
+  --st-idle: #4a5058;
+  --kind-skill: #8e9bff;
+  --kind-other: #e58fd0;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--mf-bg);
+  --color-surface: var(--mf-surface);
+  --color-subtle: var(--mf-subtle);
+  --color-ink: var(--mf-ink);
+  --color-text2: var(--mf-text2);
+  --color-text3: var(--mf-text3);
+  --color-line: var(--mf-line);
+  --color-accent: var(--mf-accent);
+  --color-ok: var(--st-ok);
+  --color-run: var(--st-run);
+  --color-warn: var(--st-warn);
+  --color-err: var(--st-err);
+  --color-idle: var(--st-idle);
+  --color-kind-skill: var(--kind-skill);
+  --color-kind-other: var(--kind-other);
+  --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+}
+
+html,
+body {
+  background: var(--mf-bg);
+  color: var(--mf-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

@@ -20,7 +20,8 @@ MCP Field 运维命令（服务器：${SERVER}:${REMOTE}）
 
 用法：mcpfield <命令> [参数]
 
-  deploy [web|api] [--skip-checks]   发布：本地类型检查 → 构建前端 → 同步代码 → 安装依赖 → 数据库迁移 → 平滑重启
+  deploy [web|api|admin] [--skip-checks]   发布：本地类型检查 → 构建前端 → 同步代码 → 安装依赖 → 数据库迁移 → 平滑重启
+                                     （admin 是管理后台 admin.mcpfield.com：页面 + mcpfield-admin-api）
   status                             服务、站点、数据库、内存状态
   logs [web|api|nginx|data|<采集命令>] [-f]   查看日志（默认 web，-f 持续跟踪；nginx 是站点的访问日志；
                                      采集命令的日志例如：mcpfield logs overview -f）
@@ -43,7 +44,8 @@ sync_code() {
     --exclude='/.mysql.env' --exclude='/.bytro' --exclude='/backups/' \
     --exclude='/mcp-field/.react-router/' --exclude='/mcp-field/dist/' \
     --exclude='/mcp-field/build/client/assets/' \
-    --exclude='/mcp-field-crawler/.env' --exclude='/mcp-field-crawler/data/' --exclude='/mcp-field-crawler/logs/' \
+    --exclude='/mcp-field-crawler/.env' --exclude='/mcp-field-crawler/.env.bak*' --exclude='/mcp-field-crawler/data/' --exclude='/mcp-field-crawler/logs/' \
+    --exclude='/mcp-field-admin/node_modules/' \
     "${ROOT}/" "${SERVER}:${REMOTE}/"
   # 带哈希的前端资源只增不删：浏览器和 CDN 里缓存的旧页面还会引用上一版的文件，
   # 删掉后点链接会加载失败、页面原地刷新。超过 7 天没更新的旧文件在发布前端时清理（见 cmd_deploy）
@@ -54,24 +56,30 @@ cmd_deploy() {
   local target=all checks=1
   for a in "$@"; do
     case "$a" in
-      web|api) target="$a" ;;
+      web|api|admin) target="$a" ;;
       --skip-checks) checks=0 ;;
       *) die "未知参数：$a" ;;
     esac
   done
   if [[ $checks == 1 ]]; then
     info "类型检查"
-    [[ $target != api ]] && (cd "${ROOT}/mcp-field" && npm run --silent typecheck)
+    [[ $target == all || $target == web ]] && (cd "${ROOT}/mcp-field" && npm run --silent typecheck)
     [[ $target != web ]] && (cd "${ROOT}/mcp-field-crawler" && npm run --silent typecheck)
+    [[ $target == all || $target == admin ]] && (cd "${ROOT}/mcp-field-admin" && npm run --silent typecheck)
   fi
-  if [[ $target != api ]]; then
+  if [[ $target == all || $target == web ]]; then
     info "构建前端（在本机构建，服务器内存不够同时跑构建）"
     (cd "${ROOT}/mcp-field" && npm run --silent build >/dev/null)
+  fi
+  if [[ $target == all || $target == admin ]]; then
+    info "构建管理后台页面"
+    (cd "${ROOT}/mcp-field-admin" && npm run --silent build >/dev/null)
   fi
   sync_code
   local only=''
   [[ $target == web ]] && only='--only mcpfield-web'
   [[ $target == api ]] && only='--only mcpfield-api'
+  [[ $target == admin ]] && only='--only mcpfield-admin-api'
   info "服务器：安装依赖、迁移数据库、重启"
   remote "cd ${REMOTE} && ONLY='$only' bash -s" <<'EOF'
 set -e
@@ -89,16 +97,16 @@ install mcp-field --omit=dev
 install mcp-field-crawler ''
 (cd mcp-field-crawler && npm run --silent db:migrate)
 # 本次构建的文件刚同步过、修改时间是现在；7 天前的只会是旧版本留下的
-[[ "$ONLY" == *mcpfield-api* ]] || find mcp-field/build/client/assets -type f -mtime +7 -delete
+[[ "$ONLY" == *api* ]] || find mcp-field/build/client/assets -type f -mtime +7 -delete
 pm2 startOrReload deploy/ecosystem.config.cjs --update-env $ONLY >/dev/null
 pm2 save >/dev/null
 for i in $(seq 1 30); do
-  curl -sf -o /dev/null http://127.0.0.1:3100/api/health && curl -sf -o /dev/null http://127.0.0.1:3000/ && exit 0
+  curl -sf -o /dev/null http://127.0.0.1:3100/api/health && curl -sf -o /dev/null http://127.0.0.1:3000/ && curl -sf -o /dev/null http://127.0.0.1:3200/api/admin/health && exit 0
   sleep 1
 done
 echo "健康检查失败，最近日志：" && pm2 logs --nostream --lines 30 && exit 1
 EOF
-  ok "发布完成：https://mcpfield.com"
+  ok "发布完成：https://mcpfield.com（后台 https://admin.mcpfield.com）"
 }
 
 cmd_status() {
@@ -106,7 +114,7 @@ cmd_status() {
 pm2 list | grep -E 'name|mcpfield' || true
 printf '\n站点（经 Nginx）：%s\n' "$(curl -sk -o /dev/null -w '%{http_code}' --resolve mcpfield.com:443:127.0.0.1 https://mcpfield.com/robots.txt)"
 printf '数据库：%s\n' "$(systemctl is-active mysqld)"
-printf 'API：%s  前端：%s\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/health)" "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)"
+printf 'API：%s  前端：%s  后台接口：%s\n' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/health)" "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)" "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3200/api/admin/health)"
 echo; free -m | head -3
 [[ -f mcp-field-crawler/logs/daily.log ]] && printf '\n最近一次数据更新：\n' && tail -3 mcp-field-crawler/logs/daily.log
 EOF
@@ -143,7 +151,7 @@ cmd_restart() {
 
 cmd_data() {
   local steps="$*"
-  remote "cd ${REMOTE}/mcp-field-crawler && mkdir -p logs && STEPS='$steps' nohup nice -n 10 flock -n /tmp/mcpfield-daily.lock ./scripts/daily.sh >> logs/daily.log 2>&1 &"
+  remote "cd ${REMOTE}/mcp-field-crawler && mkdir -p logs && STEPS='$steps' TRIGGER=manual nohup nice -n 10 flock -n /tmp/mcpfield-daily.lock ./scripts/daily.sh >> logs/daily.log 2>&1 &"
   ok "已在服务器后台开始数据更新${steps:+（${steps}）}；查看进度：mcpfield logs data -f"
 }
 

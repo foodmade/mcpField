@@ -5,10 +5,14 @@
 # 抓取只走 CRAWL_SOURCES（默认官方 MCP Registry 和 skills.sh）；mcp.so 的数据 2026-10-16 起冻结，不再抓取。
 # mcp-registry 平时只拉上次成功抓取之后有变化的（--since auto），每周日全量一次兜底。
 # 只跑其中几步：STEPS="translate overview" ./scripts/daily.sh
+# 每次运行在后台记一个批次（admin_job_batches），各步骤的运行挂在它下面；TRIGGER=manual 表示手动触发（mcpfield data）
 cd "$(dirname "$0")/.."
 read -r -a steps <<< "${STEPS:-crawl classify probe publish assets owner-icons github translate translate-tools describe overview readme}"
 read -r -a sources <<< "${CRAWL_SOURCES:-mcp-registry skills-sh}"
 status=0
+# 批次记录失败不影响数据更新，只是后台看不到这一批
+batch=$(npm run --silent crawler -- job-batch start --trigger "${TRIGGER:-cron}" --steps "${steps[*]}" 2>/dev/null | tail -n 1 || true)
+[[ $batch =~ ^[0-9]+$ ]] && export MCPFIELD_BATCH_ID=$batch
 run() {
   echo "[$(date '+%F %T')] 开始 $*"
   if ! npm run --silent crawler -- "$@"; then
@@ -28,4 +32,7 @@ for step in "${steps[@]}"; do
   fi
 done
 echo "[$(date '+%F %T')] 完成 ${steps[*]}"
+if [[ -n ${MCPFIELD_BATCH_ID:-} ]]; then
+  npm run --silent crawler -- job-batch finish --id "$MCPFIELD_BATCH_ID" --status "$([[ $status == 0 ]] && echo succeeded || echo failed)" || true
+fi
 exit $status

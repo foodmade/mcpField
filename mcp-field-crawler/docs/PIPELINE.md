@@ -283,7 +283,29 @@ AI 介绍 ◄───── overview / describe ─► ingest_overviews + inges
 
 日志位置（服务器 `/storage02/mcpfield/app/mcp-field-crawler/logs/`）：`daily.log` 是定时任务；`run-<命令>.log` 是 `mcpfield run` 启动的手工任务。pino 的 JSON 行里 `level` 40 是警告、50 是错误，`progress` 字段是进度。
 
-## 8. 重新生成流程图
+## 8. 管理后台的数据
+
+后台（admin.mcpfield.com，见 `mcp-field-admin/README.md`）只读 `admin_*` 表，不直接查发布层，数据量再大也是走索引的小查询。数据分两部分：
+
+**任务运行记录**（`admin_job_batches` / `admin_job_runs`）：CLI 每跑一个命令（每日任务的步骤和常用手动命令，见 `cli/index.ts` 的 `TRACKED`）记一行：开始时间、每 15 秒的心跳和进度（日志里的 `progress` 字段，README 翻译用按篇的 `stepProgress`）、最后 30 条警告和错误日志、结束时命令返回的统计（汇总出成功 / 待抽查 / 失败条数）、最终状态（成功 / 有警告 / 失败 / 中断）。`daily.sh` 开头用 `job-batch start` 建一个批次，批次号通过环境变量 `MCPFIELD_BATCH_ID` 传给各步骤。进程被 kill -9 时状态停在 running，心跳超过 5 分钟没更新按“中断”显示。
+
+**条目状态**（`admin_item_status`，每个发布条目一行的宽表；`admin_coverage`，各类型 × 各补全项的计数）：不在任务里逐条埋点，而是由 `admin/sync.ts` 从各结果表推导，任务中途失败、手动补跑、改了逻辑，同步一次就对得上。每一步结束时自动只刷新这一步影响的列（`STAGES_AFTER`，publish 之后全部），也可以手动 `admin-sync [--stages a,b]`。全量约 40 秒（第一次要读全部 README 算指纹，约 80 秒）。
+
+| 补全项 | 完成 | 警告 | 失败 | 不适用 |
+| --- | --- | --- | --- | --- |
+| 分类 | 发布层有分类 | 分类器把握不足 | — | — |
+| 图标 | media_assets 已转存 | 草稿里没有图标 | 转存失败、原图 404、格式不支持 | — |
+| GitHub | github_repo 有统计 | 仓库不存在或私有 | 请求出错 | 没有 GitHub 仓库 |
+| README | github_readme 抓到 | 仓库没有 README、过大 | 请求出错 | 没有仓库 |
+| 简介翻译 | 简介、描述的原文指纹三语都有 | 有待抽查的译文 | — | 没有简介 |
+| 工具列表 | 草稿里有工具 | 没有安装包或远程地址 / 实测结果没被采用 | 实测失败 | 不是 MCP 服务 |
+| 工具翻译 | 全部工具描述三语都有 | 有待抽查 | — | 没有工具描述 |
+| AI 介绍 | ingest_overviews 三语都有 | 待抽查 | — | 没有 README 或 README 不足 200 字（Loop / CLI / Agent 由 describe 写，总是适用） |
+| README 翻译 | 当前 README 指纹的中、日译文都有（本身是中文 / 日文的那种语言不需要） | 待抽查 | — | 没有 README、纯文本 README |
+
+其余情况都是“待处理”；后台显示时，正在运行的步骤里“待处理”的条目显示为“进行中”。收录时间取同一身份键下所有来源里最早被发现的时间（`ingest_targets.discovered_at`），按北京时间归日。不在发布层的条目保留行、标为下架，历史的每日新收录数不受影响。
+
+## 9. 重新生成流程图
 
 改了 `docs/pipeline-diagrams.html` 后，在 `docs/` 目录下用本机 Chrome 截图（Python Playwright 已装；CDN 慢时把 `mermaid.min.js` 请求重定向到本地的 npm 包）：
 

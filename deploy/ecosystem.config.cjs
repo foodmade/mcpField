@@ -16,6 +16,16 @@ module.exports = {
       env: { NODE_ENV: 'production' },
     },
     {
+      // 管理后台接口（admin.mcpfield.com）：和网站 API 分开的进程，只监听本机 3200；页面是 Nginx 直接提供的静态文件
+      name: 'mcpfield-admin-api',
+      cwd: resolve(root, 'mcp-field-crawler'),
+      script: 'src/admin-api/server.ts',
+      interpreter: 'node',
+      node_args: '--import tsx --env-file-if-exists=.env',
+      max_memory_restart: '350M',
+      env: { NODE_ENV: 'production' },
+    },
+    {
       // 前端服务端渲染：只监听本机，由服务器自带的 Nginx（443）转发外部请求
       name: 'mcpfield-web',
       cwd: resolve(root, 'mcp-field'),

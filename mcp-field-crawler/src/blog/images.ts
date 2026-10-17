@@ -12,8 +12,6 @@ export type ImageSource = 'ai' | 'stock'
 
 export interface BlogImage {
   url: string
-  /** 图注：AI 图用图片说明；图库照片带上摄影师署名 */
-  caption: string
 }
 
 export interface ImageConfig {
@@ -36,10 +34,9 @@ export class BlogImageMaker {
   }
 
   /** prompt：生图时是英文画面描述，图库时是英文搜索词 */
-  async make(source: ImageSource, prompt: string, alt: string, options: { cover?: boolean; signal?: AbortSignal } = {}): Promise<BlogImage> {
-    const { buffer, credit } = source === 'ai' ? { buffer: await this.generate(prompt, options.signal), credit: '' } : await this.stock(prompt, options.signal)
-    const url = await this.upload(buffer, options.cover)
-    return { url, caption: credit ? `${alt}（${credit}）` : alt }
+  async make(source: ImageSource, prompt: string, options: { cover?: boolean; signal?: AbortSignal } = {}): Promise<BlogImage> {
+    const buffer = source === 'ai' ? await this.generate(prompt, options.signal) : await this.stock(prompt, options.signal)
+    return { url: await this.upload(buffer, options.cover) }
   }
 
   private async generate(prompt: string, signal?: AbortSignal): Promise<Buffer> {
@@ -53,15 +50,16 @@ export class BlogImageMaker {
     throw new Error('生图接口没有返回图片')
   }
 
-  private async stock(query: string, signal?: AbortSignal): Promise<{ buffer: Buffer; credit: string }> {
+  /** Pexels 许可证不要求署名，图片下方不放摄影师信息 */
+  private async stock(query: string, signal?: AbortSignal): Promise<Buffer> {
     if (!this.config.stockKey) throw new Error('没有配置 Pexels API Key')
     const res = await this.fetcher(`https://api.pexels.com/v1/search?${new URLSearchParams({ query, per_page: '5', orientation: 'landscape' })}`, { headers: { Authorization: this.config.stockKey }, signal })
     if (!res.ok) throw new Error(`Pexels 搜索失败（${res.status}）`)
-    const body = (await res.json()) as { photos?: { src: { large2x?: string; large?: string }; photographer?: string }[] }
+    const body = (await res.json()) as { photos?: { src: { large2x?: string; large?: string } }[] }
     const photo = body.photos?.[0]
     const src = photo?.src.large2x ?? photo?.src.large
     if (!src) throw new Error(`Pexels 没有找到“${query}”相关的照片`)
-    return { buffer: await this.download(src, signal), credit: `图片：${photo?.photographer ?? 'Pexels'} / Pexels` }
+    return this.download(src, signal)
   }
 
   private async download(url: string, signal?: AbortSignal): Promise<Buffer> {

@@ -201,7 +201,7 @@ describe('博客翻译', () => {
 })
 
 describe('博客 AI 生成', () => {
-  it('插图占位：成功的回填成图片和图注，失败的整行删掉', async () => {
+  it('插图占位：成功的回填成图片（不带图注），失败的整行删掉', async () => {
     const body = ['开头一段。', '', '![架构示意](image: a diagram of agents calling tools)', '', '中间一段。', '![第二张](image:  server room )', '', '结尾。'].join('\n')
     expect(imageMarkers(body).map((m) => [m.alt, m.prompt])).toEqual([
       ['架构示意', 'a diagram of agents calling tools'],
@@ -212,13 +212,14 @@ describe('博客 AI 生成', () => {
       body,
       async (prompt) => {
         if (prompt === 'server room') throw new Error('没有找到')
-        return { url: 'https://assets.mcpfield.com/blog/a.webp', caption: '架构 "示意"' }
+        return { url: 'https://assets.mcpfield.com/blog/a.webp' }
       },
       (e) => events.push(e.markdown),
     )
-    expect(out).toBe(['开头一段。', '', '![架构示意](https://assets.mcpfield.com/blog/a.webp "架构 示意")', '', '中间一段。', '', '结尾。'].join('\n'))
+    // 不写图片标题：插图下方不显示图注
+    expect(out).toBe(['开头一段。', '', '![架构示意](https://assets.mcpfield.com/blog/a.webp)', '', '中间一段。', '', '结尾。'].join('\n'))
     expect(failed).toEqual(['第二张：没有找到'])
-    expect(events).toEqual(['![架构示意](https://assets.mcpfield.com/blog/a.webp "架构 示意")', null])
+    expect(events).toEqual(['![架构示意](https://assets.mcpfield.com/blog/a.webp)', null])
   })
 
   it('模型给的地址整理成合法 slug；预设方向换成写法说明，自定义方向原样保留', () => {

@@ -119,7 +119,7 @@ export function blogAiRoutes(deps: { db: Db; settings: SettingsStore; storage?: 
     const problem = imageProblem(maker, input.images.source)
     return resolveImages(
       body,
-      (prompt, alt) => (problem ? Promise.reject(new Error(problem)) : maker!.make(input.images.source, prompt, alt, { signal })),
+      (prompt) => (problem ? Promise.reject(new Error(problem)) : maker!.make(input.images.source, prompt, { signal })),
       (e) => void emit({ type: 'image', ...e }),
     )
   }
@@ -134,7 +134,7 @@ export function blogAiRoutes(deps: { db: Db; settings: SettingsStore; storage?: 
     // 图库按英文搜索词找图：让模型先写一句英文描述，取其中的关键词
     const p = prompt || (await w.coverPrompt(title, summary, signal))
     const query = source === 'stock' ? p.split(/[\s,.]+/).filter((x) => x.length > 3).slice(0, 4).join(' ') : p
-    const img = await maker!.make(source, query, title, { cover: true, signal })
+    const img = await maker!.make(source, query, { cover: true, signal })
     await emit({ type: 'cover', url: img.url })
     return img.url
   }

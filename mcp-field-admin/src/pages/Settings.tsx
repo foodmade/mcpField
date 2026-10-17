@@ -169,7 +169,7 @@ export function SettingsPage() {
           </div>
         </Card>
 
-        <Card title="Pexels 图库" sub="正文插图也可以从图库搜实拍照片，图注带摄影师署名" right={<Status ready={data.stock.ready} />}>
+        <Card title="Pexels 图库" sub="正文插图也可以从图库搜实拍照片" right={<Status ready={data.stock.ready} />}>
           <div className="flex flex-col gap-4">
             <Field
               label="API Key"

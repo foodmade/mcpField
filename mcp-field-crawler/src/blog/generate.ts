@@ -215,24 +215,25 @@ export function imageMarkers(body: string): { line: string; alt: string; prompt:
   return [...body.matchAll(IMAGE_MARKER_RE)].map((m) => ({ line: m[0], alt: m[1]!.trim(), prompt: m[2]!.trim() }))
 }
 
-/** Markdown 图片的标题要放在双引号里：去掉说明里的引号和括号，免得打断语法 */
-const safe = (s: string) => s.replace(/["()[\]]/g, '').trim()
+/** 图片说明里的方括号会打断 Markdown 语法，去掉 */
+const safe = (s: string) => s.replace(/[[\]]/g, '').trim()
 
 /**
- * 逐张生成或搜索插图并回填：成功的换成 ![说明](地址 "图注")，失败的整行删掉（记下原因）。
+ * 逐张生成或搜索插图并回填：成功的换成 ![说明](地址)，失败的整行删掉（记下原因）。
+ * 不写图片标题：网站会把标题渲染成图下方的图注，插图下方不显示文字，说明只作为 alt。
  * 按顺序处理，每张完成后回调一次，前端可以实时替换。
  */
 export async function resolveImages(
   body: string,
-  make: (prompt: string, alt: string) => Promise<{ url: string; caption: string }>,
+  make: (prompt: string) => Promise<{ url: string }>,
   onImage?: (event: { line: string; markdown: string | null; error?: string }) => void,
 ): Promise<{ body: string; failed: string[] }> {
   let out = body
   const failed: string[] = []
   for (const m of imageMarkers(body)) {
     try {
-      const img = await make(m.prompt, m.alt)
-      const markdown = `![${safe(m.alt)}](${img.url} "${safe(img.caption)}")`
+      const img = await make(m.prompt)
+      const markdown = `![${safe(m.alt)}](${img.url})`
       out = out.replace(m.line, markdown)
       onImage?.({ line: m.line, markdown })
     } catch (error) {

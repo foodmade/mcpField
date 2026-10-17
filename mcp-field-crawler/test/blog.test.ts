@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/api/app.ts'
 import type { BlogCard, BlogListQuery, BlogPostFull, BlogRepository } from '../src/api/modules/blog/blog.repository.ts'
 import { BlogService, summarize, type BlogList, type BlogPostDetail } from '../src/api/modules/blog/blog.service.ts'
-import { extractMentionTargets, normalizeTags, readingMinutes } from '../src/blog/post.ts'
+import { blogSourceHash, extractMentionTargets, normalizeTags, readingMinutes } from '../src/blog/post.ts'
+import { BlogTranslationError, BlogTranslator, validateBlogChunk } from '../src/blog/translate.ts'
+import type { Llm } from '../src/llm/provider.ts'
 import type { Logger } from '../src/core/logger.ts'
+import type { Locale } from '../src/core/types.ts'
 
 const silent: Logger = { debug() {}, info() {}, warn() {}, error() {}, child: () => silent }
 
@@ -20,6 +23,8 @@ const card = (slug: string, over: Partial<BlogCard> = {}): BlogCard => ({
   readingMinutes: 1,
   publishedAt: '2026-10-01T00:00:00.000Z',
   updatedAt: '2026-10-01T00:00:00.000Z',
+  locale: 'zh',
+  translations: [],
   ...over,
 })
 
@@ -81,9 +86,11 @@ describe('BlogService', () => {
     async all() {
       return this.posts
     }
-    async find(slug: string): Promise<BlogPostFull | null> {
+    async find(slug: string, locale: Locale): Promise<BlogPostFull | null> {
       const p = this.posts.find((x) => x.slug === slug)
-      return p ? { ...p, body: '# hi', mentions: [] } : null
+      if (!p) return null
+      // 只有英文译文
+      return locale === 'en' ? { ...p, title: `${p.title} (en)`, locale: 'en', body: '# hello', mentions: [], translation: { outdated: true, translatedAt: null } } : { ...p, body: '# hi', mentions: [], translation: null }
     }
     async neighbors(post: BlogCard) {
       const i = this.posts.findIndex((p) => p.slug === post.slug)
@@ -113,6 +120,14 @@ describe('BlogService', () => {
     expect(post.related.map((p) => p.slug)).toEqual(['newest', 'oldest'])
   })
 
+  it('按请求语言返回译文，没有译文的语言回落到中文原文', async () => {
+    const en = ((await (await app().request('/api/blog/posts/middle?locale=en')).json()) as { data: BlogPostDetail }).data
+    expect([en.title, en.locale, en.body, en.translation]).toEqual(['middle (en)', 'en', '# hello', { outdated: true, translatedAt: null }])
+    const ja = ((await (await app().request('/api/blog/posts/middle?locale=ja')).json()) as { data: BlogPostDetail }).data
+    expect([ja.title, ja.locale, ja.body, ja.translation]).toEqual(['middle', 'zh', '# hi', null])
+    expect((await app().request('/api/blog/posts/middle?locale=fr')).status).toBe(400)
+  })
+
   it('不存在或地址不合法的文章返回 404；浏览数接口返回 204', async () => {
     const repo = new FakeRepo()
     expect((await app(repo).request('/api/blog/posts/nope')).status).toBe(404)
@@ -120,5 +135,65 @@ describe('BlogService', () => {
     expect((await app(repo).request('/api/blog/posts?category=unknown')).status).toBe(400)
     expect((await app(repo).request('/api/blog/posts/middle/views', { method: 'POST' })).status).toBe(204)
     expect(repo.views).toBe(1)
+  })
+})
+
+describe('博客翻译', () => {
+  const source = {
+    title: '远程 MCP 服务接入指南',
+    summary: '十分钟接入远程服务。',
+    body: ['## 准备工作', '', '先安装 [Claude Code](/clients/claude-code)，然后运行 `claude mcp add`。', '', '```bash', '# 这行注释不翻译', 'claude mcp add linear', '```', '', '## 第二步', '', '完成授权。', ''].join('\n'),
+  }
+
+  /** 假模型：把中文换成 [en]，其余原样返回；calls 记录每次请求 */
+  function fakeLlm(transform: (input: string) => string = (s) => s.replace(/[一-鿿，。、：]+/g, '[en]')) {
+    const calls: string[] = []
+    const llm: Llm = {
+      provider: 'openai',
+      tool: () => Promise.reject(new Error('不用')),
+      text: async (p) => {
+        calls.push(p.input)
+        const text = p.input.startsWith('<title>') ? transform(p.input) : transform(p.input.replace(/^<source>\n|\n<\/source>$/g, ''))
+        return { text, usage: { requests: 1, inputTokens: 0, outputTokens: 0 } }
+      },
+    }
+    return { llm, calls }
+  }
+
+  it('代码块原样保留，正文逐段翻译；原文没变的片段下次直接沿用', async () => {
+    const { llm, calls } = fakeLlm()
+    const t = new BlogTranslator(llm, 'm', silent, { maxChunkChars: 60 })
+    const first = await t.translate(source, 'en')
+    expect(first.title).toBe('[en] MCP [en]')
+    expect(first.summary).toBe('[en]')
+    expect(first.body).toContain('```bash\n# 这行注释不翻译\nclaude mcp add linear\n```')
+    expect(first.body).toContain('## [en]\n\n[en] [Claude Code](/clients/claude-code)[en] `claude mcp add`[en]')
+    expect(first.body.split('\n').length).toBe(source.body.split('\n').length)
+    // 第一节的标题、段落各一段，第二节一段
+    expect(first.translatedChunks).toBe(3)
+
+    calls.length = 0
+    const second = await t.translate({ ...source, body: source.body.replace('完成授权。', '完成授权并测试。') }, 'en', first.chunks)
+    // 标题摘要一次 + 改动的那一段一次
+    expect(calls).toHaveLength(2)
+    expect(second.translatedChunks).toBe(1)
+  })
+
+  it('译文丢了占位符或链接、残留中文时重试，始终不合格就报错', async () => {
+    expect(validateBlogChunk('看 [文档](https://a.dev)\n⟦CODE 0⟧', 'See the docs', 'en').map((p) => p.code)).toEqual(['placeholder_mismatch', 'missing_url'])
+    expect(validateBlogChunk('这是一段很长的中文说明文字内容', '这是一段很长的中文说明文字内容', 'en').map((p) => p.code)).toEqual(['chinese_left'])
+    expect(validateBlogChunk('这是说明', 'これは说明这个们です', 'ja').some((p) => p.code === 'chinese_in_ja')).toBe(true)
+
+    const { llm, calls } = fakeLlm((s) => (s.startsWith('<title>') ? '<title>T</title><summary>S</summary>' : 'dropped everything'))
+    await expect(new BlogTranslator(llm, 'm', silent, { attempts: 2 }).translate(source, 'en')).rejects.toBeInstanceOf(BlogTranslationError)
+    // 标题摘要 1 次 + 第一段 2 次（并发时第二段也可能已经开始）
+    expect(calls.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('原文指纹：标题、摘要、正文任何一处变化都会改变', () => {
+    const h = blogSourceHash(source)
+    expect(blogSourceHash({ ...source })).toBe(h)
+    expect(blogSourceHash({ ...source, title: 'x' })).not.toBe(h)
+    expect(blogSourceHash({ ...source, body: source.body.replace(/\n/g, '\r\n') })).toBe(h)
   })
 })

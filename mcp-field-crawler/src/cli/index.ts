@@ -6,6 +6,7 @@ import { DescribeStore } from '../describe/store.ts'
 import { DESCRIBE_KINDS, type DescribeKind } from '../describe/types.ts'
 import { LlmDescribeWriter } from '../describe/writer.ts'
 import { loadConfig } from '../config.ts'
+import { llmConfigFor, translateLlmConfig } from '../llm/config.ts'
 import { CrawlEvents } from '../core/events.ts'
 import { CrawlRunner, DiscoverRunner, InlineRunner, remapRecords, type RunOptions } from '../core/runner.ts'
 import { isRecordSource, type IngestStore } from '../core/store.ts'
@@ -761,29 +762,10 @@ async function mergePlan() {
 }
 
 /** 按配置的模型服务取连接参数：openai / minimax 走各自的 OpenAI 兼容接口，claude 走 Anthropic */
-function llmConfig(provider: LlmProvider): LlmConfig {
-  if (provider === 'qwen') {
-    if (!config.qwen.apiKey) throw new Error('使用 qwen 模型服务需要 QWEN_API_KEY')
-    return { provider, apiKey: config.qwen.apiKey, baseURL: config.qwen.baseURL }
-  }
-  if (provider === 'opencode') {
-    if (!config.opencode.apiKey) throw new Error('使用 opencode 模型服务需要 OPENCODE_API_KEY')
-    return { provider, apiKey: config.opencode.apiKey, baseURL: config.opencode.baseURL }
-  }
-  if (provider === 'minimax') {
-    if (!config.minimax.apiKey) throw new Error('使用 minimax 模型服务需要 MINIMAX_API_KEY')
-    return { provider, apiKey: config.minimax.apiKey, baseURL: config.minimax.baseURL }
-  }
-  if (provider === 'openai') {
-    if (!config.openai.apiKey) throw new Error('使用 openai 模型服务需要 OPENAI_API_KEY（和 OPENAI_BASE_URL）')
-    return { provider: 'openai', apiKey: config.openai.apiKey, baseURL: config.openai.baseURL }
-  }
-  if (!config.anthropic.apiKey) throw new Error('使用 claude 模型服务需要 ANTHROPIC_API_KEY')
-  return { provider: 'claude', apiKey: config.anthropic.apiKey, baseURL: config.anthropic.baseURL }
-}
+const llmConfig = (provider: LlmProvider): LlmConfig => llmConfigFor(config, provider)
 
 /** 翻译（简介、README）用的模型服务：TRANSLATE_PROVIDER、TRANSLATE_REASONING_EFFORT */
-const translateLlm = (): LlmConfig => ({ ...llmConfig(config.translateProvider), reasoningEffort: config.translateReasoningEffort })
+const translateLlm = (): LlmConfig => translateLlmConfig(config)
 
 async function classify() {
   if (!config.databaseUrl) throw new Error('classify 需要 DATABASE_URL')

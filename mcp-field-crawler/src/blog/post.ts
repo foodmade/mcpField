@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { ROUTE_BY_KIND } from '../api/modules/entities/presenters.ts'
 import { ENTITY_KINDS, type EntityKind } from '../core/types.ts'
 
@@ -9,6 +10,18 @@ export type BlogCategory = (typeof BLOG_CATEGORIES)[number]
 
 export const BLOG_STATUSES = ['draft', 'published'] as const
 export type BlogStatus = (typeof BLOG_STATUSES)[number]
+
+/** 原文是中文，翻译成这些语言 */
+export const BLOG_TRANSLATE_LOCALES = ['en', 'ja'] as const
+export type BlogTranslateLocale = (typeof BLOG_TRANSLATE_LOCALES)[number]
+
+export const BLOG_TRANSLATION_STATUSES = ['pending', 'running', 'done', 'failed'] as const
+export type BlogTranslationStatus = (typeof BLOG_TRANSLATION_STATUSES)[number]
+
+/** 原文指纹：标题、摘要、正文任何一处变了都要重新翻译 */
+export function blogSourceHash(post: { title: string; summary: string; body: string }): string {
+  return createHash('sha256').update(`${post.title}\n\u0000${post.summary}\n\u0000${post.body.replace(/\r\n?/g, '\n')}`).digest('hex')
+}
 
 /** 地址里的 slug：小写字母、数字，用单个连字符连接 */
 export const BLOG_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/

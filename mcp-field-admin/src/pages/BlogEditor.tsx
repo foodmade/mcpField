@@ -26,9 +26,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate, useParams } from 'react-router'
 import { useShell } from '../components/Layout'
 import { MarkdownPreview } from '../components/MarkdownPreview'
+import { TranslationPill } from '../components/TranslationBadge'
 import { Button, ErrorBox, Loading } from '../components/ui'
 import { api } from '../lib/api'
-import { BLOG_CATEGORIES, CATEGORY_LABEL, uploadImage, type BlogInput, type BlogPost } from '../lib/blog'
+import { BLOG_CATEGORIES, CATEGORY_LABEL, LOCALE_LABEL, uploadImage, type BlogInput, type BlogPost, type TranslateLocale } from '../lib/blog'
 import { compact, dateTime } from '../lib/format'
 import { KIND_LABEL, type Kind } from '../lib/labels'
 
@@ -145,6 +146,33 @@ export function BlogEditorPage() {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
+
+  // 有译文在排队或翻译时，每 5 秒刷新翻译状态（只更新状态，不动正在编辑的表单）
+  const translating = post?.translations.some((t) => t.state?.status === 'pending' || t.state?.status === 'running')
+  useEffect(() => {
+    if (!translating || !post) return
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      api<BlogPost>(`/blog/posts/${post.id}`).then(
+        (p) => setPost((cur) => (cur && cur.id === p.id ? { ...cur, translations: p.translations, translationEnabled: p.translationEnabled } : cur)),
+        () => {},
+      )
+    }, 5_000)
+    return () => clearInterval(timer)
+  }, [translating, post?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const retranslate = async (locale: TranslateLocale) => {
+    if (!post) return
+    setBusy(`translate-${locale}`)
+    try {
+      const p = await api<BlogPost>(`/blog/posts/${post.id}/translate`, { method: 'POST', body: { locales: [locale], force: true } })
+      setPost((cur) => (cur ? { ...cur, translations: p.translations } : cur))
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message })
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }))
 
@@ -438,6 +466,49 @@ export function BlogEditorPage() {
             )}
             <input value={form.coverUrl ?? ''} onChange={(e) => set('coverUrl', e.target.value || null)} placeholder="或填图片地址 https://…" className={clsx(input, 'font-mono text-xs')} />
           </Panel>
+
+          {post && (
+            <Panel title="多语言译文" sub={published ? '发布和修改后自动翻译，翻完前网站显示中文或旧译文' : '发布后自动翻译成英文和日文'}>
+              {!post.translationEnabled && <p className="rounded-lg border border-warn/30 bg-warn/5 px-3 py-2 text-[11px] leading-relaxed text-warn">服务器没有配置翻译模型，译文只会排队，不会翻译。</p>}
+              <ul className="flex flex-col gap-2.5">
+                {post.translations.map(({ locale, url, state }) => (
+                  <li key={locale} className="flex flex-col gap-1.5 rounded-lg border border-line bg-bg px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 text-[13px]">
+                        <span className="font-mono text-[11px] font-semibold text-text3">{locale.toUpperCase()}</span>
+                        {LOCALE_LABEL[locale]}
+                      </span>
+                      <TranslationPill state={state} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-text3">
+                      <span className="min-w-0 truncate">
+                        {state?.status === 'failed' || (state?.status === 'pending' && state.nextAttemptAt)
+                          ? `第 ${state.attempts} 次失败${state.nextAttemptAt ? `，${dateTime(state.nextAttemptAt)} 重试` : ''}`
+                          : state?.translatedAt
+                            ? `${dateTime(state.translatedAt)}${state.model ? ` · ${state.model}` : ''}`
+                            : published
+                              ? '等待翻译'
+                              : '—'}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2.5">
+                        {state?.hasContent && published && !scheduled && (
+                          <a href={url} target="_blank" rel="noreferrer" className="hover:text-ink">
+                            查看
+                          </a>
+                        )}
+                        {published && (
+                          <button onClick={() => retranslate(locale)} disabled={!!busy || state?.status === 'running'} className="hover:text-ink disabled:opacity-40">
+                            {busy === `translate-${locale}` ? '…' : state ? '重新翻译' : '翻译'}
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    {state?.error && (state.status === 'failed' || state.nextAttemptAt) && <p className="break-all text-[11px] leading-snug text-err/80">{state.error}</p>}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
 
           {post && (
             <Panel title="文中提到的服务" sub="保存时按正文里的站内链接更新">

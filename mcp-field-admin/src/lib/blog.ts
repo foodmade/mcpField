@@ -17,6 +17,24 @@ export interface BlogMention {
   popularity: number | null
 }
 
+export const TRANSLATE_LOCALES = ['en', 'ja'] as const
+export type TranslateLocale = (typeof TRANSLATE_LOCALES)[number]
+export const LOCALE_LABEL: Record<TranslateLocale, string> = { en: 'English', ja: '日本語' }
+
+/** 一种语言的翻译状态（blog_post_translations 一行） */
+export interface TranslationState {
+  locale: TranslateLocale
+  status: 'pending' | 'running' | 'done' | 'failed'
+  /** 有译文，但对应的是旧版原文（新译文还没翻完） */
+  outdated: boolean
+  hasContent: boolean
+  error: string | null
+  attempts: number
+  model: string | null
+  translatedAt: string | null
+  nextAttemptAt: string | null
+}
+
 export interface BlogRow {
   id: number
   slug: string
@@ -31,6 +49,7 @@ export interface BlogRow {
   publishedAt: string | null
   updatedAt: string
   url: string
+  translations: TranslationState[]
 }
 
 export interface BlogPage {
@@ -58,6 +77,10 @@ export interface BlogPost {
   createdAt: string
   updatedAt: string
   url: string
+  /** 各语言的翻译状态和网站地址；state 为空 = 还没排过队（草稿不翻译） */
+  translations: { locale: TranslateLocale; url: string; state: TranslationState | null }[]
+  /** 服务器有没有配置翻译模型 */
+  translationEnabled: boolean
 }
 
 /** 编辑表单：保存时整份提交 */
@@ -71,4 +94,13 @@ export async function uploadImage(file: File): Promise<string> {
   const json = (await res.json().catch(() => ({}))) as { data?: { url: string }; error?: { code: string; message: string } }
   if (!res.ok || !json.data) throw new ApiError(res.status, json.error?.code ?? 'error', json.error?.message ?? `上传失败（${res.status}）`)
   return json.data.url
+}
+
+/** 翻译状态的文字和色调：idle 灰 / run 蓝 / ok 绿 / warn 黄 / err 红 */
+export function translationLabel(state: TranslationState | null): { label: string; tone: 'idle' | 'run' | 'ok' | 'warn' | 'err' } {
+  if (!state) return { label: '未翻译', tone: 'idle' }
+  if (state.status === 'running') return { label: state.hasContent ? '更新中' : '翻译中', tone: 'run' }
+  if (state.status === 'failed') return { label: '翻译失败', tone: 'err' }
+  if (state.status === 'pending') return state.nextAttemptAt ? { label: '稍后重试', tone: 'warn' } : { label: state.hasContent ? '等待更新' : '排队中', tone: 'run' }
+  return state.outdated ? { label: '译文较旧', tone: 'warn' } : { label: '已完成', tone: 'ok' }
 }

@@ -1,6 +1,6 @@
-import { boolean, index, int, json, mediumtext, mysqlTable, smallint, timestamp, varchar } from 'drizzle-orm/mysql-core'
-import type { BlogCategory, BlogMention, BlogStatus } from '../../blog/post.ts'
-import { at, pk } from './columns.ts'
+import { boolean, index, int, json, mediumtext, mysqlTable, smallint, timestamp, tinyint, uniqueIndex, varchar } from 'drizzle-orm/mysql-core'
+import type { BlogCategory, BlogMention, BlogStatus, BlogTranslateLocale, BlogTranslationStatus } from '../../blog/post.ts'
+import { at, localeCol, pk, ref, sha256, timestamps } from './columns.ts'
 
 /*
  * 博客：文章在管理后台用 Markdown 撰写（admin-api 写），网站 API 只读已发布的。
@@ -37,4 +37,39 @@ export const blogPosts = mysqlTable(
     updatedAt: at('updated_at').notNull(),
   },
   (t) => [index('ix_blog_posts_status_published').on(t.status, t.publishedAt)],
+)
+
+/**
+ * 文章译文：每篇 × 每种语言一行。中文是原文，发布（或已发布的文章修改）后后台把要翻的语言排进来，
+ * 由后台接口进程里的翻译任务异步处理（见 blog/worker.ts）。
+ * 译文字段保存最近一次翻译成功的结果（content_hash 是它对应的原文指纹）；原文再改时先继续显示旧译文，新译文翻完再替换。
+ */
+export const blogPostTranslations = mysqlTable(
+  'blog_post_translations',
+  {
+    id: pk(),
+    postId: ref('post_id').notNull().references(() => blogPosts.id, { onDelete: 'cascade' }),
+    locale: localeCol().$type<BlogTranslateLocale>(),
+    /** pending 排队 / running 翻译中 / done 已完成 / failed 多次失败 */
+    status: varchar('status', { length: 16 }).$type<BlogTranslationStatus>().notNull().default('pending'),
+    /** 要翻译的原文指纹（标题 + 摘要 + 正文） */
+    targetHash: sha256('target_hash').notNull(),
+    /** 当前译文对应的原文指纹；还没有译文时为空 */
+    contentHash: sha256('content_hash'),
+    title: varchar('title', { length: 400 }),
+    summary: varchar('summary', { length: 1000 }),
+    body: mediumtext('body'),
+    /** 正文各片段的译文：片段指纹 → 译文。原文只改了几段时，没变的片段直接沿用 */
+    chunks: json('chunks').$type<Record<string, string>>(),
+    model: varchar('model', { length: 64 }),
+    /** 最近一次失败的原因 */
+    error: varchar('error', { length: 500 }),
+    attempts: tinyint('attempts', { unsigned: true }).notNull().default(0),
+    /** 失败后等到这个时间再重试 */
+    nextAttemptAt: at('next_attempt_at'),
+    startedAt: at('started_at'),
+    translatedAt: at('translated_at'),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex('uq_blog_post_translations').on(t.postId, t.locale), index('ix_blog_post_translations_queue').on(t.status, t.nextAttemptAt)],
 )

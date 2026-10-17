@@ -211,7 +211,10 @@ export const en: Messages = {
     copyLink: 'Copy link',
     copied: 'Copied',
     share: 'Share',
-    zhOnly: 'Our blog posts are currently written in Chinese only.',
+    zhOnlyList: 'Posts are written in Chinese first; some are not translated yet and are shown in Chinese.',
+    zhOnlyPost: 'This post has not been translated into English yet, so it is shown in the original Chinese.',
+    outdated: 'The Chinese original was updated recently. This translation will be refreshed shortly.',
+    zhBadge: 'Chinese',
   },
   rankings: {
     eyebrow: 'MCP FIELD · LEADERBOARD',

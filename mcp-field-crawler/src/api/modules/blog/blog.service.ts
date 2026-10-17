@@ -1,4 +1,5 @@
 import { BLOG_CATEGORIES, type BlogCategory } from '../../../blog/post.ts'
+import type { Locale } from '../../../core/types.ts'
 import { pageMeta, type PageMeta } from '../../http/query.ts'
 import { TtlCache } from '../../http/ttl-cache.ts'
 import type { BlogCard, BlogListQuery, BlogPostFull, BlogRepository } from './blog.repository.ts'
@@ -57,8 +58,8 @@ const pick = (p: BlogCard | null) => (p ? { slug: p.slug, title: p.title } : nul
  */
 export class BlogService {
   private readonly lists = new TtlCache<BlogList>(30_000, 100)
-  private readonly posts = new TtlCache<BlogPostDetail | null>(30_000, 200)
-  private readonly everything = new TtlCache<BlogCard[]>(30_000, 1)
+  private readonly posts = new TtlCache<BlogPostDetail | null>(30_000, 300)
+  private readonly everything = new TtlCache<BlogCard[]>(30_000, 3)
 
   constructor(
     private readonly repo: BlogRepository,
@@ -68,24 +69,24 @@ export class BlogService {
   list(query: BlogListQuery): Promise<BlogList> {
     return this.lists.get(JSON.stringify(query), async () => {
       const now = this.now()
-      const [{ rows, total }, all] = await Promise.all([this.repo.list(query, now), this.all()])
+      const [{ rows, total }, all] = await Promise.all([this.repo.list(query, now), this.all(query.locale)])
       return { data: rows, meta: pageMeta(query, total), summary: summarize(all) }
     })
   }
 
-  get(slug: string): Promise<BlogPostDetail | null> {
-    return this.posts.get(slug, async () => {
+  get(slug: string, locale: Locale): Promise<BlogPostDetail | null> {
+    return this.posts.get(`${locale}:${slug}`, async () => {
       const now = this.now()
-      const post = await this.repo.find(slug, now)
+      const post = await this.repo.find(slug, locale, now)
       if (!post) return null
-      const [{ older, newer }, related] = await Promise.all([this.repo.neighbors(post, now), this.repo.related(post, RELATED, now)])
+      const [{ older, newer }, related] = await Promise.all([this.repo.neighbors(post, locale, now), this.repo.related(post, RELATED, locale, now)])
       return { ...post, older: pick(older), newer: pick(newer), related }
     })
   }
 
-  /** sitemap 和 RSS：全部已发布文章（不带正文） */
-  all(): Promise<BlogCard[]> {
-    return this.everything.get('all', () => this.repo.all(this.now()))
+  /** sitemap 和 RSS：全部已发布文章（不带正文），标题按请求语言 */
+  all(locale: Locale): Promise<BlogCard[]> {
+    return this.everything.get(locale, () => this.repo.all(locale, this.now()))
   }
 
   addView(slug: string): Promise<boolean> {

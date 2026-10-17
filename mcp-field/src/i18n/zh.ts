@@ -209,7 +209,10 @@ export const zh = {
     copyLink: '复制链接',
     copied: '已复制',
     share: '分享',
-    zhOnly: '',
+    zhOnlyList: '',
+    zhOnlyPost: '',
+    outdated: '',
+    zhBadge: '中文',
   },
   rankings: {
     eyebrow: 'MCP FIELD · LEADERBOARD',

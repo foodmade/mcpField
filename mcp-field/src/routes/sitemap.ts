@@ -40,11 +40,20 @@ async function pagesSitemap(signal: AbortSignal) {
   return urlset(LOCALES.flatMap((l) => paths.map(([path, query]) => urlEntry(l, path, query))))
 }
 
-/** 博客：文章只有中文，只列中文地址，不带其他语言版本 */
+/** 博客：列表页三种语言都有；文章列出中文原文和已翻译的语言，hreflang 只在这些版本之间互链 */
 async function blogSitemap(signal: AbortSignal) {
   const posts = await fetchBlogAll(signal)
-  const entry = (path: string, lastmod?: string) => `<url><loc>${escapeXml(absoluteUrl('zh', path))}</loc>${lastmod ? `<lastmod>${lastmod.slice(0, 10)}</lastmod>` : ''}</url>`
-  return urlset([entry('/blog', posts[0]?.updatedAt), ...posts.map((p) => entry(`/blog/${p.slug}`, p.updatedAt))])
+  const entry = (locale: Locale, path: string, versions: readonly Locale[], lastmod?: string) => {
+    const alternates = versions.map((l) => `<xhtml:link rel="alternate" hreflang="${LOCALE_META[l].htmlLang}" href="${escapeXml(absoluteUrl(l, path))}"/>`).join('')
+    const xDefault = `<xhtml:link rel="alternate" hreflang="x-default" href="${escapeXml(absoluteUrl('zh', path))}"/>`
+    return `<url><loc>${escapeXml(absoluteUrl(locale, path))}</loc>${lastmod ? `<lastmod>${lastmod.slice(0, 10)}</lastmod>` : ''}${alternates}${xDefault}</url>`
+  }
+  const entries = LOCALES.map((l) => entry(l, '/blog', LOCALES, posts[0]?.updatedAt))
+  for (const p of posts) {
+    const versions = LOCALES.filter((l) => l === 'zh' || p.translations.includes(l))
+    for (const l of versions) entries.push(entry(l, `/blog/${p.slug}`, versions, p.updatedAt))
+  }
+  return urlset(entries)
 }
 
 /** sitemaps/pages.xml、sitemaps/blog.xml，或 sitemaps/<类型>-<语言>-<页码>.xml */

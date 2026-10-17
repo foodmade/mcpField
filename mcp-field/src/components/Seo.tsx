@@ -1,5 +1,5 @@
 import { useI18n } from '../i18n/context'
-import { LOCALE_META, LOCALES } from '../i18n/locales'
+import { LOCALE_META, LOCALES, type Locale } from '../i18n/locales'
 import { absoluteUrl, clip, OG_LOCALE, SITE } from '../lib/seo'
 
 type Props = {
@@ -15,13 +15,15 @@ type Props = {
   type?: 'website' | 'article'
   /** JSON-LD 结构化数据 */
   jsonLd?: object
+  /** 有内容的语言版本（hreflang 只列这些）；不传时三种语言都有 */
+  locales?: readonly Locale[]
 }
 
 /**
  * 页面级 SEO 标签。React 19 会把 title / meta / link 提升到 <head>，
  * 服务端渲染时直接出现在 HTML 里，站内跳转时随页面卸载自动移除。
  */
-export function Seo({ title, description, path, query = '', image, noindex, type = 'website', jsonLd }: Props) {
+export function Seo({ title, description, path, query = '', image, noindex, type = 'website', jsonLd, locales = LOCALES }: Props) {
   const { locale } = useI18n()
   const url = absoluteUrl(locale, path, query)
   const desc = clip(description)
@@ -37,7 +39,7 @@ export function Seo({ title, description, path, query = '', image, noindex, type
       ) : (
         <>
           <link rel="canonical" href={url} />
-          {LOCALES.map((l) => <link key={l} rel="alternate" hrefLang={LOCALE_META[l].htmlLang} href={absoluteUrl(l, path, query)} />)}
+          {locales.map((l) => <link key={l} rel="alternate" hrefLang={LOCALE_META[l].htmlLang} href={absoluteUrl(l, path, query)} />)}
           <link rel="alternate" hrefLang="x-default" href={absoluteUrl('zh', path, query)} />
         </>
       )}
@@ -47,7 +49,7 @@ export function Seo({ title, description, path, query = '', image, noindex, type
       {desc && <meta property="og:description" content={desc} />}
       <meta property="og:url" content={url} />
       <meta property="og:locale" content={OG_LOCALE[locale]} />
-      {LOCALES.filter((l) => l !== locale).map((l) => <meta key={l} property="og:locale:alternate" content={OG_LOCALE[l]} />)}
+      {locales.filter((l) => l !== locale).map((l) => <meta key={l} property="og:locale:alternate" content={OG_LOCALE[l]} />)}
       <meta property="og:image" content={ogImage} />
       {!image && (
         <>

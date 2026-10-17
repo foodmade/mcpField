@@ -10,6 +10,7 @@ import { EntityIcon } from '../components/EntityIcon'
 import { Seo } from '../components/Seo'
 import { useEnterAnimation, useHydrated } from '../fx/hydration'
 import { useI18n } from '../i18n/context'
+import { LOCALE_META, LOCALES } from '../i18n/locales'
 import { ROUTE } from '../lib/api/entities'
 import { sendBlogView, type BlogCard, type BlogPost as Post } from '../lib/api/blog'
 import { loadBlogPost } from '../lib/api/loaders'
@@ -46,7 +47,7 @@ function ShareButtons({ post }: { post: Post }) {
   const [copied, setCopied] = useState(false)
   // 系统分享面板只在浏览器里判断（服务端渲染时没有 navigator）
   const canShare = useHydrated() && typeof navigator.share === 'function'
-  const url = absoluteUrl('zh', `/blog/${post.slug}`)
+  const url = absoluteUrl(post.locale, `/blog/${post.slug}`)
   const btn = 'flex h-[34px] items-center gap-1.5 rounded-lg border border-line bg-fg/[0.03] px-3 text-[13px] transition-colors hover:border-fg/25'
   return (
     <div className="flex gap-2">
@@ -108,16 +109,17 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
   }, [post.slug])
 
   const path = `/blog/${post.slug}`
+  const versions = LOCALES.filter((l) => l === 'zh' || post.translations.includes(l))
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     headline: post.title,
     description: clip(post.summary) ?? undefined,
-    url: absoluteUrl('zh', path),
-    mainEntityOfPage: absoluteUrl('zh', path),
+    url: absoluteUrl(post.locale, path),
+    mainEntityOfPage: absoluteUrl(post.locale, path),
     datePublished: post.publishedAt,
     dateModified: post.updatedAt,
-    inLanguage: 'zh-CN',
+    inLanguage: LOCALE_META[post.locale].htmlLang,
     keywords: post.tags.join(', ') || undefined,
     image: post.coverUrl ?? undefined,
     author: { '@type': 'Person', name: post.authorName },
@@ -126,8 +128,8 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
 
   return (
     <>
-      {/* 文章只有中文：英文、日文页面不收录，避免重复内容 */}
-      <Seo title={`${post.title} · MCP Field`} description={post.summary} path={path} image={post.coverUrl} type="article" noindex={locale !== 'zh'} jsonLd={jsonLd} />
+      {/* hreflang 只列有译文的语言；还没翻译、显示中文原文的英文日文页面不收录，避免重复内容 */}
+      <Seo title={`${post.title} · MCP Field`} description={post.summary} path={path} image={post.coverUrl} type="article" noindex={post.locale !== locale} locales={versions} jsonLd={jsonLd} />
       <header className="border-b border-line" style={{ background: 'radial-gradient(60% 220% at 20% 0%, #2B7FFF1F, transparent 60%), radial-gradient(40% 200% at 85% 0%, #3DDC9714, transparent 60%)' }}>
         <motion.div initial={enter ? { opacity: 0, y: 14 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="mx-auto flex max-w-[1248px] flex-col gap-4 px-6 pb-9 pt-10">
           <nav aria-label="breadcrumb" className="flex items-center gap-2 text-[13px] text-text3">
@@ -159,11 +161,17 @@ export default function BlogPost({ loaderData: post }: Route.ComponentProps) {
 
       <div className="mx-auto grid max-w-[1248px] gap-12 px-6 pb-16 pt-10 lg:grid-cols-[minmax(0,1fr)_264px] lg:gap-24">
         <article className="flex min-w-0 flex-col gap-8">
-          {locale !== 'zh' && t.zhOnly && (
-            <p className="flex items-center gap-2 rounded-lg border border-line bg-fg/[0.03] px-4 py-3 text-[13px] text-text2"><Translate size={15} className="shrink-0 text-text3" />{t.zhOnly}</p>
+          {locale !== 'zh' && post.locale === 'zh' && (
+            <p className="flex items-center gap-2 rounded-lg border border-line bg-fg/[0.03] px-4 py-3 text-[13px] text-text2"><Translate size={15} className="shrink-0 text-text3" />{t.zhOnlyPost}</p>
+          )}
+          {post.translation?.outdated && (
+            <p className="flex items-center gap-2 rounded-lg border border-gold/30 bg-gold/[0.06] px-4 py-3 text-[13px] text-text2"><Translate size={15} className="shrink-0 text-gold" />{t.outdated}</p>
           )}
           {post.coverUrl && <BlogCover post={post} large className="aspect-[16/9] rounded-2xl" />}
-          <BlogMarkdown source={post.body} />
+          {/* 没有译文时正文是中文原文，标明语言 */}
+          <div lang={post.locale === 'zh' ? 'zh-CN' : undefined}>
+            <BlogMarkdown source={post.body} />
+          </div>
 
           <footer className="flex flex-col gap-6 border-t border-line pt-7">
             {post.tags.length > 0 && (

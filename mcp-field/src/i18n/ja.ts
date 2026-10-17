@@ -211,7 +211,10 @@ export const ja: Messages = {
     copyLink: 'リンクをコピー',
     copied: 'コピーしました',
     share: '共有',
-    zhOnly: 'ブログ記事は現在中国語のみで公開しています。',
+    zhOnlyList: '記事は中国語で書かれています。まだ翻訳されていない記事は中国語で表示しています。',
+    zhOnlyPost: 'この記事はまだ日本語に翻訳されていないため、中国語の原文を表示しています。',
+    outdated: '中国語の原文が更新されました。翻訳はまもなく更新されます。',
+    zhBadge: '中国語',
   },
   rankings: {
     eyebrow: 'MCP FIELD · LEADERBOARD',

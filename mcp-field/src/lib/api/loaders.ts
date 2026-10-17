@@ -139,16 +139,16 @@ export function parseBlogQuery(sp: URLSearchParams) {
   }
 }
 
-export async function loadBlogList({ request }: Args) {
+export async function loadBlogList({ request, params }: Args) {
   const q = parseBlogQuery(new URL(request.url).searchParams)
-  const list = await fetchBlogList({ category: q.category ?? undefined, tag: q.tag ?? undefined, q: q.q || undefined, page: q.page, pageSize: BLOG_PAGE_SIZE }, request.signal)
+  const list = await fetchBlogList({ category: q.category ?? undefined, tag: q.tag ?? undefined, q: q.q || undefined, page: q.page, pageSize: BLOG_PAGE_SIZE, locale: localeOf(params) }, request.signal)
   if (q.page > 1 && list.data.length === 0) throw notFound()
   return list
 }
 
 export async function loadBlogPost({ request, params }: Args) {
   if (!params.slug) throw notFound()
-  return fetchBlogPost(params.slug, request.signal).catch((e: unknown) => {
+  return fetchBlogPost(params.slug, localeOf(params), request.signal).catch((e: unknown) => {
     throw e instanceof ApiError && e.notFound ? notFound() : e
   })
 }

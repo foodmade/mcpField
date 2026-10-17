@@ -3,9 +3,10 @@ import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { PageHeader } from '../components/Layout'
+import { TranslationBadge } from '../components/TranslationBadge'
 import { Button, Empty, ErrorBox, Loading, Pager } from '../components/ui'
 import { qs, useApi } from '../lib/api'
-import { CATEGORY_LABEL, type BlogPage, type BlogRow } from '../lib/blog'
+import { CATEGORY_LABEL, TRANSLATE_LOCALES, type BlogPage, type BlogRow } from '../lib/blog'
 import { dateTime, num } from '../lib/format'
 
 const TABS = [
@@ -39,7 +40,10 @@ export function BlogPage() {
     return () => clearTimeout(t)
   }, [q]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { data, error, loading, reload } = useApi<BlogPage>(`/blog/posts${qs({ status, q: params.get('q'), page: params.get('page') || 1, pageSize: 20 })}`)
+  // 有译文在排队或翻译时每 10 秒刷新一次状态
+  const { data, error, loading, reload } = useApi<BlogPage>(`/blog/posts${qs({ status, q: params.get('q'), page: params.get('page') || 1, pageSize: 20 })}`, (d) =>
+    d?.data.some((r) => r.translations.some((t) => t.status === 'pending' || t.status === 'running')) ? 10_000 : undefined,
+  )
 
   return (
     <>
@@ -104,6 +108,7 @@ export function BlogPage() {
                       <th className="py-2.5 pl-5 font-normal">标题</th>
                       <th className="w-[100px] font-normal">栏目</th>
                       <th className="w-[100px] font-normal">状态</th>
+                      <th className="w-[84px] font-normal" title="英文、日文译文的状态：绿色已完成、蓝色排队或翻译中、黄色较旧或稍后重试、红色失败、灰色未翻译">译文</th>
                       <th className="w-[120px] font-normal">发布时间</th>
                       <th className="w-[120px] font-normal">最后修改</th>
                       <th className="w-[80px] text-right font-normal">浏览</th>
@@ -123,6 +128,13 @@ export function BlogPage() {
                         <td className="text-text2">{CATEGORY_LABEL[row.category] ?? row.category}</td>
                         <td>
                           <StatusPill row={row} />
+                        </td>
+                        <td>
+                          <span className="flex gap-1">
+                            {TRANSLATE_LOCALES.map((l) => (
+                              <TranslationBadge key={l} locale={l} state={row.translations.find((t) => t.locale === l) ?? null} />
+                            ))}
+                          </span>
                         </td>
                         <td className="font-mono text-xs text-text2">{dateTime(row.publishedAt)}</td>
                         <td className="font-mono text-xs text-text3">{dateTime(row.updatedAt)}</td>

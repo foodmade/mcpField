@@ -4,7 +4,8 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import type { AssetStorage } from '../assets/storage.ts'
-import { BLOG_CATEGORIES, BLOG_SLUG_RE, BLOG_STATUSES, extractMentionTargets, normalizeTags, readingMinutes, type BlogMention } from '../blog/post.ts'
+import { BLOG_CATEGORIES, BLOG_SLUG_RE, BLOG_STATUSES, BLOG_TRANSLATE_LOCALES, blogSourceHash, extractMentionTargets, normalizeTags, readingMinutes, type BlogMention } from '../blog/post.ts'
+import type { BlogTranslationQueue } from '../blog/worker.ts'
 import { ApiError } from '../api/http/errors.ts'
 import { parseQuery } from '../api/http/query.ts'
 import type { Logger } from '../core/logger.ts'
@@ -19,8 +20,10 @@ import { adminItemStatus, blogPosts } from '../db/schema/index.ts'
  *   POST   /posts                          新建
  *   PUT    /posts/:id                      保存
  *   DELETE /posts/:id                      删除
+ *   POST   /posts/:id/translate            重新翻译（{ locales?, force? }，默认全部语言、强制重翻）
  *   POST   /uploads                        上传图片（multipart 的 file 字段），返回公开地址
  * 保存时算好阅读时长，并从正文链接解析“文中提到的”站内条目（名称、图标取自 admin_item_status）。
+ * 保存后文章是“已发布”（含定时发布）且原文有变化时，把英文、日文排进翻译队列，由 blog/worker.ts 异步翻译；草稿不翻译。
  */
 
 /** 列表筛选：scheduled = 已发布但发布时间还没到 */
@@ -124,15 +127,45 @@ async function values(db: Db, input: PostInput, previous: { publishedAt: Date | 
 
 const isDuplicate = (e: unknown) => (e as { code?: string; cause?: { code?: string } }).code === 'ER_DUP_ENTRY' || (e as { cause?: { code?: string } }).cause?.code === 'ER_DUP_ENTRY'
 
-export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: Logger; siteUrl: string }) {
+/** 翻译队列和唤醒翻译任务（没配置模型服务时只排队不翻译） */
+export interface BlogTranslations {
+  queue: BlogTranslationQueue
+  kick(): void
+  /** 模型服务是否可用：不可用时后台提示“没有配置翻译模型” */
+  enabled: boolean
+}
+
+const translateSchema = z.object({ locales: z.array(z.enum(BLOG_TRANSLATE_LOCALES)).min(1).optional(), force: z.boolean().default(true) })
+
+export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: Logger; siteUrl: string; translations: BlogTranslations }) {
   const { db } = deps
   // 登录校验在外层（app.ts）完成，这里直接取当前账号
   const app = new Hono<{ Variables: { user: AdminUser } }>()
 
+  const urlOf = (slug: string, locale = 'zh') => `${deps.siteUrl}${locale === 'zh' ? '' : `/${locale}`}/blog/${slug}`
+
   async function detail(id: number) {
     const [row] = await db.select().from(blogPosts).where(eq(blogPosts.id, id)).limit(1)
     if (!row) throw ApiError.notFound('文章不存在')
-    return { ...row, tags: json<string[]>(row.tags), mentions: json<BlogMention[]>(row.mentions), pinned: Boolean(row.pinned), url: `${deps.siteUrl}/blog/${row.slug}` }
+    const states = await deps.translations.queue.states([{ id, hash: blogSourceHash(row) }])
+    return {
+      ...row,
+      tags: json<string[]>(row.tags),
+      mentions: json<BlogMention[]>(row.mentions),
+      pinned: Boolean(row.pinned),
+      url: urlOf(row.slug),
+      translations: BLOG_TRANSLATE_LOCALES.map((locale) => ({ locale, url: urlOf(row.slug, locale), state: states.get(id)?.find((s) => s.locale === locale) ?? null })),
+      translationEnabled: deps.translations.enabled,
+    }
+  }
+
+  /** 已发布（含定时发布）的文章：原文有变化的语言排进翻译队列 */
+  async function queueTranslations(id: number, input: PostInput) {
+    if (input.status !== 'published') return
+    const queued = await deps.translations.queue.enqueue(id, blogSourceHash(input))
+    if (!queued.length) return
+    deps.logger.info({ id, slug: input.slug, locales: queued }, '博客文章排进翻译队列')
+    deps.translations.kick()
   }
 
   async function body(c: { req: { json(): Promise<unknown> } }) {
@@ -173,8 +206,9 @@ export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: 
     ])
     const total = Number(count?.n ?? 0)
     const n = counts[0]
+    const states = await deps.translations.queue.states(rows.map((r) => ({ id: r.id })))
     return c.json({
-      data: rows.map((r) => ({ ...r, pinned: Boolean(r.pinned), url: `${deps.siteUrl}/blog/${r.slug}`, scheduled: r.status === 'published' && !!r.publishedAt && r.publishedAt > now })),
+      data: rows.map((r) => ({ ...r, pinned: Boolean(r.pinned), url: urlOf(r.slug), translations: states.get(r.id) ?? [], scheduled: r.status === 'published' && !!r.publishedAt && r.publishedAt > now })),
       meta: { page: q.page, pageSize: q.pageSize, total, totalPages: Math.ceil(total / q.pageSize) },
       counts: { all: Number(n?.all ?? 0), draft: Number(n?.draft ?? 0), published: Number(n?.published ?? 0), scheduled: Number(n?.scheduled ?? 0) },
     })
@@ -184,14 +218,16 @@ export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: 
 
   app.post('/posts', bodyLimit({ maxSize: 2 * 1024 * 1024 }), async (c) => {
     const input = await body(c)
+    let id: number
     try {
       const [result] = await db.insert(blogPosts).values(await values(db, input, null))
-      const id = (result as { insertId: number }).insertId
-      deps.logger.info({ username: c.get('user').username, id, slug: input.slug, status: input.status }, '新建博客文章')
-      return c.json({ data: await detail(id) })
+      id = (result as { insertId: number }).insertId
     } catch (e) {
       throw isDuplicate(e) ? conflict() : e
     }
+    deps.logger.info({ username: c.get('user').username, id, slug: input.slug, status: input.status }, '新建博客文章')
+    await queueTranslations(id, input)
+    return c.json({ data: await detail(id) })
   })
 
   app.put('/posts/:id', bodyLimit({ maxSize: 2 * 1024 * 1024 }), async (c) => {
@@ -205,6 +241,19 @@ export function adminBlogRoutes(deps: { db: Db; storage?: AssetStorage; logger: 
       throw isDuplicate(e) ? conflict() : e
     }
     deps.logger.info({ username: c.get('user').username, id, slug: input.slug, status: input.status }, '保存博客文章')
+    await queueTranslations(id, input)
+    return c.json({ data: await detail(id) })
+  })
+
+  app.post('/posts/:id/translate', async (c) => {
+    const id = idOf(c.req.param('id'))
+    const result = translateSchema.safeParse(await c.req.json().catch(() => ({})))
+    if (!result.success) throw ApiError.badRequest('请求内容不合法')
+    const [row] = await db.select({ title: blogPosts.title, summary: blogPosts.summary, body: blogPosts.body, slug: blogPosts.slug }).from(blogPosts).where(eq(blogPosts.id, id)).limit(1)
+    if (!row) throw ApiError.notFound('文章不存在')
+    const queued = await deps.translations.queue.enqueue(id, blogSourceHash(row), result.data)
+    deps.logger.info({ username: c.get('user').username, id, slug: row.slug, locales: queued }, '手动重新翻译博客文章')
+    deps.translations.kick()
     return c.json({ data: await detail(id) })
   })
 

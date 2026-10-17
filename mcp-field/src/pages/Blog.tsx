@@ -38,6 +38,13 @@ function CategoryDot({ category, className }: { category: BlogCategory; classNam
   return <span className={clsx('size-1.5 shrink-0 rounded-full', className)} style={{ background: CATEGORY_STYLE[category]?.color }} />
 }
 
+/** 英文、日文页面上还没有译文、显示中文的文章：标一个“中文” */
+function ZhBadge({ post }: { post: BlogCard }) {
+  const { m, locale } = useI18n()
+  if (locale === 'zh' || post.locale !== 'zh') return null
+  return <span className="rounded border border-line px-1.5 py-px text-[10px] text-text3">{m.blog.zhBadge}</span>
+}
+
 function Author({ name }: { name: string }) {
   return (
     <span className="flex items-center gap-2">
@@ -65,6 +72,7 @@ function Pinned({ post }: { post: BlogCard }) {
           <span className="font-semibold" style={{ color: CATEGORY_STYLE[post.category]?.color }}>{t.categories[post.category]}</span>
           <span className="text-text3">·</span>
           <time dateTime={post.publishedAt} className="font-mono text-text3">{blogDate(post.publishedAt)}</time>
+          <ZhBadge post={post} />
         </div>
         <h2 className="text-[26px] font-bold leading-snug tracking-[-0.01em] transition-colors group-hover:text-accent sm:text-[30px]">{post.title}</h2>
         {post.summary && <p className="line-clamp-3 text-[15px] leading-[1.75] text-text2">{post.summary}</p>}
@@ -100,6 +108,7 @@ function Row({ post, q }: { post: BlogCard; q: Query }) {
           <span className="font-medium text-text2">{t.categories[post.category]}</span>
           <span className="text-text3">· {t.minutes(post.readingMinutes)}</span>
           <span className="font-mono text-text3 sm:hidden">· {blogDate(post.publishedAt)}</span>
+          <ZhBadge post={post} />
         </div>
         <h3 className="text-[19px] font-semibold leading-[1.45] transition-colors group-hover:text-accent">
           {/* 整行可点：链接的点击区域铺满整篇 */}
@@ -164,7 +173,7 @@ function Sidebar({ data, q }: { data: Route.ComponentProps['loaderData']; q: Que
         <a href="/blog/rss.xml" className="mt-4 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-accent text-[13px] font-semibold text-accent-ink transition-[filter] hover:brightness-110">
           <RssSimple size={15} weight="bold" />{t.rss.button}
         </a>
-        {locale !== 'zh' && t.zhOnly && <p className="mt-3 text-[11px] leading-relaxed text-text3">{t.zhOnly}</p>}
+        {locale !== 'zh' && data.data.some((p) => p.locale === 'zh') && <p className="mt-3 text-[11px] leading-relaxed text-text3">{t.zhOnlyList}</p>}
       </section>
       {s.popular.length > 0 && (
         <section>
@@ -220,8 +229,8 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
     '@context': 'https://schema.org',
     '@type': 'Blog',
     name: t.seoTitle,
-    url: absoluteUrl('zh', PATH),
-    blogPost: data.data.map((p) => ({ '@type': 'BlogPosting', headline: p.title, url: absoluteUrl('zh', `/blog/${p.slug}`), datePublished: p.publishedAt, dateModified: p.updatedAt, author: { '@type': 'Person', name: p.authorName } })),
+    url: absoluteUrl(locale, PATH),
+    blogPost: data.data.map((p) => ({ '@type': 'BlogPosting', headline: p.title, url: absoluteUrl(p.locale, `/blog/${p.slug}`), datePublished: p.publishedAt, dateModified: p.updatedAt, author: { '@type': 'Person', name: p.authorName } })),
   }
   const stats = [
     [fmt(s.total), t.stats.posts, true],
@@ -231,7 +240,7 @@ export default function Blog({ loaderData: data }: Route.ComponentProps) {
 
   return (
     <>
-      <Seo title={title} description={t.seoDesc} path={PATH} query={canonical} noindex={!!q.q || locale !== 'zh'} jsonLd={jsonLd} />
+      <Seo title={title} description={t.seoDesc} path={PATH} query={canonical} noindex={!!q.q} jsonLd={jsonLd} />
       <section className="relative overflow-hidden border-b border-fg/[0.04]" style={{ background: 'radial-gradient(60% 220% at 20% 0%, #2B7FFF1F, transparent 60%), radial-gradient(40% 200% at 85% 0%, #3DDC9714, transparent 60%)' }}>
         <motion.div
           initial={enter ? { opacity: 0, y: 14 } : false}

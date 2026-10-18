@@ -12,6 +12,9 @@ import { SiteShell } from './components/SiteShell'
 import { LOCALE_META, stripLocale } from './i18n/locales'
 import { THEME_SCRIPT } from './lib/theme'
 
+/** Microsoft Clarity 访问统计（项目 yzgc30k3k7，经 Bing 站长工具开通）；只在生产构建里加载，本地开发不上报 */
+const CLARITY_SCRIPT = `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i+"?ref=bwt";y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","yzgc30k3k7")`
+
 /** 预加载拉丁字符的两个可变字体，避免首屏先用系统字体渲染、字体到达后再整体位移（CLS） */
 export const links: LinksFunction = () => [
   { rel: 'preload', href: interLatin, as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
@@ -36,6 +39,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="preconnect" href="https://assets.mcpfield.com" crossOrigin="" />
+        {import.meta.env.PROD && <script dangerouslySetInnerHTML={{ __html: CLARITY_SCRIPT }} />}
         <Meta />
         <Links />
       </head>

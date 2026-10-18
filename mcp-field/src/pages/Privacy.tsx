@@ -6,7 +6,7 @@ import type { Locale } from '../i18n/locales'
 
 /*
  * 隐私政策。正文按语言写在本文件里（法律文本较长，不放进界面文案）。
- * 内容要和网站的实际行为一致：没有统计和广告追踪；偏好和收藏只存在浏览器里；
+ * 内容要和网站的实际行为一致：用 Microsoft Clarity 做访问统计，没有广告追踪；偏好和收藏只存在浏览器里；
  * 账号由 Supabase Auth 处理（GitHub、Google、邮箱验证码），项目位于印度孟买区域。
  * 修改正文时同步更新三种语言和生效日期。
  */
@@ -22,7 +22,7 @@ const DOCS: Record<Locale, Doc> = {
   zh: {
     title: '隐私政策',
     description: 'MCP Field 如何收集、使用和保护你的信息：浏览网站、使用 GitHub、Google 或邮箱验证码登录时会处理哪些信息，以及你可以怎样管理这些信息。',
-    effective: '生效日期：2026 年 10 月 11 日',
+    effective: '生效日期：2026 年 10 月 18 日',
     intro: 'MCP Field（mcpfield.com，以下称“我们”）是一个 MCP 服务与开发工具的导航网站。本政策说明你浏览网站和使用账号功能时，我们会处理哪些信息、为什么处理、交给谁处理，以及你可以怎样管理这些信息。',
     toc: '目录',
     sections: [
@@ -30,7 +30,8 @@ const DOCS: Record<Locale, Doc> = {
         id: 'browsing',
         title: '浏览网站时',
         blocks: [
-          '浏览网站不需要注册或登录。我们不使用第三方统计或广告追踪工具，也不出售任何信息。',
+          '浏览网站不需要注册或登录。我们不使用广告追踪工具，也不出售任何信息。',
+          '为了了解网站的使用情况并改进体验，我们使用 Microsoft Clarity 统计访问数据，包括访问的页面、点击和滚动等操作、设备与浏览器类型、大致地区。Clarity 会在你的浏览器里设置 Cookie 来区分访问，并按 Microsoft 隐私声明（privacy.microsoft.com）处理这些数据。我们只查看汇总后的统计结果，不用它识别具体的人。',
           '为了保障安全和排查故障，Cloudflare（我们使用的 CDN 和安全服务）与我们的服务器会自动记录访问日志，包括 IP 地址、浏览器类型、访问的网址和时间。这些日志只用于防范攻击和定位问题，在排查所需的期限过后删除。',
         ],
       },
@@ -40,7 +41,7 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           '下面这些设置和记录只保存在你自己的浏览器里（localStorage / sessionStorage），不会发送给我们，清除浏览器数据即可删除：',
           ['界面语言、明暗主题，以及是否关闭过语言提示', '你收藏的项目', '为加快页面加载而临时缓存的工具列表', '登录后的会话凭据，用于保持登录状态，退出登录时清除'],
-          'Cloudflare 可能会设置防范恶意流量所必需的 Cookie。我们自己不使用广告或追踪类 Cookie。',
+          'Cloudflare 可能会设置防范恶意流量所必需的 Cookie；Microsoft Clarity 会设置统计用的 Cookie（见上文）。我们不使用广告类 Cookie。',
         ],
       },
       {
@@ -70,7 +71,7 @@ const DOCS: Record<Locale, Doc> = {
         title: '服务提供商与信息共享',
         blocks: [
           '我们只把信息交给帮助我们运营网站的服务提供商，并且只提供完成服务所需的部分：',
-          ['Supabase：负责账号登录和账号数据存储，服务器位于印度孟买，因此你的账号信息会存储在中国境外', 'Cloudflare：负责网络加速、安全防护和图片存储', '邮件发送服务：负责投递登录验证码邮件', '服务器托管商：运行网站和数据接口'],
+          ['Supabase：负责账号登录和账号数据存储，服务器位于印度孟买，因此你的账号信息会存储在中国境外', 'Cloudflare：负责网络加速、安全防护和图片存储', 'Microsoft Clarity：负责网站访问统计', '邮件发送服务：负责投递登录验证码邮件', '服务器托管商：运行网站和数据接口'],
           'GitHub 和 Google 在你使用它们登录时，会按各自的隐私政策处理信息。除上述情况外，只有在法律要求、或为保护用户和网站安全确有必要时，我们才会披露信息。',
         ],
       },
@@ -124,7 +125,7 @@ const DOCS: Record<Locale, Doc> = {
   en: {
     title: 'Privacy Policy',
     description: 'How MCP Field collects, uses and protects your information when you browse the site or sign in with GitHub, Google or an email code, and the choices you have.',
-    effective: 'Effective October 11, 2026',
+    effective: 'Effective October 18, 2026',
     intro: 'MCP Field (mcpfield.com, “we”) is a directory of MCP servers and developer tools. This policy explains what information we handle when you browse the site or use an account, why we handle it, who processes it for us, and how you can control it.',
     toc: 'On this page',
     sections: [
@@ -132,7 +133,8 @@ const DOCS: Record<Locale, Doc> = {
         id: 'browsing',
         title: 'When you browse',
         blocks: [
-          "You can browse the site without an account. We don't use third-party analytics or advertising trackers, and we never sell information.",
+          "You can browse the site without an account. We don't use advertising trackers, and we never sell information.",
+          'To understand how the site is used and improve it, we use Microsoft Clarity to collect usage data, including the pages you visit, interactions such as clicks and scrolling, device and browser type, and approximate location. Clarity sets cookies in your browser to tell visits apart and processes this data under the Microsoft Privacy Statement (privacy.microsoft.com). We only look at aggregated statistics and don’t use it to identify individuals.',
           'To keep the site secure and fix problems, Cloudflare (our CDN and security provider) and our servers automatically keep access logs, including IP address, browser type, the pages requested and the time. These logs are used only to block attacks and diagnose issues, and are deleted once they are no longer needed for that.',
         ],
       },
@@ -142,7 +144,7 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           "The following settings and records stay in your own browser (localStorage / sessionStorage). They aren't sent to us, and clearing your browser data removes them:",
           ['Interface language, light or dark theme, and whether you dismissed the language notice', 'Projects you bookmark', 'Tool lists cached temporarily to make pages load faster', 'Your sign-in session, which keeps you signed in and is cleared when you log out'],
-          "Cloudflare may set cookies that are strictly necessary to block malicious traffic. We don't use advertising or tracking cookies ourselves.",
+          "Cloudflare may set cookies that are strictly necessary to block malicious traffic, and Microsoft Clarity sets analytics cookies (see above). We don't use advertising cookies.",
         ],
       },
       {
@@ -172,7 +174,7 @@ const DOCS: Record<Locale, Doc> = {
         title: 'Service providers and sharing',
         blocks: [
           'We share information only with service providers that help us run the site, and only what they need to do their job:',
-          ['Supabase: sign-in and account data storage, on servers in Mumbai, India', 'Cloudflare: content delivery, security and image storage', 'An email delivery service: delivers sign-in code emails', 'Our server host: runs the website and its API'],
+          ['Supabase: sign-in and account data storage, on servers in Mumbai, India', 'Cloudflare: content delivery, security and image storage', 'Microsoft Clarity: site usage analytics', 'An email delivery service: delivers sign-in code emails', 'Our server host: runs the website and its API'],
           "GitHub and Google process information under their own privacy policies when you sign in with them. Beyond this, we disclose information only when the law requires it or when it's genuinely necessary to protect our users or the site.",
         ],
       },
@@ -226,7 +228,7 @@ const DOCS: Record<Locale, Doc> = {
   ja: {
     title: 'プライバシーポリシー',
     description: 'MCP Field がサイトの閲覧時や、GitHub・Google・メール認証コードでのログイン時にどのような情報を扱い、どう保護するか、またご利用者が管理できることについて説明します。',
-    effective: '施行日：2026 年 10 月 11 日',
+    effective: '施行日：2026 年 10 月 18 日',
     intro: 'MCP Field（mcpfield.com、以下「当サイト」）は、MCP サーバーと開発ツールのディレクトリです。本ポリシーでは、サイトの閲覧時やアカウント機能の利用時に当サイトが扱う情報、その目的、処理を委託する事業者、そしてご自身で情報を管理する方法について説明します。',
     toc: '目次',
     sections: [
@@ -234,7 +236,8 @@ const DOCS: Record<Locale, Doc> = {
         id: 'browsing',
         title: '閲覧時',
         blocks: [
-          'サイトの閲覧に登録やログインは不要です。第三者のアクセス解析ツールや広告トラッキングは使用しておらず、情報を販売することもありません。',
+          'サイトの閲覧に登録やログインは不要です。広告トラッキングは使用しておらず、情報を販売することもありません。',
+          'サイトの利用状況を把握して改善するため、Microsoft Clarity でアクセスデータを収集しています。閲覧したページ、クリックやスクロールなどの操作、デバイスとブラウザの種類、おおよその地域が含まれます。Clarity は訪問を区別するためにブラウザに Cookie を設定し、Microsoft プライバシーに関する声明（privacy.microsoft.com）に従ってデータを処理します。当サイトは集計された統計のみを確認し、特定の個人の識別には使用しません。',
           'セキュリティの確保と障害対応のため、Cloudflare（当サイトが利用する CDN・セキュリティサービス）と当サイトのサーバーは、IP アドレス、ブラウザの種類、アクセスした URL、日時を含むアクセスログを自動的に記録します。これらのログは攻撃の防止と問題の調査にのみ使用し、必要な期間が過ぎたら削除します。',
         ],
       },
@@ -244,7 +247,7 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           '次の設定や記録はお使いのブラウザ内（localStorage / sessionStorage）にのみ保存され、当サイトには送信されません。ブラウザのデータを消去すると削除されます：',
           ['表示言語、ライト／ダークテーマ、言語案内を閉じたかどうか', 'ブックマークしたプロジェクト', 'ページの表示を速くするために一時的に保存したツール一覧', 'ログイン後のセッション情報（ログイン状態を保つためのもので、ログアウト時に消去されます）'],
-          'Cloudflare が悪意あるトラフィックを防ぐために必要な Cookie を設定する場合があります。当サイト自身は広告やトラッキング目的の Cookie を使用しません。',
+          'Cloudflare が悪意あるトラフィックを防ぐために必要な Cookie を設定する場合があります。また、Microsoft Clarity がアクセス解析用の Cookie を設定します（上記参照）。広告目的の Cookie は使用しません。',
         ],
       },
       {
@@ -274,7 +277,7 @@ const DOCS: Record<Locale, Doc> = {
         title: '委託先と情報の共有',
         blocks: [
           '情報を提供するのは、サイトの運営を支援する委託先のみで、提供する範囲もそのサービスに必要なものに限ります：',
-          ['Supabase：ログインとアカウントデータの保存（サーバーはインドのムンバイにあります）', 'Cloudflare：コンテンツ配信、セキュリティ、画像の保存', 'メール配信サービス：ログインコードのメール配信', 'サーバーのホスティング事業者：ウェブサイトと API の運用'],
+          ['Supabase：ログインとアカウントデータの保存（サーバーはインドのムンバイにあります）', 'Cloudflare：コンテンツ配信、セキュリティ、画像の保存', 'Microsoft Clarity：サイトのアクセス解析', 'メール配信サービス：ログインコードのメール配信', 'サーバーのホスティング事業者：ウェブサイトと API の運用'],
           'GitHub と Google は、ログイン時にそれぞれのプライバシーポリシーに従って情報を処理します。上記以外では、法令で求められる場合や、利用者やサイトの安全を守るために本当に必要な場合にのみ情報を開示します。',
         ],
       },

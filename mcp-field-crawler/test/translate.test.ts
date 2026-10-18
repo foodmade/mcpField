@@ -59,6 +59,21 @@ describe('validateTranslation', () => {
     expect(validateTranslation(b, result(b, { en: b.text, zh: 'Firefox Claude MCP 扩展', ja: 'Firefox Claude MCP 拡張機能' }))).toEqual([])
   })
 
+  it('全是汉字的日文标签不要求假名；成句的日文没有假名、或与中文完全相同才算问题', () => {
+    const a = item('Prefecture name (e.g. Tokyo, Osaka)')
+    expect(validateTranslation(a, result(a, { en: a.text, zh: '都道府县名称（例如：东京都、大阪府）', ja: '都道府県名（例：東京都、大阪府、福岡県）' }))).toEqual([])
+    const b = item('Urgency level: low=days, medium=hours, high=under an hour')
+    expect(validateTranslation(b, result(b, { en: b.text, zh: '紧急程度：low=数天，medium=数小时，high=一小时内', ja: '緊急度：low=数日、medium=数時間、high=一時間未満' }))).toEqual([])
+
+    const c = item('Maximum number of generation attempts')
+    const same = validateTranslation(c, result(c, { en: c.text, zh: '最大生成次数', ja: '最大生成次数' }))
+    expect(same).toContainEqual({ code: 'chinese_in_ja', hard: true, locale: 'ja', detail: 'same_as_zh' })
+
+    const d = item('Annual operating cost estimate including staff salaries, rent, utilities and insurance premiums')
+    const long = validateTranslation(d, result(d, { en: d.text, zh: '年度运营成本估算，包括员工工资、租金、水电费和保险费', ja: '年間運営費用見積（人件費、家賃、光熱費、保険料含）' }))
+    expect(long.map((p) => p.code)).toEqual(['no_kana_in_ja'])
+  })
+
   it('只有名称或网址的文本不做语言检查', () => {
     const s = item('https://example.com')
     expect(validateTranslation(s, result(s, { en: s.text, zh: s.text, ja: s.text }, 'other'))).toEqual([])
@@ -95,7 +110,7 @@ describe('TranslateRunner', () => {
         const results = batch.map((i) => {
           // 第一次把第一条的日文写成中文，触发重翻
           const badJa = firstAttempt && i === items[0]
-          return result(i, { en: i.text, zh: `中文：${i.text}`, ja: badJa ? '中文冒充日文的结果内容' : `日本語：${i.text}です` })
+          return result(i, { en: i.text, zh: `中文：${i.text}`, ja: badJa ? '这是中文冒充日文的结果内容' : `日本語：${i.text}です` })
         })
         firstAttempt = false
         return { results, usage: { requests: 1, inputTokens: 10, outputTokens: 20 } }

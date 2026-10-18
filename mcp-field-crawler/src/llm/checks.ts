@@ -6,6 +6,11 @@ import type { Problem } from './batch.ts'
 const KANA = /[぀-ヿ]/
 const KANA_RUN = /[぀-ヿ]+/g
 const HAN = /[一-鿿]/g
+/**
+ * 日文里没有假名时，汉字达到这个数才算有问题：参数说明这类短标签（郵便番号、最大収容人数（任意）、資本的支出（初期投資））
+ * 全是汉字是正常的，成句的日文一定会有假名
+ */
+const KANA_REQUIRED_HAN = 20
 /** 日文里不会出现的简体字，以及只在中文里使用的词：出现即说明日文混入了中文 */
 const SIMPLIFIED_ONLY = /[这们个应软实现务发记执项开关库据说书图门问]|助手|大模型|大モデル/
 
@@ -25,16 +30,24 @@ export function localeProblems(locale: Locale, text: string, source: string, nat
   if (locale === 'ja') {
     // 只有汉字和英文的短日文是正常的，汉字多时才要求出现假名
     const hanCount = text.match(HAN)?.length ?? 0
-    if (natural && !KANA.test(text) && hanCount >= 8) problems.push({ code: 'no_kana_in_ja', hard: true, locale })
+    if (natural && !KANA.test(text) && hanCount >= KANA_REQUIRED_HAN) problems.push({ code: 'no_kana_in_ja', hard: true, locale })
     const zhWord = text.match(SIMPLIFIED_ONLY)?.[0]
     if (zhWord && !source.includes(zhWord)) problems.push({ code: 'chinese_in_ja', hard: true, locale, detail: zhWord })
   }
   return problems
 }
 
+const hanOnly = (text: string) => text.match(HAN)?.join('') ?? ''
+
 /** 三种语言的输出一起检查 */
 export function languageProblems(texts: Record<Locale, string>, source: string, natural = true): Problem[] {
-  return (Object.entries(texts) as [Locale, string][]).flatMap(([locale, text]) => localeProblems(locale, text, source, natural))
+  const problems = (Object.entries(texts) as [Locale, string][]).flatMap(([locale, text]) => localeProblems(locale, text, source, natural))
+  // 全是汉字的短日文不要求假名，改为和中文对照：汉字部分与中文完全相同（又不是照搬原文）说明日文写成了中文
+  const ja = hanOnly(texts.ja)
+  if (natural && !KANA.test(texts.ja) && ja.length >= 4 && ja === hanOnly(texts.zh) && ja !== hanOnly(source) && !problems.some((p) => p.code === 'chinese_in_ja')) {
+    problems.push({ code: 'chinese_in_ja', hard: true, locale: 'ja', detail: 'same_as_zh' })
+  }
+  return problems
 }
 
 const words = (text: string) => text.toLowerCase().match(/[a-z0-9]+(?:['+.-][a-z0-9]+)*/g) ?? []

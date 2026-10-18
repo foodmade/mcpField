@@ -453,7 +453,7 @@ export const en: Messages = {
         ok: 'Claimed. The project now shows a “Verified” badge.',
         cancelled: 'GitHub authorization was cancelled, so the claim wasn’t completed.',
         expired: 'This claim link has expired. Click “Claim” to try again.',
-        denied: 'Verification failed: you need to own this GitHub repository, or be an admin or maintainer of the organization repository. If the organization restricts third-party apps, an org owner must approve MCP Field on GitHub first.',
+        denied: 'Verification failed: you need to own this GitHub repository, or be an admin or maintainer of the organization repository.',
         taken: 'This project has already been claimed by another account. Contact us if this looks wrong.',
         revoked: 'This GitHub account’s claim on the project was revoked. Contact us if you have questions.',
         error: 'Something went wrong while claiming. Please try again later.',

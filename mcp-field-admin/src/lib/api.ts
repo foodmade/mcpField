@@ -194,6 +194,49 @@ export interface LogFile {
   updatedAt: string | null
 }
 
+export type SiteUserStatus = 'active' | 'unverified' | 'banned'
+
+/** 网站注册用户（Supabase Auth 同步过来的副本） */
+export interface SiteUser {
+  id: string
+  email: string | null
+  name: string | null
+  avatarUrl: string | null
+  /** github / google / email */
+  providers: string[]
+  githubLogin: string | null
+  locale: string | null
+  registeredAt: string
+  lastSignInAt: string | null
+  emailConfirmedAt: string | null
+  bannedUntil: string | null
+  status: SiteUserStatus
+  comments: number
+}
+
+export interface SiteUserPage {
+  data: SiteUser[]
+  meta: { page: number; pageSize: number; total: number; totalPages: number }
+}
+
+export interface SiteUserSummary {
+  total: number
+  today: number
+  new7d: number
+  prev7d: number
+  signIn7d: number
+  providers: { github: number; google: number; email: number }
+  comments: number
+  commenters: number
+  syncedAt: string | null
+  syncEnabled: boolean
+}
+
+export interface SiteUserDetail extends SiteUser {
+  reactions: number
+  recentComments: { id: number; kind: Kind; slug: string; parentId: number | null; body: string; createdAt: string; name: string | null; url: string }[]
+}
+
 /** 查询参数：去掉空值 */
 export function qs(params: Record<string, string | number | undefined | null | false>): string {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false) as [string, string | number][]

@@ -9,6 +9,7 @@ import { at, kindCol, pk, ref, sha256, sourceIdCol, timestamps } from './columns
  *   admin_item_status             每个发布条目一行的宽表：各补全步骤的状态灯 + 列表要显示的冗余字段
  *   admin_coverage                各类型 × 各步骤的状态计数，仪表盘直接读
  *   admin_settings                后台可修改的配置（博客 AI 生成的模型服务）
+ *   admin_site_users              网站注册用户：从 Supabase Auth 定时同步的副本（见 admin/site-users.ts）
  * 条目状态由 admin/sync.ts 从各结果表推导后写入（每步结束时只刷新相关的列），任务本身不逐条埋点。
  */
 
@@ -187,3 +188,32 @@ export const adminSettings = mysqlTable('admin_settings', {
   updatedBy: varchar('updated_by', { length: 64 }),
   ...timestamps(),
 })
+
+/**
+ * 网站注册用户：账号在 Supabase Auth，后台接口进程每 10 分钟全量同步一次到这里，用户列表的筛选、排序都查这张表。
+ * Supabase 里删掉的用户，下次同步时一并删除。评论数不冗余存，查询时按 comments.user_id 现算。
+ */
+export const adminSiteUsers = mysqlTable(
+  'admin_site_users',
+  {
+    /** Supabase 的用户 ID（UUID），即 comments.user_id */
+    id: varchar('id', { length: 36 }).primaryKey(),
+    email: varchar('email', { length: 255 }),
+    /** 显示名：GitHub 账号名、全名或名字，邮箱登录的没有 */
+    name: varchar('name', { length: 100 }),
+    avatarUrl: varchar('avatar_url', { length: 512 }),
+    /** 绑定的登录方式，逗号分隔：github,google,email */
+    providers: varchar('providers', { length: 64 }).notNull().default(''),
+    githubLogin: varchar('github_login', { length: 100 }),
+    /** 注册时的界面语言（邮箱验证码登录时写入，第三方登录的没有） */
+    locale: varchar('locale', { length: 8 }),
+    emailConfirmedAt: at('email_confirmed_at'),
+    /** 在 Supabase 后台封禁时有值 */
+    bannedUntil: at('banned_until'),
+    registeredAt: at('registered_at').notNull(),
+    /** 最近一次登录（换取新会话）；登录后靠刷新令牌续期不会更新 */
+    lastSignInAt: at('last_sign_in_at'),
+    syncedAt: at('synced_at').notNull(),
+  },
+  (t) => [index('ix_admin_site_users_registered').on(t.registeredAt), index('ix_admin_site_users_sign_in').on(t.lastSignInAt), index('ix_admin_site_users_email').on(t.email)],
+)

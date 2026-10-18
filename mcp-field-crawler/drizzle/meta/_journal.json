@@ -134,6 +134,13 @@
       "when": 1792252910537,
       "tag": "0018_blog_indexnow",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1792323211174,
+      "tag": "0020_site_users",
+      "breakpoints": true
     }
   ]
 }

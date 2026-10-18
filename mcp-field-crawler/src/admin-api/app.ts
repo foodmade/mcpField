@@ -10,9 +10,11 @@ import type { Logger } from '../core/logger.ts'
 import { ENTITY_KINDS } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
 import type { AssetStorage } from '../assets/storage.ts'
+import type { SiteUserSync } from '../admin/site-users.ts'
 import { RUNNABLE_STEPS, type AdminActions } from './actions.ts'
 import { adminBlogRoutes, type BlogIndexNowHooks, type BlogTranslations } from './blog.ts'
 import { blogAiRoutes } from './blog-ai.ts'
+import { adminUserRoutes } from './users.ts'
 import { SettingsStore, settingsRoutes } from './settings.ts'
 import { SESSION_TTL_MS, type AdminAuth, type AdminUser } from './auth.ts'
 import { dailyRun, dashboard, itemFacets, listItems, runDetail } from './queries.ts'
@@ -24,6 +26,7 @@ import { dailyRun, dashboard, itemFacets, listItems, runDetail } from './queries
  *   POST /api/admin/actions/run（单步）、/api/admin/actions/daily（整套每日任务）
  *   /api/admin/blog/*：博客文章的增删改查、图片上传（见 blog.ts）；/api/admin/blog/ai/*：AI 生成（见 blog-ai.ts）
  *   /api/admin/settings/*：后台可修改的配置（博客 AI 的模型服务，见 settings.ts）
+ *   /api/admin/users/*：网站注册用户（只读，从 Supabase 同步的副本，见 users.ts）
  * 除登录外都要登录；改动类请求另外校验 Origin（csrf 中间件），会话 cookie 是 HttpOnly + SameSite=Strict。
  */
 
@@ -41,6 +44,8 @@ export interface AdminApiDeps {
   blogTranslations: BlogTranslations
   /** 博客 IndexNow 推送；没配置 INDEXNOW_KEY 时为空 */
   blogIndexNow?: BlogIndexNowHooks
+  /** 网站用户同步；没配置 Supabase 的 service_role key 时为空 */
+  siteUsers?: SiteUserSync
 }
 
 const COOKIE = 'mf_admin'
@@ -181,6 +186,7 @@ export function createAdminApp(deps: AdminApiDeps) {
   const settings = new SettingsStore(db)
   app.route('/api/admin/settings', settingsRoutes({ store: settings, logger: deps.logger }))
   app.route('/api/admin/blog/ai', blogAiRoutes({ db, settings, storage: deps.storage, logger: deps.logger }))
+  app.route('/api/admin/users', adminUserRoutes({ db, logger: deps.logger, siteUrl: deps.siteUrl, sync: deps.siteUsers }))
   app.route('/api/admin/blog', adminBlogRoutes({ db, storage: deps.storage, logger: deps.logger, siteUrl: deps.siteUrl, translations: deps.blogTranslations, indexNow: deps.blogIndexNow }))
 
   app.notFound((c) => c.json({ error: { code: 'not_found', message: `接口不存在：${c.req.method} ${c.req.path}` } }, 404))

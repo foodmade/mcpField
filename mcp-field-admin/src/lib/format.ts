@@ -21,6 +21,17 @@ export const dateTime = (iso: string | null) => (iso ? `${beijing(iso).slice(5, 
 /** 2026-10-17 */
 export const day = (iso: string | null) => (iso ? beijing(iso).slice(0, 10) : '—')
 
+/** 3 分钟前 / 5 小时前 / 4 天前，超过 30 天显示 10-17 03:30 */
+export function ago(iso: string | null): string {
+  if (!iso) return '—'
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (min < 1) return '刚刚'
+  if (min < 60) return `${min} 分钟前`
+  if (min < 24 * 60) return `${Math.floor(min / 60)} 小时前`
+  if (min < 30 * 24 * 60) return `${Math.floor(min / 1440)} 天前`
+  return dateTime(iso)
+}
+
 export function duration(ms: number): string {
   const s = Math.round(ms / 1000)
   if (s < 60) return `${s} 秒`

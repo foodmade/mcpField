@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { SupabaseAdminConfig } from '../admin/site-users.ts'
 import type { R2Config } from '../assets/storage.ts'
 
 const envSchema = z.object({
@@ -20,6 +21,9 @@ const envSchema = z.object({
   R2_PUBLIC_BASE_URL: z.string().trim().optional(),
   R2_ACCESS_KEY_ID: z.string().trim().optional(),
   R2_SECRET_ACCESS_KEY: z.string().trim().optional(),
+  /** 网站用户同步（Supabase Auth 管理接口）：两项都配置了才同步；service_role key 能读写全部用户，只放在服务端 */
+  SUPABASE_URL: z.string().trim().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().trim().optional(),
 })
 
 export interface AdminApiConfig {
@@ -32,6 +36,7 @@ export interface AdminApiConfig {
   logDir: string
   logLevel: string
   r2?: R2Config
+  supabase?: SupabaseAdminConfig
 }
 
 export function loadAdminApiConfig(env: NodeJS.ProcessEnv = process.env): AdminApiConfig {
@@ -49,5 +54,6 @@ export function loadAdminApiConfig(env: NodeJS.ProcessEnv = process.env): AdminA
       parsed.R2_ACCOUNT_ID && parsed.R2_BUCKET && parsed.R2_PUBLIC_BASE_URL && parsed.R2_ACCESS_KEY_ID && parsed.R2_SECRET_ACCESS_KEY
         ? { accountId: parsed.R2_ACCOUNT_ID, bucket: parsed.R2_BUCKET, publicBaseUrl: parsed.R2_PUBLIC_BASE_URL, accessKeyId: parsed.R2_ACCESS_KEY_ID, secretAccessKey: parsed.R2_SECRET_ACCESS_KEY }
         : undefined,
+    supabase: parsed.SUPABASE_URL && parsed.SUPABASE_SERVICE_ROLE_KEY ? { url: parsed.SUPABASE_URL.replace(/\/+$/, ''), serviceRoleKey: parsed.SUPABASE_SERVICE_ROLE_KEY } : undefined,
   }
 }

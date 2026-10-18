@@ -12,6 +12,7 @@ import { ItemsPage } from './pages/Items'
 import { LoginPage } from './pages/Login'
 import { LogsPage } from './pages/Logs'
 import { SettingsPage } from './pages/Settings'
+import { UsersPage } from './pages/Users'
 
 /* 登录态：启动时问一次 /auth/me；任何接口返回 401 都回到登录页 */
 export function App() {
@@ -37,6 +38,7 @@ export function App() {
           <Route path="items" element={<ItemsPage />} />
           <Route path="blog" element={<BlogPage />} />
           <Route path="blog/:id" element={<BlogEditorPage />} />
+          <Route path="users" element={<UsersPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="account" element={<AccountPage />} />

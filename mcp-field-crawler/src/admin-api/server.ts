@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server'
+import { SiteUserSync } from '../admin/site-users.ts'
 import { R2Storage } from '../assets/storage.ts'
 import { BlogIndexNow } from '../blog/indexnow.ts'
 import { BlogTranslator } from '../blog/translate.ts'
@@ -45,6 +46,10 @@ try {
 const indexNow = appConfig?.indexNow ? new BlogIndexNow(db, appConfig.indexNow, logger) : undefined
 if (worker && indexNow) worker.onSaved = () => indexNow.kick()
 
+/* 网站用户同步：配置了 SUPABASE_URL 和 SUPABASE_SERVICE_ROLE_KEY 才启用，每 10 分钟一次 */
+const siteUsers = config.supabase ? new SiteUserSync(db, config.supabase, logger) : undefined
+if (!siteUsers) logger.warn('没有配置 SUPABASE_SERVICE_ROLE_KEY，后台用户列表不会同步')
+
 const app = createAdminApp({
   db,
   auth: new AdminAuth(db),
@@ -56,9 +61,11 @@ const app = createAdminApp({
   storage: config.r2 ? new R2Storage(config.r2) : undefined,
   blogTranslations: { queue, kick: () => worker?.kick(), enabled: !!worker },
   blogIndexNow: indexNow,
+  siteUsers,
 })
 
 indexNow?.start()
+siteUsers?.start()
 void worker?.start().catch((error: unknown) => logger.error({ err: (error as Error).message }, '博客翻译任务启动失败'))
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
@@ -70,6 +77,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     logger.info(`收到 ${signal}，正在关闭`)
     worker?.stop()
     indexNow?.stop()
+    siteUsers?.stop()
     server.close(() => void pool.end().then(() => process.exit(0)))
   })
 }

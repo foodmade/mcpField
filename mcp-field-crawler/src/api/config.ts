@@ -9,6 +9,11 @@ const envSchema = z.object({
   API_CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:5288'),
   /** Supabase 项目地址：用它公开的 JWKS 校验登录令牌；不设置时评论只能读，不能发表 */
   SUPABASE_URL: z.string().trim().url().optional().or(z.literal('').transform(() => undefined)),
+  /** 网站地址：认领用的 GitHub 应用回调到 <SITE_URL>/api/claims/github/callback */
+  SITE_URL: z.string().trim().default('https://mcpfield.com'),
+  /** 认领用的 GitHub OAuth App（与 Supabase 登录用的分开）；不设置时不能认领 */
+  GITHUB_CLAIM_CLIENT_ID: z.string().trim().optional(),
+  GITHUB_CLAIM_CLIENT_SECRET: z.string().trim().optional(),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
 })
 
@@ -18,6 +23,8 @@ export interface ApiConfig {
   host: string
   corsOrigins: string[]
   supabaseUrl?: string
+  siteUrl: string
+  githubClaim?: { clientId: string; clientSecret: string }
   logLevel: string
 }
 
@@ -29,6 +36,8 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     host: parsed.API_HOST,
     corsOrigins: parsed.API_CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
     supabaseUrl: parsed.SUPABASE_URL,
+    siteUrl: parsed.SITE_URL.replace(/\/+$/, ''),
+    githubClaim: parsed.GITHUB_CLAIM_CLIENT_ID && parsed.GITHUB_CLAIM_CLIENT_SECRET ? { clientId: parsed.GITHUB_CLAIM_CLIENT_ID, clientSecret: parsed.GITHUB_CLAIM_CLIENT_SECRET } : undefined,
     logLevel: parsed.LOG_LEVEL,
   }
 }

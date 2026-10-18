@@ -13,6 +13,9 @@ const PRIMARY_CATEGORY = sql`JSON_EXTRACT(d.draft, '$.categories[0].slug')`
 const LIST_DRAFT = sql`JSON_SET(d.draft, '$.texts', COALESCE((SELECT JSON_ARRAYAGG(JSON_OBJECT('field', t.field, 'locale', t.locale, 'format', t.format, 'content', t.content)) FROM ${TEXTS} WHERE t.field NOT IN ('readme', 'overview')), JSON_ARRAY()))`
 
 const flag = (path: string, value: boolean) => sql`JSON_EXTRACT(d.draft, ${path}) = ${value ? sql`TRUE` : sql`FALSE`}`
+/** 有效的认领（社区层 entity_claims）：和源站的认证标识一样显示为"已认证" */
+const CLAIMED = sql`EXISTS (SELECT 1 FROM entity_claims c WHERE c.kind = d.kind AND c.slug = d.slug AND c.revoked_at IS NULL)`
+const VERIFIED = sql`(${flag('$.flags.verified', true)} OR ${CLAIMED})`
 /** 最近提交时间：GitHub 的优先，没抓到时用源站的 */
 const LAST_COMMIT = sql`COALESCE(CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(g.data, '$.lastCommitAt')), 'null') AS CHAR(40)), ${textAt('$.lastCommitAt', 40)})`
 
@@ -59,6 +62,7 @@ interface RawRow {
   draft: unknown
   fetched_at: unknown
   mapped_at: unknown
+  claimed: unknown
 }
 
 export interface DraftRepositoryOptions {
@@ -101,7 +105,9 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   }
 
   private toEntityRow(row: RawRow): EntityRow<K> {
-    return { draft: parseJson<EntityDraftOf<K>>(row.draft), fetchedAt: toIso(row.fetched_at), mappedAt: toIso(row.mapped_at) }
+    const draft = parseJson<EntityDraftOf<K>>(row.draft)
+    if (Number(row.claimed)) draft.flags = { ...draft.flags, verified: true }
+    return { draft, fetchedAt: toIso(row.fetched_at), mappedAt: toIso(row.mapped_at) }
   }
 
   /** 搜索表里有没有这个类型（新部署还没跑过 search-index 时退回直接查发布层）；结果缓存一分钟 */
@@ -138,7 +144,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   /** 列表用的草稿（不含 README 等长文本） */
   private listDrafts(condition: SQL): Promise<(RawRow & { id: number; slug: string })[]> {
     return this.rows(sql`
-      SELECT d.id, d.slug, ${LIST_DRAFT} AS draft, r.fetched_at, d.mapped_at
+      SELECT d.id, d.slug, ${LIST_DRAFT} AS draft, r.fetched_at, d.mapped_at, ${CLAIMED} AS claimed
       FROM ingest_published d JOIN ingest_records r ON r.id = d.record_id
       WHERE ${condition}`)
   }
@@ -165,7 +171,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     }
     if (query.tag) conditions.push(sql`d.slug IN (${this.taggedSlugs(query.tag)})`)
     if (query.featured !== undefined) conditions.push(flag('$.flags.featured', query.featured))
-    if (query.verified !== undefined) conditions.push(flag('$.flags.verified', query.verified))
+    if (query.verified !== undefined) conditions.push(query.verified ? VERIFIED : sql`${flag('$.flags.verified', false)} AND NOT ${CLAIMED}`)
     if (query.official !== undefined) conditions.push(flag('$.flags.official', query.official))
     if (query.type && this.typePath) conditions.push(sql`JSON_UNQUOTE(JSON_EXTRACT(d.draft, ${this.typePath})) = ${query.type}`)
     return sql.join(conditions, sql` AND `)
@@ -230,7 +236,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   async findBySlug(slug: string): Promise<EntityRow<K> | null> {
     // 除了条目自己的地址，被合并进来的重复条目原来的地址也能找到它
     const [row] = await this.rows<RawRow>(sql`
-      SELECT d.draft, r.fetched_at, d.mapped_at
+      SELECT d.draft, r.fetched_at, d.mapped_at, ${CLAIMED} AS claimed
       FROM ingest_published_slugs s
       JOIN ingest_published d ON d.id = s.published_id
       JOIN ingest_records r ON r.id = d.record_id
@@ -243,7 +249,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
     const [row] = await this.rows<Record<keyof ViewCounts, number | string | null>>(sql`
       SELECT SUM(JSON_EXTRACT(d.draft, '$.flags.official') = TRUE) AS official,
              SUM(JSON_EXTRACT(d.draft, '$.flags.featured') = TRUE) AS featured,
-             SUM(JSON_EXTRACT(d.draft, '$.flags.verified') = TRUE) AS verified
+             SUM(${VERIFIED}) AS verified
       FROM ingest_published d
       WHERE ${sql.join(this.base(scope), sql` AND `)}`)
     return { official: Number(row?.official ?? 0), featured: Number(row?.featured ?? 0), verified: Number(row?.verified ?? 0) }

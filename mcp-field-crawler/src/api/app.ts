@@ -6,6 +6,8 @@ import type { AuthVerifier } from './auth/supabase-auth.ts'
 import { ApiError } from './http/errors.ts'
 import { localeQuerySchema, parseQuery, sitemapQuerySchema, tagsQuerySchema } from './http/query.ts'
 import { blogRoutes } from './modules/blog/blog.routes.ts'
+import { claimRoutes } from './modules/claims/claim.routes.ts'
+import type { ClaimService } from './modules/claims/claim.service.ts'
 import type { BlogService } from './modules/blog/blog.service.ts'
 import { commentRoutes } from './modules/comments/comment.routes.ts'
 import type { CommentService } from './modules/comments/comment.service.ts'
@@ -33,6 +35,10 @@ export interface ApiDeps {
   comments?: CommentService
   /** 博客（已发布的文章） */
   blog?: BlogService
+  /** MCP 服务认领；没配置 GitHub 应用时只能查状态 */
+  claims?: ClaimService
+  /** 认领用的 cookie 是否只走 HTTPS（站点地址是 https 时） */
+  cookieSecure?: boolean
   /** Supabase 登录令牌校验 */
   auth?: AuthVerifier
   logger: Logger
@@ -76,6 +82,7 @@ export function createApp(deps: ApiDeps) {
   if (tags) app.get('/api/tags', async (c) => c.json(await tags.list(parseQuery(c, tagsQuerySchema))))
   if (deps.comments) app.route('/api/comments', commentRoutes(deps.comments, deps.auth))
   if (deps.blog) app.route('/api/blog', blogRoutes(deps.blog))
+  if (deps.claims) app.route('/api/claims', claimRoutes(deps.claims, deps.auth, { cookieSecure: deps.cookieSecure ?? true }))
   const services = Object.entries(deps.entities) as [EntityKind, EntityService<EntityKind>][]
   // GET /api/sitemap —— 各类型的条目总数；GET /api/sitemap/:kind?page&pageSize —— 分页列出 slug 与最后更新时间
   app.get('/api/sitemap', async (c) => {

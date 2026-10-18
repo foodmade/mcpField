@@ -1,5 +1,6 @@
 import { CalendarBlank, Certificate, ClockCounterClockwise, CloudArrowUp, Code, Desktop, PlugsConnected, Scales, Tag, User } from '@phosphor-icons/react'
 import { Comments } from '../components/Comments'
+import { ClaimButton, ClaimNotice } from '../components/detail/ClaimButton'
 import { ConfigSection } from '../components/detail/ConfigSection'
 import {
   AboutSection, Badge, DefaultActions, DetailBody, DetailError, DetailSeo, EntityHeader, InfoSection, ReadmeSection, RelatedSection, useDateFormat,
@@ -11,6 +12,7 @@ import { useI18n } from '../i18n/context'
 import type { ServerDetail as Detail, ServerItem } from '../lib/api/entities'
 import { loadDetail } from '../lib/api/loaders'
 import { categoryOf } from '../lib/categories'
+import { useClaim } from '../lib/claims'
 import { useCommentCount } from '../lib/comments'
 import { daysSince, developerOf } from '../lib/entity'
 import type { Route } from './+types/ServerDetail'
@@ -50,6 +52,7 @@ function Page({ s, related }: { s: Detail; related: ServerItem[] }) {
   const { m } = useI18n()
   const { active, jump, reg } = useActiveSection(IDS, s.slug)
   const commentTotal = useCommentCount(`server:${s.slug}`)
+  const claim = useClaim(s.slug)
   const remote = s.remotes[0]
   const key = configKey(s.slug)
   return (
@@ -57,11 +60,13 @@ function Page({ s, related }: { s: Detail; related: ServerItem[] }) {
       <DetailSeo kind="server" d={s} section={m.dir.title} />
       <EntityHeader
         kind="server"
-        d={s}
+        // 有效的认领也显示"已认证"（页面 HTML 有 CDN 缓存，刚认领完时以浏览器读到的状态为准）
+        d={claim.status?.claim && !s.verified ? { ...s, verified: true } : s}
         listTitle={m.dir.title}
         badges={s.isRemote ? <Badge quiet tone="blue" icon={CloudArrowUp}>{m.detail.kind.remote}</Badge> : <Badge quiet tone="gray" icon={Desktop}>{m.detail.kind.local}</Badge>}
         actions={
           <>
+            <ClaimButton status={claim.status} busy={claim.busy} onClaim={() => void claim.start()} />
             <DefaultActions d={s} />
             {remote && <InstallMenu name={key} url={remote.url} transport={remote.transport} />}
           </>
@@ -98,6 +103,7 @@ function Page({ s, related }: { s: Detail; related: ServerItem[] }) {
         }
         aside={<Sidebar s={s} related={related} />}
       />
+      <ClaimNotice result={claim.result} onDismiss={claim.dismiss} />
     </>
   )
 }

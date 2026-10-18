@@ -6,6 +6,7 @@ import { api, setUnauthorizedHandler, type AdminUser } from './lib/api'
 import { AccountPage } from './pages/Account'
 import { BlogPage } from './pages/Blog'
 import { BlogEditorPage } from './pages/BlogEditor'
+import { ClaimsPage } from './pages/Claims'
 import { DailyPage } from './pages/Daily'
 import { DashboardPage } from './pages/Dashboard'
 import { ItemsPage } from './pages/Items'
@@ -38,6 +39,7 @@ export function App() {
           <Route path="items" element={<ItemsPage />} />
           <Route path="blog" element={<BlogPage />} />
           <Route path="blog/:id" element={<BlogEditorPage />} />
+          <Route path="claims" element={<ClaimsPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />

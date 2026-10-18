@@ -15,6 +15,9 @@ import { loadApiConfig } from './config.ts'
 import { listRemoteTools } from '../probe/mcp-remote.ts'
 import { MysqlBlogRepository } from './modules/blog/blog.repository.ts'
 import { BlogService } from './modules/blog/blog.service.ts'
+import { MysqlClaimRepository } from './modules/claims/claim.repository.ts'
+import { ClaimService } from './modules/claims/claim.service.ts'
+import { GithubOAuthApp } from './modules/claims/github-oauth.ts'
 import { MysqlCommentRepository } from './modules/comments/comment.repository.ts'
 import { CommentService } from './modules/comments/comment.service.ts'
 import { EntityService } from './modules/entities/entity.service.ts'
@@ -53,6 +56,8 @@ function serviceFor<K extends EntityKind>(kind: K): EntityService<K> {
 const entities: ApiDeps['entities'] = {}
 for (const kind of ENTITY_KINDS) (entities as Record<EntityKind, EntityService<EntityKind>>)[kind] = serviceFor(kind)
 
+const githubClaim = config.githubClaim && new GithubOAuthApp({ ...config.githubClaim, callbackUrl: `${config.siteUrl}/api/claims/github/callback` })
+
 const app = createApp({
   entities,
   liveTools: new LiveToolsService(entities.server!, listRemoteTools),
@@ -61,6 +66,8 @@ const app = createApp({
   tags: new TagService(new PublishedTagReader(db)),
   comments: new CommentService(new MysqlCommentRepository(db)),
   blog: new BlogService(new MysqlBlogRepository(db)),
+  claims: new ClaimService(new MysqlClaimRepository(db), githubClaim ?? null, config.githubClaim?.clientSecret ?? null, logger),
+  cookieSecure: config.siteUrl.startsWith('https://'),
   auth: config.supabaseUrl ? new SupabaseAuth(config.supabaseUrl) : undefined,
   logger,
   corsOrigins: config.corsOrigins,
@@ -70,6 +77,7 @@ const app = createApp({
 })
 
 if (!config.supabaseUrl) logger.warn('没有设置 SUPABASE_URL，评论只能读取，不能发表')
+if (!config.githubClaim) logger.warn('没有设置 GITHUB_CLAIM_CLIENT_ID / GITHUB_CLAIM_CLIENT_SECRET，MCP 服务不能认领')
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
   logger.info(`API 已启动：http://${config.host}:${info.port}/api/health`)

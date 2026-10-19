@@ -445,7 +445,6 @@ export const ja: Messages = {
       button: '所有を申請',
       hint: 'リポジトリの所有者または管理者であることを GitHub で確認すると「認証済み」バッジが表示されます',
       redirecting: 'GitHub に移動しています…',
-      claimed: '申請済み',
       mine: 'あなたが申請済み',
       by: (login: string) => `@${login} が申請済み`,
       dismiss: '閉じる',

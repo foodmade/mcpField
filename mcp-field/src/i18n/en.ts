@@ -445,7 +445,6 @@ export const en: Messages = {
       button: 'Claim',
       hint: 'Verify with GitHub that you own or administer the repository to get a “Verified” badge',
       redirecting: 'Redirecting to GitHub…',
-      claimed: 'Claimed',
       mine: 'Claimed by you',
       by: (login: string) => `Claimed by @${login}`,
       dismiss: 'Dismiss',

@@ -64,9 +64,9 @@ function Page({ s, related }: { s: Detail; related: ServerItem[] }) {
         d={claim.status?.claim && !s.verified ? { ...s, verified: true } : s}
         listTitle={m.dir.title}
         badges={s.isRemote ? <Badge quiet tone="blue" icon={CloudArrowUp}>{m.detail.kind.remote}</Badge> : <Badge quiet tone="gray" icon={Desktop}>{m.detail.kind.local}</Badge>}
+        byline={<ClaimButton status={claim.status} busy={claim.busy} onClaim={() => void claim.start()} />}
         actions={
           <>
-            <ClaimButton status={claim.status} busy={claim.busy} onClaim={() => void claim.start()} />
             <DefaultActions d={s} />
             {remote && <InstallMenu name={key} url={remote.url} transport={remote.transport} />}
           </>

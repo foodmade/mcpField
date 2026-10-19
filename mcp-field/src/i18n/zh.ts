@@ -443,7 +443,6 @@ export const zh = {
       button: '认领',
       hint: '用 GitHub 验证你是仓库所有者或管理员，通过后显示“已认证”标识',
       redirecting: '正在跳转 GitHub…',
-      claimed: '已认领',
       mine: '你已认领',
       by: (login: string) => `由 @${login} 认领`,
       dismiss: '关闭',

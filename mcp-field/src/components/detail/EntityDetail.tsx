@@ -137,6 +137,7 @@ export function EntityHeader({
   d,
   listTitle,
   badges,
+  byline,
   meta,
   actions,
   tile,
@@ -146,6 +147,8 @@ export function EntityHeader({
   listTitle: string
   /** 名称后面额外的标识 */
   badges?: ReactNode
+  /** 紧跟在作者后面的内容（如认领入口） */
+  byline?: ReactNode
   /** 元信息行额外的项目 */
   meta?: ReactNode
   /** 右侧操作；默认是文档、仓库、官网 */
@@ -194,6 +197,7 @@ export function EntityHeader({
             </motion.div>
             <motion.div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-text2 sm:mt-2" initial={enter ? { opacity: 0, y: 12 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.08 }}>
               {domain ? <span>{domain}</span> : dev && <span>@{dev}</span>}
+              {byline}
               <Link to={to(`/${ROUTE[kind]}?category=${cat.slug}`)} className="flex items-center gap-1 hover:text-ink"><cat.icon size={14} style={{ color: cat.color }} />{tr(cat.name)}</Link>
               <Stars n={d.stars} />
               {meta}

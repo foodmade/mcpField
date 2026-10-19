@@ -5,21 +5,19 @@ import { useI18n } from '../../i18n/context'
 import type { ClaimResult, ClaimStatus } from '../../lib/claims'
 
 /**
- * 详情页头部的认领入口：未认领时是"认领"按钮，已认领时显示认领状态。
- * 状态在浏览器里读取，读到之前和没有关联 GitHub 仓库时不显示。
+ * 详情页头部作者后面的认领入口：未认领时是一个不起眼的"认领"文字链接，自己认领过的显示"你已认领"，
+ * 别人认领的不显示（头部已有"已认证"标识）。状态在浏览器里读取，读到之前和没有关联 GitHub 仓库时不显示。
  */
 export function ClaimButton({ status, busy, onClaim }: { status: ClaimStatus | null; busy: boolean; onClaim: () => void }) {
   const { m } = useI18n()
   const t = m.detail.claim
   if (!status?.claimable) return null
   if (status.claim) {
+    if (!status.mine) return null
     return (
-      <span
-        title={t.by(status.claim.login)}
-        className="flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-fg/[0.12] px-3 text-sm text-text2"
-      >
-        {status.claim.avatar ? <img src={status.claim.avatar} alt="" className="size-[18px] rounded-full" /> : <SealCheck size={15} className="text-accent" />}
-        {status.mine ? t.mine : t.claimed}
+      <span title={t.by(status.claim.login)} className="flex items-center gap-1 whitespace-nowrap text-xs text-text3">
+        <SealCheck size={13} />
+        {t.mine}
       </span>
     )
   }
@@ -29,9 +27,9 @@ export function ClaimButton({ status, busy, onClaim }: { status: ClaimStatus | n
       onClick={onClaim}
       disabled={busy}
       title={t.hint}
-      className="flex h-[38px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-fg/[0.12] bg-fg/[0.04] px-3 text-sm transition-[color,background-color,border-color,transform] hover:border-fg/25 hover:bg-fg/[0.07] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70"
+      className="flex items-center gap-1 whitespace-nowrap text-xs text-text3 transition-colors hover:text-ink disabled:cursor-wait"
     >
-      {busy ? <CircleNotch size={15} className="animate-spin text-text2" /> : <GithubLogo size={15} className="text-text2" />}
+      {busy ? <CircleNotch size={13} className="animate-spin" /> : <GithubLogo size={13} />}
       {busy ? t.redirecting : t.button}
     </button>
   )

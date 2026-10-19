@@ -64,11 +64,9 @@ export function ShimmerButton({ children, icon, className }: { children: ReactNo
           className,
         )}
       >
-        <motion.span
+        <span
           aria-hidden
-          className="absolute inset-y-0 -left-1/2 w-1/2 skew-x-[-20deg] bg-gradient-to-r from-transparent via-fg/60 to-transparent"
-          animate={{ x: ['0%', '400%'] }}
-          transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 1.6, ease: 'easeInOut' }}
+          className="absolute inset-y-0 -left-1/2 w-1/2 skew-x-[-20deg] animate-shimmer-sweep bg-gradient-to-r from-transparent via-fg/60 to-transparent motion-reduce:animate-none"
         />
         {icon && <span className="relative">{icon}</span>}
         <span className="relative">{children}</span>

@@ -94,6 +94,9 @@ export class Flashlight {
   private flight: { abort: () => void } | null = null
   private dwell = 0
   private raf = 0
+  private startTimer = 0
+  /** 上一次写到推荐卡上的 CSS 变量：值没变就不写，免得每帧都触发样式重算和 DOM 变化（Clarity 会逐条录制） */
+  private cardVars = ''
   private last = 0
   private visible = true
   private readonly io: IntersectionObserver
@@ -114,7 +117,8 @@ export class Flashlight {
     this.ro.observe(o.host)
     this.listen()
     this.layout()
-    this.loop()
+    // 等浏览器空闲再开始动画，不和水合、用户最早的点击抢主线程（INP）；没有 requestIdleCallback 的浏览器（Safari）稍等一下
+    this.startTimer = typeof requestIdleCallback === 'function' ? requestIdleCallback(this.loop, { timeout: 1500 }) : window.setTimeout(this.loop, 300)
   }
 
   /** 换一批名字（数据到达、切换语言时） */
@@ -132,6 +136,8 @@ export class Flashlight {
 
   destroy() {
     cancelAnimationFrame(this.raf)
+    if (typeof cancelIdleCallback === 'function') cancelIdleCallback(this.startTimer)
+    clearTimeout(this.startTimer)
     clearTimeout(this.dwell)
     this.flight?.abort()
     this.io.disconnect()
@@ -254,6 +260,11 @@ export class Flashlight {
 
   private frame = (now: number) => {
     if (!this.visible) return
+    // 没人操作时降到约 30 帧：名字每秒只流动十几像素，看不出差别，主线程的负担减半
+    if (!this.inside && !this.wave && !this.hovered && this.flash < 0.01 && now - this.last < 30) {
+      this.raf = requestAnimationFrame(this.frame)
+      return
+    }
     const dt = Math.min(0.05, (now - (this.last || now)) / 1000)
     this.last = now
     const { ctx, W, H } = this
@@ -414,9 +425,16 @@ export class Flashlight {
     const useFlash = this.flash > near && this.iconPos
     const ox = useFlash ? this.iconPos!.x - cb.x : this.sx - cb.x
     const oy = useFlash ? this.iconPos!.y - cb.y : this.sy - cb.y
-    card.style.setProperty('--mx', `${ox.toFixed(0)}px`)
-    card.style.setProperty('--my', `${oy.toFixed(0)}px`)
-    card.style.setProperty('--edge', Math.max(near, this.flash).toFixed(3))
+    const mx = `${ox.toFixed(0)}px`
+    const my = `${oy.toFixed(0)}px`
+    const edge = Math.max(near, this.flash).toFixed(2)
+    const vars = `${mx} ${my} ${edge}`
+    // 光圈离卡片很远时边缘不亮（edge 为 0），光的位置变了也看不出来，不必更新
+    if (vars === this.cardVars || (edge === '0.00' && this.cardVars.endsWith(' 0.00'))) return
+    this.cardVars = vars
+    card.style.setProperty('--mx', mx)
+    card.style.setProperty('--my', my)
+    card.style.setProperty('--edge', edge)
   }
 
   /** 圆环 [r0, r1] 内的名字记为"已照亮" */

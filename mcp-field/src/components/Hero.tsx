@@ -341,12 +341,11 @@ export function Hero({ slides, total }: { slides: ServerItem[]; total: number | 
                 {picks.map((_, k) => (
                   <span key={k} className="h-0.5 overflow-hidden rounded-full bg-fg/15 transition-[width] duration-500" style={{ width: k === pickIdx ? 36 : 18 }}>
                     {k === pickIdx && !userPicked && (
-                      <motion.span
+                      // CSS 动画（缩放）而不是 motion 逐帧改宽度：不占主线程，也不会每秒产生几十次 DOM 变化让 Clarity 录制
+                      <span
                         key={`${pickIdx}-${playing}`}
-                        className="block h-full bg-accent"
-                        initial={{ width: playing ? '0%' : '100%' }}
-                        animate={{ width: '100%' }}
-                        transition={{ duration: playing ? INTERVAL : 0, ease: 'linear' }}
+                        className="block h-full origin-left bg-accent"
+                        style={playing ? { animation: `hero-progress ${INTERVAL}s linear` } : undefined}
                       />
                     )}
                   </span>

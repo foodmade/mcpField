@@ -28,7 +28,9 @@ export function Category3D({ model, size, active = false, className, style }: { 
       ([e]) => {
         if (!e.isIntersecting) return
         io.disconnect()
-        import('./engine')
+        // 引擎初始化是一段几百毫秒的长任务（中端手机上），等浏览器空闲再做，不卡住正在进行的滚动和点击（INP）
+        new Promise((resolve) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(resolve, { timeout: 2000 }) : setTimeout(resolve, 200)))
+          .then(() => (alive ? import('./engine') : Promise.reject()))
           .then(({ mountView }) => {
             if (!alive) return
             canvas.width = canvas.height = Math.round(size * Math.min(window.devicePixelRatio || 1, 2))

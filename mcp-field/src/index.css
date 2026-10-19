@@ -92,6 +92,8 @@
 
   --animate-accordion-down: accordion-down 320ms cubic-bezier(0.22, 1, 0.36, 1);
   --animate-accordion-up: accordion-up 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* 按钮扫光：2.4 秒扫过、停 1.6 秒。用 CSS 动画在合成线程上跑，不像 JS 逐帧改样式那样占主线程 */
+  --animate-shimmer-sweep: shimmer-sweep 4s ease-in-out infinite;
 
   @keyframes accordion-down {
     from { height: 0; opacity: 0; }
@@ -100,6 +102,15 @@
   @keyframes accordion-up {
     from { height: var(--radix-accordion-content-height); opacity: 1; }
     to { height: 0; opacity: 0; }
+  }
+  /* 用独立的 translate 属性，不覆盖元素自己的 skew 变换 */
+  @keyframes shimmer-sweep {
+    from { translate: 0 0; }
+    60%, to { translate: 400% 0; }
+  }
+  /* 首页轮播进度条：缩放而不是改宽度，不触发排版 */
+  @keyframes hero-progress {
+    from { transform: scaleX(0); }
   }
 }
 

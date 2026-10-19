@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { SiteUserSync } from '../admin/site-users.ts'
+import { AnalyticsRollup } from '../analytics/rollup.ts'
 import { R2Storage } from '../assets/storage.ts'
 import { BlogIndexNow } from '../blog/indexnow.ts'
 import { BlogTranslator } from '../blog/translate.ts'
@@ -50,6 +51,9 @@ if (worker && indexNow) worker.onSaved = () => indexNow.kick()
 const siteUsers = config.supabase ? new SiteUserSync(db, config.supabase, logger) : undefined
 if (!siteUsers) logger.warn('没有配置 SUPABASE_SERVICE_ROLE_KEY，后台用户列表不会同步')
 
+/* 访问统计：每 30 分钟把结束了的日子汇总、清理过期明细和盐；每天解析一次 nginx 日志统计爬虫抓取量 */
+const analytics = new AnalyticsRollup(db, logger, { accessLog: config.accessLog })
+
 const app = createAdminApp({
   db,
   auth: new AdminAuth(db),
@@ -66,6 +70,7 @@ const app = createAdminApp({
 
 indexNow?.start()
 siteUsers?.start()
+analytics.start()
 void worker?.start().catch((error: unknown) => logger.error({ err: (error as Error).message }, '博客翻译任务启动失败'))
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
@@ -78,6 +83,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     worker?.stop()
     indexNow?.stop()
     siteUsers?.stop()
+    analytics.stop()
     server.close(() => void pool.end().then(() => process.exit(0)))
   })
 }

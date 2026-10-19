@@ -6,7 +6,7 @@ import type { Locale } from '../i18n/locales'
 
 /*
  * 隐私政策。正文按语言写在本文件里（法律文本较长，不放进界面文案）。
- * 内容要和网站的实际行为一致：用 Microsoft Clarity 做访问统计，没有广告追踪；偏好和收藏只存在浏览器里；
+ * 内容要和网站的实际行为一致：用 Microsoft Clarity 和自己的访问统计（/api/collect，不用 Cookie、不存 IP）了解使用情况，没有广告追踪；偏好和收藏只存在浏览器里；
  * 账号由 Supabase Auth 处理（GitHub、Google、邮箱验证码），项目位于印度孟买区域。
  * 修改正文时同步更新三种语言和生效日期。
  */
@@ -32,8 +32,9 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           '浏览网站不需要注册或登录。我们不使用广告追踪工具，也不出售任何信息。',
           '为了了解网站的使用情况并改进体验，我们使用 Microsoft Clarity 统计访问数据，包括访问的页面、点击和滚动等操作、设备与浏览器类型、大致地区。Clarity 会在你的浏览器里设置 Cookie 来区分访问，并按 Microsoft 隐私声明（privacy.microsoft.com）处理这些数据。我们只查看汇总后的统计结果，不用它识别具体的人。',
+          '我们自己也会统计每天的访问量：你打开页面时，浏览器会告诉我们访问的页面和从哪个网站过来。我们据此统计浏览量、访客数、热门页面、来源、大致地区（由 Cloudflare 根据 IP 判断的国家或地区）和设备类型。这项统计不使用 Cookie，也不保存你的 IP 地址：为了区分当天的访客，我们把 IP 地址、浏览器信息和一个每天更换的随机值一起计算成一个无法还原的标识，随机值两天后删除，之后无法再把标识和 IP 对应起来，也无法跨天识别同一个人。明细保留 90 天，之后只保留每天的汇总数字。',
           '在详情页提交反馈时，我们会保存你选的问题类型、填写的说明，以及未登录时选填的联系邮箱；登录了的会记下你的账号。反馈只有站点管理员能看到，只用于核对和处理问题，需要时通过你留的邮箱联系你。为防止重复提交，我们只保存你 IP 地址的哈希值，不保存 IP 本身。',
-          '为了保障安全和排查故障，Cloudflare（我们使用的 CDN 和安全服务）与我们的服务器会自动记录访问日志，包括 IP 地址、浏览器类型、访问的网址和时间。这些日志只用于防范攻击和定位问题，在排查所需的期限过后删除。',
+          '为了保障安全和排查故障，Cloudflare（我们使用的 CDN 和安全服务）与我们的服务器会自动记录访问日志，包括 IP 地址、浏览器类型、访问的网址和时间。这些日志用于防范攻击、定位问题，以及统计搜索引擎爬虫每天的抓取量（只统计爬虫的请求数），在所需的期限过后删除。',
         ],
       },
       {
@@ -136,8 +137,9 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           "You can browse the site without an account. We don't use advertising trackers, and we never sell information.",
           'To understand how the site is used and improve it, we use Microsoft Clarity to collect usage data, including the pages you visit, interactions such as clicks and scrolling, device and browser type, and approximate location. Clarity sets cookies in your browser to tell visits apart and processes this data under the Microsoft Privacy Statement (privacy.microsoft.com). We only look at aggregated statistics and don’t use it to identify individuals.',
+          'We also count daily visits ourselves: when you open a page, your browser tells us which page it is and which site you came from. We use this to count page views, visitors, popular pages, referring sites, approximate location (the country or region Cloudflare derives from your IP address) and device type. This does not use cookies and does not store your IP address: to tell the day’s visitors apart, we combine your IP address, browser information and a random value that changes every day into an identifier that cannot be reversed. The random value is deleted after two days, after which the identifier can no longer be linked to an IP address, and the same person cannot be recognised across days. Detailed records are kept for 90 days; after that we keep only daily totals.',
           'When you send feedback from a project page, we store the issue type you choose, the details you write and, if you aren’t signed in, the optional email you leave; if you are signed in, we link it to your account. Only site admins can see feedback. We use it only to check and fix the issue, and to contact you at that email if needed. To prevent repeated submissions we keep only a hash of your IP address, not the address itself.',
-          'To keep the site secure and fix problems, Cloudflare (our CDN and security provider) and our servers automatically keep access logs, including IP address, browser type, the pages requested and the time. These logs are used only to block attacks and diagnose issues, and are deleted once they are no longer needed for that.',
+          'To keep the site secure and fix problems, Cloudflare (our CDN and security provider) and our servers automatically keep access logs, including IP address, browser type, the pages requested and the time. These logs are used to block attacks, diagnose issues and count how often search engine crawlers visit each day (only crawler requests are counted), and are deleted once they are no longer needed.',
         ],
       },
       {
@@ -240,8 +242,9 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           'サイトの閲覧に登録やログインは不要です。広告トラッキングは使用しておらず、情報を販売することもありません。',
           'サイトの利用状況を把握して改善するため、Microsoft Clarity でアクセスデータを収集しています。閲覧したページ、クリックやスクロールなどの操作、デバイスとブラウザの種類、おおよその地域が含まれます。Clarity は訪問を区別するためにブラウザに Cookie を設定し、Microsoft プライバシーに関する声明（privacy.microsoft.com）に従ってデータを処理します。当サイトは集計された統計のみを確認し、特定の個人の識別には使用しません。',
+          '当サイトでも独自に日々のアクセス数を集計しています。ページを開くと、ブラウザから閲覧したページと参照元のサイトが送信されます。これをもとに、ページビュー、訪問者数、よく見られているページ、参照元、おおよその地域（Cloudflare が IP アドレスから判定した国・地域）、デバイスの種類を集計します。この集計では Cookie を使用せず、IP アドレスも保存しません。その日の訪問者を区別するため、IP アドレス、ブラウザ情報、毎日変わるランダムな値を組み合わせて元に戻せない識別子を作成します。ランダムな値は 2 日後に削除され、それ以降は識別子と IP アドレスを結び付けることも、日をまたいで同じ人を識別することもできません。詳細な記録は 90 日間保存し、その後は日ごとの集計値のみを残します。',
           'プロジェクトページからフィードバックを送信すると、選択した問題の種類、入力した詳細、未ログイン時に任意で入力したメールアドレスを保存します。ログイン中の場合はアカウントと関連付けます。フィードバックはサイト管理者のみが閲覧でき、問題の確認と対応、必要に応じたメールでのご連絡にのみ使用します。重複送信を防ぐため、IP アドレスそのものではなくハッシュ値のみを保存します。',
-          'セキュリティの確保と障害対応のため、Cloudflare（当サイトが利用する CDN・セキュリティサービス）と当サイトのサーバーは、IP アドレス、ブラウザの種類、アクセスした URL、日時を含むアクセスログを自動的に記録します。これらのログは攻撃の防止と問題の調査にのみ使用し、必要な期間が過ぎたら削除します。',
+          'セキュリティの確保と障害対応のため、Cloudflare（当サイトが利用する CDN・セキュリティサービス）と当サイトのサーバーは、IP アドレス、ブラウザの種類、アクセスした URL、日時を含むアクセスログを自動的に記録します。これらのログは攻撃の防止、問題の調査、および検索エンジンのクローラーによる毎日のアクセス数の集計（クローラーのリクエスト数のみ）に使用し、必要な期間が過ぎたら削除します。',
         ],
       },
       {

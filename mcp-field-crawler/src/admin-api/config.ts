@@ -24,6 +24,8 @@ const envSchema = z.object({
   /** 网站用户同步（Supabase Auth 管理接口）：两项都配置了才同步；service_role key 能读写全部用户，只放在服务端 */
   SUPABASE_URL: z.string().trim().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().trim().optional(),
+  /** 网站的 nginx 访问日志（统计爬虫抓取量用，轮转文件在同一目录）；不存在时不统计（本地） */
+  NGINX_ACCESS_LOG: z.string().trim().default('/var/log/nginx/mcpfield.com.access.log'),
 })
 
 export interface AdminApiConfig {
@@ -37,6 +39,7 @@ export interface AdminApiConfig {
   logLevel: string
   r2?: R2Config
   supabase?: SupabaseAdminConfig
+  accessLog: string
 }
 
 export function loadAdminApiConfig(env: NodeJS.ProcessEnv = process.env): AdminApiConfig {
@@ -54,6 +57,7 @@ export function loadAdminApiConfig(env: NodeJS.ProcessEnv = process.env): AdminA
       parsed.R2_ACCOUNT_ID && parsed.R2_BUCKET && parsed.R2_PUBLIC_BASE_URL && parsed.R2_ACCESS_KEY_ID && parsed.R2_SECRET_ACCESS_KEY
         ? { accountId: parsed.R2_ACCOUNT_ID, bucket: parsed.R2_BUCKET, publicBaseUrl: parsed.R2_PUBLIC_BASE_URL, accessKeyId: parsed.R2_ACCESS_KEY_ID, secretAccessKey: parsed.R2_SECRET_ACCESS_KEY }
         : undefined,
+    accessLog: parsed.NGINX_ACCESS_LOG,
     supabase: parsed.SUPABASE_URL && parsed.SUPABASE_SERVICE_ROLE_KEY ? { url: parsed.SUPABASE_URL.replace(/\/+$/, ''), serviceRoleKey: parsed.SUPABASE_SERVICE_ROLE_KEY } : undefined,
   }
 }

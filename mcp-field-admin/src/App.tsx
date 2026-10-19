@@ -4,6 +4,7 @@ import { Layout } from './components/Layout'
 import { Loading } from './components/ui'
 import { api, setUnauthorizedHandler, type AdminUser } from './lib/api'
 import { AccountPage } from './pages/Account'
+import { AnalyticsPage } from './pages/Analytics'
 import { BlogPage } from './pages/Blog'
 import { BlogEditorPage } from './pages/BlogEditor'
 import { ClaimsPage } from './pages/Claims'
@@ -37,6 +38,7 @@ export function App() {
         <Route element={<Layout user={user} logout={logout} />}>
           <Route index element={<DashboardPage />} />
           <Route path="daily" element={<DailyPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="items" element={<ItemsPage />} />
           <Route path="blog" element={<BlogPage />} />
           <Route path="blog/:id" element={<BlogEditorPage />} />

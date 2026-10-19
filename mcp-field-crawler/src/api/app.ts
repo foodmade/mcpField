@@ -5,6 +5,8 @@ import type { EntityKind } from '../core/types.ts'
 import type { AuthVerifier } from './auth/supabase-auth.ts'
 import { ApiError } from './http/errors.ts'
 import { localeQuerySchema, parseQuery, sitemapQuerySchema, tagsQuerySchema } from './http/query.ts'
+import type { AnalyticsCollector } from '../analytics/collector.ts'
+import { collectRoutes } from './modules/analytics/collect.routes.ts'
 import { blogRoutes } from './modules/blog/blog.routes.ts'
 import { claimRoutes } from './modules/claims/claim.routes.ts'
 import type { ClaimService } from './modules/claims/claim.service.ts'
@@ -39,6 +41,8 @@ export interface ApiDeps {
   feedback?: FeedbackService
   /** 博客（已发布的文章） */
   blog?: BlogService
+  /** 访问统计的采集（POST /api/collect） */
+  analytics?: AnalyticsCollector
   /** MCP 服务认领；没配置 GitHub 应用时只能查状态 */
   claims?: ClaimService
   /** 认领用的 cookie 是否只走 HTTPS（站点地址是 https 时） */
@@ -58,6 +62,8 @@ export function createApp(deps: ApiDeps) {
   app.use('*', async (c, next) => {
     const started = Date.now()
     await next()
+    // 访问统计每次浏览都有一条，不记请求日志
+    if (c.req.path === '/api/collect') return
     deps.logger.info({ method: c.req.method, path: c.req.path, status: c.res.status, ms: Date.now() - started }, 'request')
   })
 
@@ -87,6 +93,7 @@ export function createApp(deps: ApiDeps) {
   if (deps.comments) app.route('/api/comments', commentRoutes(deps.comments, deps.auth))
   if (deps.feedback) app.route('/api/feedback', feedbackRoutes(deps.feedback, deps.auth))
   if (deps.blog) app.route('/api/blog', blogRoutes(deps.blog))
+  if (deps.analytics) app.route('/api/collect', collectRoutes(deps.analytics))
   if (deps.claims) app.route('/api/claims', claimRoutes(deps.claims, deps.auth, { cookieSecure: deps.cookieSecure ?? true }))
   const services = Object.entries(deps.entities) as [EntityKind, EntityService<EntityKind>][]
   // GET /api/sitemap —— 各类型的条目总数；GET /api/sitemap/:kind?page&pageSize —— 分页列出 slug 与最后更新时间

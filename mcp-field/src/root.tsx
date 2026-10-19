@@ -1,5 +1,5 @@
 import { MotionConfig } from 'motion/react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation, type LinksFunction } from 'react-router'
 import geistMonoLatin from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url'
 import interLatin from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
@@ -10,6 +10,7 @@ import './index.css'
 import { ErrorPage } from './components/ErrorPage'
 import { SiteShell } from './components/SiteShell'
 import { LOCALE_META, LOCALE_REDIRECT_SCRIPT, stripLocale } from './i18n/locales'
+import { trackPageView } from './lib/analytics'
 import { THEME_SCRIPT } from './lib/theme'
 
 /** Microsoft Clarity 访问统计（项目 yzgc30k3k7，经 Bing 站长工具开通）；只在生产构建里加载，本地开发不上报 */
@@ -55,6 +56,11 @@ export function Layout({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  // 访问统计：路径变化时记一次浏览（查询参数变化、如翻页和筛选不算）；只在生产构建里发
+  const { pathname } = useLocation()
+  useEffect(() => {
+    if (import.meta.env.PROD) trackPageView(pathname)
+  }, [pathname])
   return (
     <MotionConfig reducedMotion="user">
       <Outlet />

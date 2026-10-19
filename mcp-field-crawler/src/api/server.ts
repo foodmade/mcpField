@@ -21,6 +21,7 @@ import { GithubOAuthApp } from './modules/claims/github-oauth.ts'
 import { MysqlCommentRepository } from './modules/comments/comment.repository.ts'
 import { CommentService } from './modules/comments/comment.service.ts'
 import { MysqlFeedbackRepository } from './modules/feedback/feedback.repository.ts'
+import { AnalyticsCollector } from '../analytics/collector.ts'
 import { FeedbackService } from './modules/feedback/feedback.service.ts'
 import { EntityService } from './modules/entities/entity.service.ts'
 import { LiveToolsService } from './modules/entities/live-tools.ts'
@@ -58,6 +59,10 @@ function serviceFor<K extends EntityKind>(kind: K): EntityService<K> {
 const entities: ApiDeps['entities'] = {}
 for (const kind of ENTITY_KINDS) (entities as Record<EntityKind, EntityService<EntityKind>>)[kind] = serviceFor(kind)
 
+/* 访问统计：页面浏览先进内存，每 5 秒批量写库；关闭时把剩下的写完 */
+const analytics = new AnalyticsCollector(db, new URL(config.siteUrl).hostname.replace(/^www\./, ''), logger)
+analytics.start()
+
 const githubClaim = config.githubClaim && new GithubOAuthApp({ ...config.githubClaim, callbackUrl: `${config.siteUrl}/api/claims/github/callback` })
 
 const app = createApp({
@@ -69,6 +74,7 @@ const app = createApp({
   comments: new CommentService(new MysqlCommentRepository(db)),
   feedback: new FeedbackService(new MysqlFeedbackRepository(db)),
   blog: new BlogService(new MysqlBlogRepository(db)),
+  analytics,
   claims: new ClaimService(new MysqlClaimRepository(db), githubClaim ?? null, config.githubClaim?.clientSecret ?? null, logger),
   cookieSecure: config.siteUrl.startsWith('https://'),
   auth: config.supabaseUrl ? new SupabaseAuth(config.supabaseUrl) : undefined,
@@ -89,6 +95,6 @@ const server = serve({ fetch: app.fetch, port: config.port, hostname: config.hos
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     logger.info(`收到 ${signal}，正在关闭`)
-    server.close(() => void pool.end().then(() => process.exit(0)))
+    server.close(() => void analytics.stop().finally(() => pool.end().then(() => process.exit(0))))
   })
 }

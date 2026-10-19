@@ -237,6 +237,33 @@ export interface SiteUserDetail extends SiteUser {
   recentComments: { id: number; kind: Kind; slug: string; parentId: number | null; body: string; createdAt: string; name: string | null; url: string }[]
 }
 
+/* 访问统计（admin-api/analytics.ts）：pv 浏览量、uv 访客数（多天时按天相加）、visits 访问次数 */
+export interface AnalyticsCounts {
+  pv: number
+  uv: number
+  visits: number
+}
+
+export interface AnalyticsOverview {
+  today: string
+  trend: ({ day: string } & AnalyticsCounts)[]
+}
+
+export type AnalyticsDim = 'page' | 'path' | 'source' | 'country' | 'device' | 'browser' | 'os' | 'locale'
+export type AnalyticsRange = 'today' | 'yesterday' | '7d' | '30d'
+
+export interface AnalyticsBreakdown {
+  from: string
+  to: string
+  rows: ({ value: string } & AnalyticsCounts)[]
+}
+
+export interface CrawlerStats {
+  days: string[]
+  totals: Record<string, number>
+  bots: { bot: string; total: number; e4xx: number; e5xx: number; byDay: Record<string, number> }[]
+}
+
 /** 查询参数：去掉空值 */
 export function qs(params: Record<string, string | number | undefined | null | false>): string {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false) as [string, string | number][]

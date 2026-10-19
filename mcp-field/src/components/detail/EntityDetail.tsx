@@ -23,6 +23,7 @@ import { Seo } from '../Seo'
 import { Stars } from '../directory/ServerItems'
 import { AiOverview, TagList } from './AiOverview'
 import { copyText } from './CopyButton'
+import { FeedbackDialog } from './FeedbackDialog'
 import { MarkdownReadme } from './MarkdownReadme'
 
 /*
@@ -162,6 +163,7 @@ export function EntityHeader({
   const days = daysSince(d.lastCommitAt)
   const domain = domainOf(d)
   const dev = developerOf(d)
+  const [feedback, setFeedback] = useState(false)
   return (
     <section style={{ background: `radial-gradient(60% 240% at 12% 0%, ${cat.color}1F, transparent 62%)` }}>
       <div className="mx-auto max-w-[1248px] px-6 pb-10 pt-7">
@@ -173,9 +175,10 @@ export function EntityHeader({
             <CaretRight size={12} className="shrink-0" />
             <span className="truncate text-ink">{d.name}</span>
           </nav>
-          <a href="#" className="flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] border border-fg/[0.12] px-3 text-sm text-text2 transition-[color,border-color,transform] hover:border-fg/25 hover:text-ink active:scale-[0.98]">
+          <button type="button" onClick={() => setFeedback(true)} className="flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] border border-fg/[0.12] px-3 text-sm text-text2 transition-[color,border-color,transform] hover:border-fg/25 hover:text-ink active:scale-[0.98]">
             <ChatCenteredText size={14} />{m.detail.feedback}
-          </a>
+          </button>
+          <FeedbackDialog open={feedback} onOpenChange={setFeedback} kind={kind} d={d} kindLabel={listTitle} color={cat.color} />
         </div>
         {/* 窄屏：图标和名称同一行，元信息与按钮各占整行；sm 以上恢复为图标 / 名称与元信息 / 按钮三栏 */}
         <div className="mt-6 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:mt-7 sm:flex sm:flex-wrap sm:gap-5">

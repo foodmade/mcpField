@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { Kind } from './api/entities'
 import { apiGet, apiSend } from './api/http'
-import { authConfigured, supabase, useSession } from './auth'
+import { accessToken, useSession } from './auth'
 
 export type Reaction = 'up' | 'party' | 'heart' | 'rocket'
 export type Comment = {
@@ -39,12 +39,6 @@ const pathOf = (target: CommentTarget) => {
   return `/comments/${target.slice(0, i)}/${encodeURIComponent(target.slice(i + 1))}`
 }
 
-/** 当前会话的访问令牌；未登录时为 undefined */
-async function token(): Promise<string | undefined> {
-  if (!authConfigured) return undefined
-  return (await supabase().auth.getSession()).data.session?.access_token
-}
-
 /* 页内导航上的评论数：评论区加载后写入，导航订阅；服务端渲染时为 0 */
 const counts = new Map<string, number>()
 const countListeners = new Set<() => void>()
@@ -63,7 +57,7 @@ export const useCommentCount = (target: CommentTarget) =>
 type Loaded = { key: string | null; comments: Comment[]; page: number; totalPages: number; count: number; error?: boolean }
 
 const fetchPage = async (target: CommentTarget, sort: CommentSort, page: number, signal?: AbortSignal) =>
-  apiGet<Page>(pathOf(target), { sort, page, pageSize: PAGE_SIZE }, signal, await token())
+  apiGet<Page>(pathOf(target), { sort, page, pageSize: PAGE_SIZE }, signal, await accessToken())
 
 const patch = (list: Comment[], id: string, fn: (c: Comment) => Comment): Comment[] =>
   list.map((c) => (c.id === id ? fn(c) : c.replies?.some((r) => r.id === id) ? { ...c, replies: c.replies.map((r) => (r.id === id ? fn(r) : r)) } : c))
@@ -112,17 +106,17 @@ export function useComments(target: CommentTarget) {
   }
 
   const add = async (body: string) => {
-    const { data } = await apiSend<{ data: Comment }>('POST', pathOf(target), { body }, await token())
+    const { data } = await apiSend<{ data: Comment }>('POST', pathOf(target), { body }, await accessToken())
     edit((list) => (sort === 'oldest' ? [...list, data] : [data, ...list]), 1)
   }
 
   const reply = async (parentId: string, body: string) => {
-    const { data } = await apiSend<{ data: Comment }>('POST', pathOf(target), { body, parentId: Number(parentId) }, await token())
+    const { data } = await apiSend<{ data: Comment }>('POST', pathOf(target), { body, parentId: Number(parentId) }, await accessToken())
     edit((list) => list.map((c) => (c.id === parentId ? { ...c, replies: [...(c.replies ?? []), data] } : c)), 1)
   }
 
   const remove = async (id: string) => {
-    await apiSend('DELETE', `/comments/${id}`, undefined, await token())
+    await apiSend('DELETE', `/comments/${id}`, undefined, await accessToken())
     const top = comments.find((c) => c.id === id)
     edit((list) => list.filter((c) => c.id !== id).map((c) => (c.replies?.some((r) => r.id === id) ? { ...c, replies: c.replies.filter((r) => r.id !== id) } : c)), -(top ? 1 + (top.replies?.length ?? 0) : 1))
   }
@@ -139,7 +133,7 @@ export function useComments(target: CommentTarget) {
     })
     edit((list) => patch(list, id, (x) => flip(x, on)))
     try {
-      const { data } = await apiSend<{ data: Pick<Comment, 'reactions' | 'mine'> }>(on ? 'PUT' : 'DELETE', `/comments/${id}/reactions/${reaction}`, undefined, await token())
+      const { data } = await apiSend<{ data: Pick<Comment, 'reactions' | 'mine'> }>(on ? 'PUT' : 'DELETE', `/comments/${id}/reactions/${reaction}`, undefined, await accessToken())
       edit((list) => patch(list, id, (x) => ({ ...x, ...data })))
     } catch (error) {
       edit((list) => patch(list, id, (x) => flip(x, !on)))

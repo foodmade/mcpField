@@ -1,8 +1,8 @@
 import { bigint, index, mysqlTable, text, uniqueIndex, varchar, type AnyMySqlColumn } from 'drizzle-orm/mysql-core'
-import { at, kindCol, pk, ref, timestamps } from './columns.ts'
+import { at, kindCol, pk, ref, sha256, timestamps } from './columns.ts'
 
 /*
- * 社区层（community）：网站用户产生的数据（评论、认领），由 API 写入，采集任务不碰。
+ * 社区层（community）：网站用户产生的数据（评论、认领、反馈），由 API 写入，采集任务不碰。
  * 评论按 类型 + slug 关联条目，不加外键：发布表每次 publish 整体重建，slug 会沿用，但行 id 会变。
  * 用户是 Supabase Auth 的账号（user_id 为其 UUID），昵称和头像在发表时从登录令牌里取一份存下来。
  */
@@ -70,4 +70,33 @@ export const entityClaims = mysqlTable(
     ...timestamps(),
   },
   (t) => [uniqueIndex('uq_entity_claims_target').on(t.kind, t.slug), index('ix_entity_claims_claimed').on(t.claimedAt)],
+)
+
+/**
+ * 详情页的问题反馈：不用登录也能提交；登录了的记下账号。只有后台能看，管理员处理后标记为已处理或忽略。
+ * 不存 IP 原文，只存它的 SHA-256（按 IP 限流用）。
+ */
+export const feedback = mysqlTable(
+  'feedback',
+  {
+    id: pk(),
+    kind: kindCol(),
+    slug: varchar('slug', { length: 191 }).notNull(),
+    /** wrong_info 信息有误 / broken_link 链接失效 / install 安装配置不能用 / duplicate 重复收录 / suggestion 功能建议 / other 其他 */
+    type: varchar('type', { length: 16 }).notNull(),
+    body: text('body').notNull(),
+    /** 未登录时选填的联系邮箱 */
+    email: varchar('email', { length: 255 }),
+    /** 登录了的网站账号（Supabase Auth 的 UUID）和当时的昵称 */
+    userId: varchar('user_id', { length: 36 }),
+    userName: varchar('user_name', { length: 100 }),
+    ipHash: sha256('ip_hash'),
+    /** open 待处理 / resolved 已处理 / ignored 忽略 */
+    status: varchar('status', { length: 16 }).notNull().default('open'),
+    handledAt: at('handled_at'),
+    /** 处理的后台账号 */
+    handledBy: varchar('handled_by', { length: 64 }),
+    ...timestamps(),
+  },
+  (t) => [index('ix_feedback_status').on(t.status, t.id), index('ix_feedback_target').on(t.kind, t.slug), index('ix_feedback_ip_created').on(t.ipHash, t.createdAt)],
 )

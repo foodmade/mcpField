@@ -22,7 +22,7 @@ const DOCS: Record<Locale, Doc> = {
   zh: {
     title: '隐私政策',
     description: 'MCP Field 如何收集、使用和保护你的信息：浏览网站、使用 GitHub、Google 或邮箱验证码登录时会处理哪些信息，以及你可以怎样管理这些信息。',
-    effective: '生效日期：2026 年 10 月 18 日',
+    effective: '生效日期：2026 年 10 月 19 日',
     intro: 'MCP Field（mcpfield.com，以下称“我们”）是一个 MCP 服务与开发工具的导航网站。本政策说明你浏览网站和使用账号功能时，我们会处理哪些信息、为什么处理、交给谁处理，以及你可以怎样管理这些信息。',
     toc: '目录',
     sections: [
@@ -32,6 +32,7 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           '浏览网站不需要注册或登录。我们不使用广告追踪工具，也不出售任何信息。',
           '为了了解网站的使用情况并改进体验，我们使用 Microsoft Clarity 统计访问数据，包括访问的页面、点击和滚动等操作、设备与浏览器类型、大致地区。Clarity 会在你的浏览器里设置 Cookie 来区分访问，并按 Microsoft 隐私声明（privacy.microsoft.com）处理这些数据。我们只查看汇总后的统计结果，不用它识别具体的人。',
+          '在详情页提交反馈时，我们会保存你选的问题类型、填写的说明，以及未登录时选填的联系邮箱；登录了的会记下你的账号。反馈只有站点管理员能看到，只用于核对和处理问题，需要时通过你留的邮箱联系你。为防止重复提交，我们只保存你 IP 地址的哈希值，不保存 IP 本身。',
           '为了保障安全和排查故障，Cloudflare（我们使用的 CDN 和安全服务）与我们的服务器会自动记录访问日志，包括 IP 地址、浏览器类型、访问的网址和时间。这些日志只用于防范攻击和定位问题，在排查所需的期限过后删除。',
         ],
       },
@@ -125,7 +126,7 @@ const DOCS: Record<Locale, Doc> = {
   en: {
     title: 'Privacy Policy',
     description: 'How MCP Field collects, uses and protects your information when you browse the site or sign in with GitHub, Google or an email code, and the choices you have.',
-    effective: 'Effective October 18, 2026',
+    effective: 'Effective October 19, 2026',
     intro: 'MCP Field (mcpfield.com, “we”) is a directory of MCP servers and developer tools. This policy explains what information we handle when you browse the site or use an account, why we handle it, who processes it for us, and how you can control it.',
     toc: 'On this page',
     sections: [
@@ -135,6 +136,7 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           "You can browse the site without an account. We don't use advertising trackers, and we never sell information.",
           'To understand how the site is used and improve it, we use Microsoft Clarity to collect usage data, including the pages you visit, interactions such as clicks and scrolling, device and browser type, and approximate location. Clarity sets cookies in your browser to tell visits apart and processes this data under the Microsoft Privacy Statement (privacy.microsoft.com). We only look at aggregated statistics and don’t use it to identify individuals.',
+          'When you send feedback from a project page, we store the issue type you choose, the details you write and, if you aren’t signed in, the optional email you leave; if you are signed in, we link it to your account. Only site admins can see feedback. We use it only to check and fix the issue, and to contact you at that email if needed. To prevent repeated submissions we keep only a hash of your IP address, not the address itself.',
           'To keep the site secure and fix problems, Cloudflare (our CDN and security provider) and our servers automatically keep access logs, including IP address, browser type, the pages requested and the time. These logs are used only to block attacks and diagnose issues, and are deleted once they are no longer needed for that.',
         ],
       },
@@ -228,7 +230,7 @@ const DOCS: Record<Locale, Doc> = {
   ja: {
     title: 'プライバシーポリシー',
     description: 'MCP Field がサイトの閲覧時や、GitHub・Google・メール認証コードでのログイン時にどのような情報を扱い、どう保護するか、またご利用者が管理できることについて説明します。',
-    effective: '施行日：2026 年 10 月 18 日',
+    effective: '施行日：2026 年 10 月 19 日',
     intro: 'MCP Field（mcpfield.com、以下「当サイト」）は、MCP サーバーと開発ツールのディレクトリです。本ポリシーでは、サイトの閲覧時やアカウント機能の利用時に当サイトが扱う情報、その目的、処理を委託する事業者、そしてご自身で情報を管理する方法について説明します。',
     toc: '目次',
     sections: [
@@ -238,6 +240,7 @@ const DOCS: Record<Locale, Doc> = {
         blocks: [
           'サイトの閲覧に登録やログインは不要です。広告トラッキングは使用しておらず、情報を販売することもありません。',
           'サイトの利用状況を把握して改善するため、Microsoft Clarity でアクセスデータを収集しています。閲覧したページ、クリックやスクロールなどの操作、デバイスとブラウザの種類、おおよその地域が含まれます。Clarity は訪問を区別するためにブラウザに Cookie を設定し、Microsoft プライバシーに関する声明（privacy.microsoft.com）に従ってデータを処理します。当サイトは集計された統計のみを確認し、特定の個人の識別には使用しません。',
+          'プロジェクトページからフィードバックを送信すると、選択した問題の種類、入力した詳細、未ログイン時に任意で入力したメールアドレスを保存します。ログイン中の場合はアカウントと関連付けます。フィードバックはサイト管理者のみが閲覧でき、問題の確認と対応、必要に応じたメールでのご連絡にのみ使用します。重複送信を防ぐため、IP アドレスそのものではなくハッシュ値のみを保存します。',
           'セキュリティの確保と障害対応のため、Cloudflare（当サイトが利用する CDN・セキュリティサービス）と当サイトのサーバーは、IP アドレス、ブラウザの種類、アクセスした URL、日時を含むアクセスログを自動的に記録します。これらのログは攻撃の防止と問題の調査にのみ使用し、必要な期間が過ぎたら削除します。',
         ],
       },

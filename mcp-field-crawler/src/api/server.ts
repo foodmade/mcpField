@@ -20,6 +20,8 @@ import { ClaimService } from './modules/claims/claim.service.ts'
 import { GithubOAuthApp } from './modules/claims/github-oauth.ts'
 import { MysqlCommentRepository } from './modules/comments/comment.repository.ts'
 import { CommentService } from './modules/comments/comment.service.ts'
+import { MysqlFeedbackRepository } from './modules/feedback/feedback.repository.ts'
+import { FeedbackService } from './modules/feedback/feedback.service.ts'
 import { EntityService } from './modules/entities/entity.service.ts'
 import { LiveToolsService } from './modules/entities/live-tools.ts'
 import { PRESENTERS } from './modules/entities/presenters.ts'
@@ -65,6 +67,7 @@ const app = createApp({
   field: new FieldService({ server: entities.server!, skill: entities.skill! }),
   tags: new TagService(new PublishedTagReader(db)),
   comments: new CommentService(new MysqlCommentRepository(db)),
+  feedback: new FeedbackService(new MysqlFeedbackRepository(db)),
   blog: new BlogService(new MysqlBlogRepository(db)),
   claims: new ClaimService(new MysqlClaimRepository(db), githubClaim ?? null, config.githubClaim?.clientSecret ?? null, logger),
   cookieSecure: config.siteUrl.startsWith('https://'),

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useI18n } from '../i18n/context'
 import { apiGet, apiSend } from './api/http'
-import { authConfigured, supabase, useSession } from './auth'
+import { accessToken, useSession } from './auth'
 
 /* MCP 服务认领：与后端 mcp-field-crawler/src/api/modules/claims 对应 */
 
@@ -20,11 +20,6 @@ export type ClaimResult = (typeof CLAIM_RESULTS)[number] | 'failed'
 
 /** 登录后回到详情页、自动继续认领的标记 */
 const RESUME = 'start'
-
-async function token(): Promise<string | undefined> {
-  if (!authConfigured) return undefined
-  return (await supabase().auth.getSession()).data.session?.access_token
-}
 
 /** 去掉地址里的 claim 参数（不触发路由的数据重新加载） */
 function stripClaimParam(): string {
@@ -53,7 +48,7 @@ export function useClaim(slug: string) {
   useEffect(() => {
     if (pending) return
     const controller = new AbortController()
-    void token()
+    void accessToken()
       .then((t) => apiGet<{ data: ClaimStatus }>(`/claims/servers/${encodeURIComponent(slug)}`, {}, controller.signal, t))
       .then((r) => setStatus(r.data))
       .catch(() => controller.signal.aborted || setStatus(null))
@@ -78,7 +73,7 @@ export function useClaim(slug: string) {
     setResult(null)
     try {
       const returnTo = stripClaimParam()
-      const { data } = await apiSend<{ data: { url: string } }>('POST', `/claims/servers/${encodeURIComponent(slug)}/start`, { returnTo }, await token())
+      const { data } = await apiSend<{ data: { url: string } }>('POST', `/claims/servers/${encodeURIComponent(slug)}/start`, { returnTo }, await accessToken())
       window.location.assign(data.url)
     } catch (error) {
       setBusy(false)

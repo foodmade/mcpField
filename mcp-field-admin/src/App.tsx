@@ -9,6 +9,7 @@ import { BlogEditorPage } from './pages/BlogEditor'
 import { ClaimsPage } from './pages/Claims'
 import { DailyPage } from './pages/Daily'
 import { DashboardPage } from './pages/Dashboard'
+import { FeedbackPage } from './pages/Feedback'
 import { ItemsPage } from './pages/Items'
 import { LoginPage } from './pages/Login'
 import { LogsPage } from './pages/Logs'
@@ -40,6 +41,7 @@ export function App() {
           <Route path="blog" element={<BlogPage />} />
           <Route path="blog/:id" element={<BlogEditorPage />} />
           <Route path="claims" element={<ClaimsPage />} />
+          <Route path="feedback" element={<FeedbackPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />

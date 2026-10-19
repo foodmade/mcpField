@@ -23,6 +23,12 @@ export function supabase(): SupabaseClient {
   return client
 }
 
+/** 当前会话的访问令牌（调用需要登录的接口时带上）；未登录时为 undefined */
+export async function accessToken(): Promise<string | undefined> {
+  if (!authConfigured) return undefined
+  return (await supabase().auth.getSession()).data.session?.access_token
+}
+
 export type SocialProvider = 'github' | 'google'
 
 /** 验证码位数和有效期，需与 Supabase 后台的 Email OTP Length / Expiration 一致 */

@@ -15,6 +15,7 @@ import { RUNNABLE_STEPS, type AdminActions } from './actions.ts'
 import { adminBlogRoutes, type BlogIndexNowHooks, type BlogTranslations } from './blog.ts'
 import { blogAiRoutes } from './blog-ai.ts'
 import { adminClaimRoutes } from './claims.ts'
+import { adminFeedbackRoutes } from './feedback.ts'
 import { adminUserRoutes } from './users.ts'
 import { SettingsStore, settingsRoutes } from './settings.ts'
 import { SESSION_TTL_MS, type AdminAuth, type AdminUser } from './auth.ts'
@@ -190,6 +191,7 @@ export function createAdminApp(deps: AdminApiDeps) {
   app.route('/api/admin/blog/ai', blogAiRoutes({ db, settings, storage: deps.storage, logger: deps.logger }))
   app.route('/api/admin/users', adminUserRoutes({ db, logger: deps.logger, siteUrl: deps.siteUrl, sync: deps.siteUsers }))
   app.route('/api/admin/claims', adminClaimRoutes({ db, logger: deps.logger, siteUrl: deps.siteUrl }))
+  app.route('/api/admin/feedback', adminFeedbackRoutes({ db, logger: deps.logger, siteUrl: deps.siteUrl }))
   app.route('/api/admin/blog', adminBlogRoutes({ db, storage: deps.storage, logger: deps.logger, siteUrl: deps.siteUrl, translations: deps.blogTranslations, indexNow: deps.blogIndexNow }))
 
   app.notFound((c) => c.json({ error: { code: 'not_found', message: `接口不存在：${c.req.method} ${c.req.path}` } }, 404))

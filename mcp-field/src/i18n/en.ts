@@ -15,7 +15,7 @@ export const en: Messages = {
     login: 'Log in',
     account: 'Account',
     logout: 'Log out',
-    tabs: { discover: 'Discover', servers: 'Servers', remote: 'Remote', clients: 'Clients', cli: 'CLI', loops: 'Loops', skills: 'Skills', agents: 'Agents', feed: 'Feed' },
+    tabs: { discover: 'Discover', servers: 'Servers', remote: 'Remote', clients: 'Clients', cli: 'CLI', loops: 'Loops', skills: 'Skills', agents: 'Agents' },
   },
   search: {
     title: 'Site search',

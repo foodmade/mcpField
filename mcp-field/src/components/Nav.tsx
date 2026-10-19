@@ -1,6 +1,6 @@
 import { motion, useMotionValueEvent, useScroll, useSpring } from 'motion/react'
 import {
-  AppWindow, ArrowsClockwise, Compass, Globe, Lightning, MagnifyingGlass, Moon, PlugsConnected, Robot, Rss, Sun, TerminalWindow, type Icon,
+  AppWindow, ArrowsClockwise, Compass, Globe, Lightning, MagnifyingGlass, Moon, PlugsConnected, Robot, Sun, TerminalWindow, type Icon,
 } from '@phosphor-icons/react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
@@ -17,10 +17,10 @@ import { LocaleBanner } from './LocaleBanner'
 import { Logo } from './Logo'
 import { SearchDialog, useCmdK } from './SearchDialog'
 
-type TabKey = 'discover' | 'servers' | 'remote' | 'clients' | 'cli' | 'loops' | 'skills' | 'agents' | 'feed'
-type Tab = { key: TabKey; icon: Icon; to?: string; count?: (s: SiteStats) => number }
+type TabKey = 'discover' | 'servers' | 'remote' | 'clients' | 'cli' | 'loops' | 'skills' | 'agents'
+type Tab = { key: TabKey; icon: Icon; to: string; count?: (s: SiteStats) => number }
 
-/** 顶部栏目按用途分组：发现 | MCP（服务、远程、客户端）| Agent 工具 | 动态；没有 to 的栏目尚未上线 */
+/** 顶部栏目按用途分组：发现 | MCP（服务、远程、客户端）| Agent 工具 */
 const NAV_GROUPS: Tab[][] = [
   [{ key: 'discover', to: '/', icon: Compass }],
   [
@@ -34,7 +34,6 @@ const NAV_GROUPS: Tab[][] = [
     { key: 'loops', to: '/loops', icon: ArrowsClockwise, count: (s) => s.totals.loop },
     { key: 'agents', to: '/agents', icon: Robot, count: (s) => s.totals.agent },
   ],
-  [{ key: 'feed', icon: Rss }],
 ]
 
 /** 明暗主题切换：深色时显示太阳（点了切到明亮），明亮时显示月亮 */
@@ -110,7 +109,7 @@ export function Nav() {
                     return (
                       <Link
                         key={t.key}
-                        to={t.to ? to(t.to) : '#'}
+                        to={to(t.to)}
                         onMouseEnter={() => setHover(t.key)}
                         aria-current={isActive ? 'page' : undefined}
                         className={clsx(
@@ -124,7 +123,6 @@ export function Nav() {
                         <t.icon size={15} weight={isActive ? 'bold' : 'regular'} className={clsx('relative', isActive ? 'text-accent' : 'text-text3')} />
                         <span className="relative">{m.nav.tabs[t.key]}</span>
                         {n !== null && <span className="relative font-mono text-[11px] font-normal text-text3">{compactNumber(n)}</span>}
-                        {t.key === 'feed' && <span className="relative size-1.5 rounded-full bg-accent" />}
                       </Link>
                     )
                   })}

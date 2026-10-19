@@ -15,7 +15,7 @@ export const ja: Messages = {
     login: 'ログイン',
     account: 'アカウント',
     logout: 'ログアウト',
-    tabs: { discover: '発見', servers: 'サーバー', remote: 'リモート', clients: 'クライアント', cli: 'CLI', loops: 'Loops', skills: 'Skills', agents: 'Agents', feed: 'フィード' },
+    tabs: { discover: '発見', servers: 'サーバー', remote: 'リモート', clients: 'クライアント', cli: 'CLI', loops: 'Loops', skills: 'Skills', agents: 'Agents' },
   },
   search: {
     title: 'サイト内検索',

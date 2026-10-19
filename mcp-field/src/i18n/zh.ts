@@ -13,7 +13,7 @@ export const zh = {
     login: '登录',
     account: '账号',
     logout: '退出登录',
-    tabs: { discover: '发现', servers: '服务', remote: '远程服务', clients: '客户端', cli: 'CLI', loops: 'Loops', skills: 'Skills', agents: 'Agents', feed: '动态' },
+    tabs: { discover: '发现', servers: '服务', remote: '远程服务', clients: '客户端', cli: 'CLI', loops: 'Loops', skills: 'Skills', agents: 'Agents' },
   },
   search: {
     title: '全站搜索',

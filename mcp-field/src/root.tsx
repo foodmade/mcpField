@@ -9,7 +9,7 @@ import '@fontsource-variable/geist-mono'
 import './index.css'
 import { ErrorPage } from './components/ErrorPage'
 import { SiteShell } from './components/SiteShell'
-import { LOCALE_META, stripLocale } from './i18n/locales'
+import { LOCALE_META, LOCALE_REDIRECT_SCRIPT, stripLocale } from './i18n/locales'
 import { THEME_SCRIPT } from './lib/theme'
 
 /** Microsoft Clarity 访问统计（项目 yzgc30k3k7，经 Bing 站长工具开通）；只在生产构建里加载，本地开发不上报 */
@@ -31,6 +31,8 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#0A0B0D" />
+        {/* 非中文用户打开无前缀地址时，在绘制前换到对应语言（见 LOCALE_REDIRECT_SCRIPT） */}
+        <script dangerouslySetInnerHTML={{ __html: LOCALE_REDIRECT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         {/* 有 JS 时才让入场动画先停在起始状态（见 index.css 的 .js 规则）；没有 JS 时直接显示最终结果 */}
         <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />

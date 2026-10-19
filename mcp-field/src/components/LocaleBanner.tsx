@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowRight, Translate, X } from '@phosphor-icons/react'
+import { ArrowRight, Globe, X } from '@phosphor-icons/react'
 import { useSyncExternalStore } from 'react'
 import { Link } from 'react-router'
 import { useI18n, useLocaleSwitch } from '../i18n/context'
@@ -44,7 +44,7 @@ export function LocaleBanner() {
           style={{ background: 'linear-gradient(90deg, #0E7A5C33, #2B7FFF26)' }}
         >
           <div className="mx-auto flex max-w-[1248px] items-center gap-3 px-6 py-2 text-sm">
-            <Translate size={15} className="shrink-0 text-accent" />
+            <Globe size={15} className="shrink-0 text-accent" />
             <span className="flex-1 truncate text-ink/90">{t.text}</span>
             <Link to={switchTo(target)} className="group flex shrink-0 items-center gap-1 font-medium text-mint hover:text-ink">
               {t.switch}

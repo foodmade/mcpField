@@ -1,6 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { AnimatePresence, motion } from 'motion/react'
-import { CaretDown, Check, Translate } from '@phosphor-icons/react'
+import { CaretDown, Check, Globe } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import clsx from 'clsx'
@@ -23,7 +23,7 @@ export function LanguageMenu({ variant = 'icon' }: { variant?: 'icon' | 'text' }
             : 'flex items-center gap-1.5 text-xs text-text2 hover:text-ink',
         )}
       >
-        <Translate size={variant === 'icon' ? 17 : 14} />
+        <Globe size={variant === 'icon' ? 17 : 14} />
         {variant === 'text' && (
           <>
             {LOCALE_META[locale].label}

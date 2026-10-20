@@ -26,7 +26,7 @@ import { dailyRun, dashboard, itemFacets, listItems, runDetail } from './queries
  * 管理后台接口（独立进程，只监听本机，经 Nginx 的 admin.mcpfield.com 访问）：
  *   POST /api/admin/auth/login | logout | password，GET /api/admin/auth/me
  *   GET  /api/admin/dashboard、/api/admin/daily?date、/api/admin/runs/:id、/api/admin/items、/api/admin/items/facets、/api/admin/logs/:name
- *   POST /api/admin/actions/run（单步）、/api/admin/actions/daily（整套每日任务）
+ *   POST /api/admin/actions/run（单步，readme 可带 retryFailed 补跑失败片段）、/api/admin/actions/daily（整套每日任务）
  *   /api/admin/blog/*：博客文章的增删改查、图片上传（见 blog.ts）；/api/admin/blog/ai/*：AI 生成（见 blog-ai.ts）
  *   /api/admin/settings/*：后台可修改的配置（博客 AI 的模型服务，见 settings.ts）
  *   /api/admin/claims/*：MCP 服务认领记录、撤销（见 claims.ts）
@@ -174,9 +174,9 @@ export function createAdminApp(deps: AdminApiDeps) {
   })
 
   app.post('/api/admin/actions/run', async (c) => {
-    const { step } = await body(c, z.object({ step: z.enum(RUNNABLE_STEPS) }))
-    await deps.actions.runStep(step)
-    deps.logger.info({ username: c.get('user').username, step }, '后台手动运行')
+    const { step, retryFailed } = await body(c, z.object({ step: z.enum(RUNNABLE_STEPS), retryFailed: z.boolean().default(false) }))
+    await deps.actions.runStep(step, { retryFailed })
+    deps.logger.info({ username: c.get('user').username, step, retryFailed }, '后台手动运行')
     return c.json({ data: { ok: true } })
   })
 

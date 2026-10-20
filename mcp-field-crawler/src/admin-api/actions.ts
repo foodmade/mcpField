@@ -8,12 +8,15 @@ import { ApiError } from '../api/http/errors.ts'
 /*
  * 后台的操作：手动运行某一步、手动跑一遍每日任务、读运行日志。
  * 与 mcpfield run / mcpfield data 的做法一致：nice 降低优先级、日志追加到 logs/ 下、同名命令同时只允许一个；
- * 只能运行白名单里的步骤，不接受任何参数。
+ * 只能运行白名单里的步骤；参数只接受补跑失败片段（--retry-failed）这一个。
  */
 
 /** 可以在后台手动运行的步骤（每日任务的步骤 + 条目状态同步） */
 export const RUNNABLE_STEPS = ['crawl', 'classify', 'probe', 'publish', 'assets', 'owner-icons', 'github', 'translate', 'translate-tools', 'describe', 'overview', 'readme', 'admin-sync'] as const
 export type RunnableStep = (typeof RUNNABLE_STEPS)[number]
+
+/** 支持补跑失败片段（--retry-failed）的步骤：内容上多次失败的片段平时跳过，普通重新运行不会再翻 */
+export const RETRYABLE_STEPS: readonly RunnableStep[] = ['readme']
 
 const pexec = promisify(execFile)
 
@@ -44,10 +47,11 @@ export class AdminActions {
   constructor(private readonly logDir: string) {}
 
   /** 单独运行某一步（crawl 跑默认的两个来源，由 daily.sh 负责，这里换成只跑这一步的每日任务） */
-  async runStep(step: RunnableStep): Promise<void> {
+  async runStep(step: RunnableStep, options: { retryFailed?: boolean } = {}): Promise<void> {
+    if (options.retryFailed && !RETRYABLE_STEPS.includes(step)) throw ApiError.badRequest(`${step} 不支持补跑失败片段`)
     if (step === 'crawl') return this.runDaily(['crawl'])
     if (await processRunning(`cli/index.ts ${step}( |$)`)) throw new ApiError(409, 'already_running', `${step} 已经在运行`)
-    detached('nice', ['-n', '10', 'npm', 'run', '--silent', 'crawler', '--', step], join(this.logDir, `run-${step}.log`))
+    detached('nice', ['-n', '10', 'npm', 'run', '--silent', 'crawler', '--', step, ...(options.retryFailed ? ['--retry-failed'] : [])], join(this.logDir, `run-${step}.log`))
   }
 
   /** 跑一遍每日任务（可以只跑其中几步）；和定时任务共用一把锁，已经在跑时不会重复启动 */

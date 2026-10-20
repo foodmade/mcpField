@@ -29,8 +29,8 @@ export function AccountPage() {
   return (
     <>
       <PageHeader title="账号设置" />
-      <div className="flex max-w-[880px] gap-5 px-8 pb-10 pt-6">
-        <Card title="当前账号" className="w-[320px] shrink-0">
+      <div className="flex max-w-[880px] flex-col gap-4 px-4 pb-10 pt-4 md:flex-row md:gap-5 md:px-8 md:pt-6">
+        <Card title="当前账号" className="md:w-[320px] md:shrink-0">
           <dl className="grid grid-cols-[80px_1fr] gap-y-2.5 text-[13px]">
             <dt className="text-text3">用户名</dt>
             <dd className="font-semibold">{user.username}</dd>

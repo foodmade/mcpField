@@ -1,18 +1,19 @@
-import { ArrowsClockwise, CalendarCheck, ChartBar, ChatCenteredText, Database, MagicWand, Notebook, SealCheck, SignOut, SquaresFour, TerminalWindow, UserGear, Users } from '@phosphor-icons/react'
+import { ArrowsClockwise, CalendarCheck, ChartBar, ChatCenteredText, Database, List, MagicWand, Notebook, SealCheck, SignOut, SquaresFour, TerminalWindow, UserGear, Users } from '@phosphor-icons/react'
 import clsx from 'clsx'
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { useApi, type AdminUser, type Dashboard } from '../lib/api'
 import { compact, todayBeijing, weekday } from '../lib/format'
 import { KIND_LABEL, KINDS } from '../lib/labels'
 
-/* 后台框架：左侧导航（带今日异常角标、各类型条目数）+ 顶栏 + 页面 */
+/* 后台框架：左侧导航（带今日异常角标、各类型条目数）+ 顶栏 + 页面；窄屏（< lg）导航收成抽屉，从顶栏的菜单按钮打开 */
 
 interface Shell {
   user: AdminUser
   logout: () => void
   /** 侧栏数据（来自仪表盘接口），各页面改动后可以刷新 */
   summary?: Dashboard
+  openNav: () => void
 }
 
 const ShellContext = createContext<Shell | null>(null)
@@ -37,11 +38,20 @@ export function Layout({ user, logout }: { user: AdminUser; logout: () => void }
   const location = useLocation()
   const kindParam = new URLSearchParams(location.search).get('kind')
   const failedSteps = summary?.batch?.steps.filter((s) => s.status === 'failed' || s.status === 'interrupted').length ?? 0
+  const [navOpen, setNavOpen] = useState(false)
+  // 换页就收起抽屉
+  useEffect(() => setNavOpen(false), [location.pathname, location.search])
 
   return (
-    <ShellContext.Provider value={{ user, logout, summary }}>
+    <ShellContext.Provider value={{ user, logout, summary, openNav: () => setNavOpen(true) }}>
       <div className="flex min-h-screen">
-        <aside className="sticky top-0 flex h-screen w-58 shrink-0 flex-col gap-6 border-r border-line bg-surface px-3.5 py-5">
+        {navOpen && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setNavOpen(false)} />}
+        <aside
+          className={clsx(
+            'fixed inset-y-0 left-0 z-40 flex h-dvh w-58 shrink-0 flex-col gap-6 overflow-y-auto border-r border-line bg-surface px-3.5 py-5 transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0',
+            !navOpen && '-translate-x-full',
+          )}
+        >
           <Link to="/" className="flex items-center gap-2.5 px-2">
             <span className="flex size-8 items-center justify-center rounded-lg bg-linear-135 from-[#3ddc97] to-[#2b7fff] text-[13px] font-bold text-[#06110d]">MF</span>
             <span>
@@ -100,20 +110,33 @@ export function Layout({ user, logout }: { user: AdminUser; logout: () => void }
 export function PageHeader({ title, sub, actions, onRefresh }: { title: string; sub?: ReactNode; actions?: ReactNode; onRefresh?: () => void }) {
   const today = todayBeijing()
   return (
-    <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b border-line bg-bg/90 px-8 backdrop-blur">
-      <div className="flex min-w-0 items-center gap-3">
-        <h1 className="text-lg font-semibold">{title}</h1>
-        <span className="truncate text-[13px] text-text3">{sub ?? `${today} ${weekday(today)} · 北京时间`}</span>
+    <header className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-3 border-b border-line bg-bg/90 px-4 py-2 backdrop-blur md:h-16 md:gap-4 md:px-8 md:py-0">
+      <div className="flex min-w-0 items-center gap-2 md:gap-3">
+        <MenuButton />
+        <div className="flex min-w-0 flex-col md:flex-row md:items-center md:gap-3">
+          <h1 className="whitespace-nowrap text-base font-semibold md:text-lg">{title}</h1>
+          <span className="truncate text-xs text-text3 md:text-[13px]">{sub ?? `${today} ${weekday(today)} · 北京时间`}</span>
+        </div>
       </div>
-      <div className="flex items-center gap-2.5">
+      <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
         {actions}
         {onRefresh && (
-          <button onClick={onRefresh} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-text2 hover:bg-white/5 hover:text-ink">
+          <button onClick={onRefresh} title="刷新" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[13px] text-text2 hover:bg-white/5 hover:text-ink md:px-3">
             <ArrowsClockwise className="size-[15px]" />
-            刷新
+            <span className="max-md:hidden">刷新</span>
           </button>
         )}
       </div>
     </header>
+  )
+}
+
+/** 窄屏顶栏左边的菜单按钮，打开导航抽屉 */
+export function MenuButton() {
+  const { openNav } = useShell()
+  return (
+    <button onClick={openNav} className="-ml-1.5 rounded-md p-1.5 text-text2 hover:bg-white/5 hover:text-ink lg:hidden" aria-label="打开导航">
+      <List className="size-5" />
+    </button>
   )
 }

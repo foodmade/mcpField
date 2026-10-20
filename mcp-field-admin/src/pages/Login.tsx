@@ -25,7 +25,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: AdminUser) => void }) {
   const field = 'flex h-11 items-center gap-2.5 rounded-lg border border-line bg-bg px-3 focus-within:border-accent'
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4">
-      <form onSubmit={submit} className="flex w-full max-w-[400px] flex-col gap-7 rounded-2xl border border-line bg-surface p-9">
+      <form onSubmit={submit} className="flex w-full max-w-[400px] flex-col gap-7 rounded-2xl border border-line bg-surface p-6 sm:p-9">
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2.5">
             <span className="flex size-8 items-center justify-center rounded-lg bg-linear-135 from-[#3ddc97] to-[#2b7fff] text-[13px] font-bold text-[#06110d]">MF</span>

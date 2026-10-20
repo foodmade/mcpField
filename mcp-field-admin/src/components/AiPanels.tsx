@@ -27,9 +27,9 @@ export interface AllParams extends BodyParams {
 
 function Modal({ title, sub, onClose, children, footer }: { title: string; sub?: string; onClose: () => void; children: ReactNode; footer: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="flex max-h-full w-[560px] flex-col rounded-2xl border border-line bg-surface shadow-2xl">
-        <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-6" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="flex max-h-full w-full max-w-[560px] flex-col rounded-2xl border border-line bg-surface shadow-2xl">
+        <header className="flex items-start justify-between gap-4 border-b border-line px-4 py-4 sm:px-6">
           <div>
             <h2 className="flex items-center gap-2 text-base font-semibold">
               <MagicWand className="size-[18px] text-accent" />
@@ -41,8 +41,8 @@ function Modal({ title, sub, onClose, children, footer }: { title: string; sub?:
             <X className="size-4" />
           </button>
         </header>
-        <div className="flex flex-col gap-5 overflow-y-auto px-6 py-5">{children}</div>
-        <footer className="flex justify-end gap-2.5 border-t border-line px-6 py-4">{footer}</footer>
+        <div className="flex flex-col gap-5 overflow-y-auto px-4 py-5 sm:px-6">{children}</div>
+        <footer className="flex flex-wrap justify-end gap-2.5 border-t border-line px-4 py-4 sm:px-6">{footer}</footer>
       </div>
     </div>
   )
@@ -252,7 +252,7 @@ export function ProgressPanel({ progress, onStop, onClose }: { progress: Progres
   const running = progress.done === null
   const current = progress.stages.at(-1)?.stage
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex w-[340px] flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-2xl">
+    <div className="fixed inset-x-3 bottom-3 z-40 flex flex-col sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[340px] gap-3 rounded-xl border border-line bg-surface p-4 shadow-2xl">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2 text-[13px] font-semibold">
           {running ? <CircleNotch className="size-4 animate-spin text-accent" /> : progress.done ? <CheckCircle className="size-4 text-ok" /> : <WarningCircle className="size-4 text-err" />}

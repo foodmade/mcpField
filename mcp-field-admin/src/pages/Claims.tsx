@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { PageHeader } from '../components/Layout'
-import { Button, Empty, ErrorBox, Loading, Pager } from '../components/ui'
+import { Button, Empty, ErrorBox, Loading, Pager, STACKED } from '../components/ui'
 import { api, qs, useApi } from '../lib/api'
 import { dateTime, num } from '../lib/format'
 
@@ -77,21 +77,21 @@ export function ClaimsPage() {
   return (
     <>
       <PageHeader title="认领管理" sub={data ? `共 ${num(data.counts.all)} 条 · 撤销后详情页立即生效，网站列表最多 10 分钟后更新` : undefined} onRefresh={reload} />
-      <div className="flex flex-col gap-4 px-8 pb-10 pt-6">
-        <div className="flex items-center justify-between gap-4">
-          <nav className="flex gap-0.5 rounded-[10px] bg-subtle p-[3px]">
+      <div className="flex flex-col gap-4 px-4 pb-10 pt-4 md:px-8 md:pt-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <nav className="flex max-w-full gap-0.5 self-start overflow-x-auto rounded-[10px] bg-subtle p-[3px]">
             {TABS.map((t) => (
               <button
                 key={t.value}
                 onClick={() => setParams(t.value ? { status: t.value } : {})}
-                className={clsx('flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px]', status === t.value ? 'bg-white/10 font-semibold text-ink' : 'text-text2 hover:text-ink')}
+                className={clsx('flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px]', status === t.value ? 'bg-white/10 font-semibold text-ink' : 'text-text2 hover:text-ink')}
               >
                 {t.label}
                 <span className="font-mono text-[11px] font-normal text-text3">{data ? data.counts[t.count] : ''}</span>
               </button>
             ))}
           </nav>
-          <label className="flex h-9 w-[280px] items-center gap-2 rounded-lg border border-line bg-surface px-3">
+          <label className="flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:w-[280px]">
             <MagnifyingGlass className="size-[15px] text-text3" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索服务、GitHub 账号或仓库" className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-text3" />
             {q && (
@@ -105,7 +105,7 @@ export function ClaimsPage() {
         {actionError && <ErrorBox error={actionError} />}
         <section className="rounded-xl border border-line bg-surface">
           {error && (
-            <div className="p-5">
+            <div className="p-4 md:p-5">
               <ErrorBox error={error} retry={reload} />
             </div>
           )}
@@ -116,7 +116,7 @@ export function ClaimsPage() {
           ) : (
             data && (
               <>
-                <table className="w-full table-fixed text-[13px]">
+                <table className={clsx('w-full table-fixed text-[13px]', STACKED)}>
                   <thead>
                     <tr className="border-b border-line bg-white/[0.02] text-left text-xs text-text3">
                       <th className="py-2.5 pl-5 font-normal">MCP 服务</th>
@@ -131,7 +131,7 @@ export function ClaimsPage() {
                   <tbody>
                     {data.data.map((row) => (
                       <tr key={row.id} className="border-b border-line last:border-0">
-                        <td className="py-3 pl-5">
+                        <td className="py-3 pl-5 max-md:w-full">
                           <span className="flex items-center gap-2.5">
                             {row.iconUrl ? <img src={row.iconUrl} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-7 shrink-0 rounded-md bg-white/5 object-contain" /> : <span className="size-7 shrink-0 rounded-md bg-white/5" />}
                             <span className="min-w-0">
@@ -140,19 +140,22 @@ export function ClaimsPage() {
                             </span>
                           </span>
                         </td>
-                        <td>
+                        <td className="max-md:max-w-full">
                           <a href={`https://github.com/${row.githubLogin}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-accent">
                             {row.githubAvatar ? <img src={row.githubAvatar} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-5 rounded-full bg-white/5" /> : <span className="size-5 rounded-full bg-white/10" />}
                             <span className="truncate">@{row.githubLogin}</span>
                           </a>
                           <span className="mt-0.5 block text-xs text-text3">{METHOD_LABEL[row.method]}</span>
                         </td>
-                        <td>
+                        <td className="max-md:max-w-full">
                           <a href={`https://github.com/${row.repoFullName}`} target="_blank" rel="noreferrer" className="block truncate font-mono text-xs text-text2 hover:text-accent">
                             {row.repoFullName}
                           </a>
                         </td>
-                        <td className="truncate text-text2">{row.userName}</td>
+                        <td className="truncate text-text2 max-md:max-w-full">
+                          <span className="text-xs text-text3 md:hidden">网站账号 </span>
+                          {row.userName}
+                        </td>
                         <td className="font-mono text-xs text-text2">{dateTime(row.claimedAt)}</td>
                         <td>
                           {row.revokedAt ? (
@@ -164,7 +167,7 @@ export function ClaimsPage() {
                             <span className="inline-flex items-center rounded-full bg-ok/10 px-2.5 py-0.5 text-xs text-ok">有效</span>
                           )}
                         </td>
-                        <td className="pr-5">
+                        <td className="pr-5 max-md:ml-auto">
                           <span className="flex items-center justify-end gap-1">
                             {!row.revokedAt && (
                               <Button danger className="h-7 px-2.5 text-xs" disabled={busy === row.id} onClick={() => void revoke(row)}>
@@ -181,7 +184,7 @@ export function ClaimsPage() {
                   </tbody>
                 </table>
                 {data.meta.totalPages > 1 && (
-                  <div className="flex justify-end border-t border-line px-5 py-3">
+                  <div className="flex justify-end border-t border-line px-4 py-3 md:px-5">
                     <Pager page={data.meta.page} totalPages={data.meta.totalPages} onChange={(p) => setParams((s) => (s.set('page', String(p)), s))} />
                   </div>
                 )}

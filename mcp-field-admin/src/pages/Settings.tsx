@@ -122,14 +122,14 @@ export function SettingsPage() {
         sub="博客 AI 生成用的模型服务；测试连接用的是已保存的配置，改完先保存"
         actions={
           <>
-            {msg && <span className={clsx('text-xs', msg.ok ? 'text-ok' : 'text-err')}>{msg.text}</span>}
+            {msg && <span title={msg.text} className={clsx('max-w-[40vw] truncate text-xs md:max-w-none', msg.ok ? 'text-ok' : 'text-err')}>{msg.text}</span>}
             <Button primary onClick={() => save()} disabled={!!busy}>
               {busy === 'save' ? '保存中…' : '保存'}
             </Button>
           </>
         }
       />
-      <div className="grid max-w-[1180px] grid-cols-3 items-start gap-5 px-8 pb-10 pt-6">
+      <div className="grid max-w-[1180px] items-start gap-4 px-4 pb-10 pt-4 md:gap-5 md:px-8 md:pt-6 lg:grid-cols-2 xl:grid-cols-3">
         <Card title="文本模型" sub="写摘要、正文，起标题、地址和标签" right={<Status ready={data.text.ready} />}>
           <div className="flex flex-col gap-4">
             <Field label="Base URL" hint="OpenAI 兼容接口地址，一般以 /v1 结尾">

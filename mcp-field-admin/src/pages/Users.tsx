@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { PageHeader } from '../components/Layout'
-import { Button, Empty, ErrorBox, Loading, Pager, Pill, Select } from '../components/ui'
+import { Button, Empty, ErrorBox, Loading, Pager, Pill, Select, STACKED } from '../components/ui'
 import { api, qs, useApi, type SiteUser, type SiteUserDetail, type SiteUserPage, type SiteUserStatus, type SiteUserSummary } from '../lib/api'
 import { ago, clock, dateTime, num } from '../lib/format'
 import { KIND_LABEL } from '../lib/labels'
@@ -79,12 +79,12 @@ function Summary({ s }: { s: SiteUserSummary | undefined }) {
   const change = s && s.prev7d ? Math.round(((s.new7d - s.prev7d) / s.prev7d) * 100) : null
   const bound = s ? s.providers.github + s.providers.google + s.providers.email : 0
   return (
-    <div className="grid grid-cols-[1fr_1fr_1fr_1fr_380px] gap-3">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-[1fr_1fr_1fr_1fr_380px]">
       <Stat label="全部用户" value={s ? num(s.total) : '—'} note={`今日 +${num(s?.today ?? 0)}`} good={!!s?.today} />
       <Stat label="近 7 天新增" value={s ? num(s.new7d) : '—'} note={change === null ? '前 7 天无新增' : `较前 7 天 ${change >= 0 ? '+' : ''}${change}%`} good={change !== null && change > 0} />
       <Stat label="近 7 天登录" value={s ? num(s.signIn7d) : '—'} note={s && s.total ? `占全部 ${((s.signIn7d / s.total) * 100).toFixed(1)}%` : ''} />
       <Stat label="发过评论" value={s ? num(s.commenters) : '—'} note={`共 ${num(s?.comments ?? 0)} 条评论`} />
-      <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface px-4 py-3.5">
+      <div className="col-span-2 flex flex-col gap-2.5 rounded-xl border border-line bg-surface px-4 py-3.5 lg:col-span-4 xl:col-span-1">
         <div className="flex items-center justify-between">
           <span className="text-[13px] text-text2">登录方式</span>
           <span className="text-[11px] text-text3">一个账号可绑定多种</span>
@@ -157,7 +157,7 @@ export function UsersPage() {
         sub={`网站注册账号 · ${s ? num(s.total) : '…'}`}
         actions={
           <>
-            <span className="text-xs text-text3" title={s?.syncedAt ? dateTime(s.syncedAt) : undefined}>
+            <span className="text-xs text-text3 max-sm:hidden" title={s?.syncedAt ? dateTime(s.syncedAt) : undefined}>
               {s?.syncedAt ? `同步于 ${clock(s.syncedAt)}` : '尚未同步'}
             </span>
             <Button onClick={sync} disabled={syncing || !s?.syncEnabled} icon={<ArrowsClockwise className={clsx('size-[15px]', syncing && 'animate-spin')} />} className="h-8">
@@ -166,13 +166,13 @@ export function UsersPage() {
           </>
         }
       />
-      <div className="flex flex-col gap-4 px-8 pb-10 pt-6">
+      <div className="flex flex-col gap-4 px-4 pb-10 pt-4 md:px-8 md:pt-6">
         {s && !s.syncEnabled && <ErrorBox error={new Error('后台接口没有配置 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY，用户列表不会同步')} />}
         {syncError && <ErrorBox error={syncError} retry={sync} />}
         <Summary s={s} />
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <label className="flex h-9 w-[280px] items-center gap-2 rounded-lg border border-line bg-surface px-3">
+          <label className="flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:w-[280px]">
             <MagnifyingGlass className="size-[15px] text-text3" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索昵称、邮箱、用户 ID" className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-text3" />
             {q && (
@@ -194,12 +194,12 @@ export function UsersPage() {
         </div>
 
         <section className="rounded-xl border border-line bg-surface">
-          <div className="flex items-center justify-between px-5 py-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3.5 md:px-5">
             <span className="text-[13px] font-semibold">符合条件 {data ? num(data.meta.total) : '…'} 人</span>
             <span className="text-[11px] text-text3">账号来自 Supabase Auth，评论数来自站内评论</span>
           </div>
           {error && (
-            <div className="px-5 pb-5">
+            <div className="px-4 pb-5 md:px-5">
               <ErrorBox error={error} retry={reload} />
             </div>
           )}
@@ -216,7 +216,7 @@ function UserTable({ page, selected, onOpen, onPage }: { page: SiteUserPage; sel
   return (
     <>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] table-fixed text-[13px]">
+        <table className={clsx('w-full table-fixed text-[13px] md:min-w-[1040px]', STACKED)}>
           <thead>
             <tr className="border-y border-line bg-white/[0.02] text-left text-xs text-text3">
               <th className="w-[300px] py-2.5 pl-5 font-normal">用户</th>
@@ -231,7 +231,7 @@ function UserTable({ page, selected, onOpen, onPage }: { page: SiteUserPage; sel
           <tbody>
             {page.data.map((u) => (
               <tr key={u.id} onClick={() => onOpen(u.id)} className={clsx('cursor-pointer border-b border-line hover:bg-white/[0.02]', selected === u.id && 'bg-white/[0.04]')}>
-                <td className="py-2.5 pl-5">
+                <td className="py-2.5 pl-5 max-md:w-full">
                   <div className="flex items-center gap-3">
                     <Avatar user={u} />
                     <div className="min-w-0">
@@ -247,10 +247,17 @@ function UserTable({ page, selected, onOpen, onPage }: { page: SiteUserPage; sel
                     ))}
                   </div>
                 </td>
-                <td className="text-text2">{u.locale ? (LOCALE[u.locale] ?? u.locale) : '—'}</td>
-                <td className={clsx('pr-6 text-right font-mono text-xs tabular', u.comments ? 'text-ink' : 'text-text3')}>{num(u.comments)}</td>
-                <td className="font-mono text-xs text-text2">{dateTime(u.registeredAt)}</td>
+                <td className="text-text2 max-md:hidden">{u.locale ? (LOCALE[u.locale] ?? u.locale) : '—'}</td>
+                <td className={clsx('pr-6 text-right font-mono text-xs tabular', u.comments ? 'text-ink' : 'text-text3')}>
+                  <span className="font-sans md:hidden">评论 </span>
+                  {num(u.comments)}
+                </td>
+                <td className="font-mono text-xs text-text2">
+                  <span className="font-sans text-text3 md:hidden">注册 </span>
+                  {dateTime(u.registeredAt)}
+                </td>
                 <td className={clsx('text-xs', u.lastSignInAt && Date.now() - new Date(u.lastSignInAt).getTime() < 86400_000 ? 'text-ok' : 'text-text3')} title={u.lastSignInAt ? dateTime(u.lastSignInAt) : '从未登录'}>
+                  <span className="md:hidden">登录 </span>
                   {ago(u.lastSignInAt)}
                 </td>
                 <td>
@@ -261,7 +268,7 @@ function UserTable({ page, selected, onOpen, onPage }: { page: SiteUserPage; sel
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3.5 md:px-5">
         <span className="text-xs text-text3">
           第 {num((page.meta.page - 1) * page.meta.pageSize + 1)}–{num(Math.min(page.meta.total, page.meta.page * page.meta.pageSize))} 条 / 共 {num(page.meta.total)} 条
         </span>
@@ -311,14 +318,14 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/50" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="flex h-full w-[480px] flex-col border-l border-line bg-surface">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-line px-6">
+      <aside className="flex h-full w-full flex-col border-l border-line bg-surface sm:w-[480px]">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4 sm:h-16 sm:px-6">
           <h2 className="text-base font-semibold">用户详情</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-text2 hover:bg-white/5 hover:text-ink" aria-label="关闭">
             <X className="size-4" />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
           {error && <ErrorBox error={error} />}
           {loading && !u && <Loading />}
           {u && (

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { PageHeader } from '../components/Layout'
 import { TranslationBadge } from '../components/TranslationBadge'
-import { Button, Empty, ErrorBox, Loading, Pager } from '../components/ui'
+import { Button, Empty, ErrorBox, Loading, Pager, STACKED } from '../components/ui'
 import { qs, useApi } from '../lib/api'
 import { TRANSLATE_LOCALES, type BlogPage, type BlogRow } from '../lib/blog'
 import { dateTime, num } from '../lib/format'
@@ -57,21 +57,21 @@ export function BlogPage() {
           </Button>
         }
       />
-      <div className="flex flex-col gap-4 px-8 pb-10 pt-6">
-        <div className="flex items-center justify-between gap-4">
-          <nav className="flex gap-0.5 rounded-[10px] bg-subtle p-[3px]">
+      <div className="flex flex-col gap-4 px-4 pb-10 pt-4 md:px-8 md:pt-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <nav className="flex max-w-full gap-0.5 self-start overflow-x-auto rounded-[10px] bg-subtle p-[3px]">
             {TABS.map((t) => (
               <button
                 key={t.value}
                 onClick={() => setParams(t.value ? { status: t.value } : {})}
-                className={clsx('flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px]', status === t.value ? 'bg-white/10 font-semibold text-ink' : 'text-text2 hover:text-ink')}
+                className={clsx('flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px]', status === t.value ? 'bg-white/10 font-semibold text-ink' : 'text-text2 hover:text-ink')}
               >
                 {t.label}
                 <span className="font-mono text-[11px] font-normal text-text3">{data ? data.counts[t.count] : ''}</span>
               </button>
             ))}
           </nav>
-          <label className="flex h-9 w-[280px] items-center gap-2 rounded-lg border border-line bg-surface px-3">
+          <label className="flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:w-[280px]">
             <MagnifyingGlass className="size-[15px] text-text3" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索标题或地址" className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-text3" />
             {q && (
@@ -84,7 +84,7 @@ export function BlogPage() {
 
         <section className="rounded-xl border border-line bg-surface">
           {error && (
-            <div className="p-5">
+            <div className="p-4 md:p-5">
               <ErrorBox error={error} retry={reload} />
             </div>
           )}
@@ -102,7 +102,7 @@ export function BlogPage() {
           ) : (
             data && (
               <>
-                <table className="w-full table-fixed text-[13px]">
+                <table className={clsx('w-full table-fixed text-[13px]', STACKED)}>
                   <thead>
                     <tr className="border-b border-line bg-white/[0.02] text-left text-xs text-text3">
                       <th className="py-2.5 pl-5 font-normal">标题</th>
@@ -116,7 +116,7 @@ export function BlogPage() {
                   <tbody>
                     {data.data.map((row) => (
                       <tr key={row.id} onClick={() => navigate(`/blog/${row.id}`)} className="cursor-pointer border-b border-line last:border-0 hover:bg-white/[0.02]">
-                        <td className="py-3 pl-5">
+                        <td className="py-3 pl-5 max-md:w-full">
                           <span className="flex items-center gap-1.5 truncate font-medium">
                             {row.pinned && <PushPin weight="fill" className="size-3.5 shrink-0 text-accent" aria-label="置顶" />}
                             <span className="truncate">{row.title}</span>
@@ -133,9 +133,12 @@ export function BlogPage() {
                             ))}
                           </span>
                         </td>
-                        <td className="font-mono text-xs text-text2">{dateTime(row.publishedAt)}</td>
-                        <td className="font-mono text-xs text-text3">{dateTime(row.updatedAt)}</td>
-                        <td className="pr-5 text-right">
+                        <td className="font-mono text-xs text-text2">
+                          <span className="font-sans text-text3 md:hidden">发布 </span>
+                          {dateTime(row.publishedAt)}
+                        </td>
+                        <td className="font-mono text-xs text-text3 max-md:hidden">{dateTime(row.updatedAt)}</td>
+                        <td className="pr-5 text-right max-md:ml-auto">
                           {row.status === 'published' && !row.scheduled && (
                             <a href={row.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="在网站上查看" className="inline-flex rounded-md p-1.5 text-text3 hover:bg-white/5 hover:text-ink">
                               <ArrowSquareOut className="size-4" />
@@ -147,7 +150,7 @@ export function BlogPage() {
                   </tbody>
                 </table>
                 {data.meta.totalPages > 1 && (
-                  <div className="flex justify-end border-t border-line px-5 py-3">
+                  <div className="flex justify-end border-t border-line px-4 py-3 md:px-5">
                     <Pager page={data.meta.page} totalPages={data.meta.totalPages} onChange={(p) => setParams((s) => (s.set('page', String(p)), s))} />
                   </div>
                 )}

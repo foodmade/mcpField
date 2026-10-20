@@ -20,7 +20,7 @@ export function stepResult(s: Step): string {
 /** 仪表盘横幅里的步骤条 */
 export function StepStrip({ batch }: { batch: Batch }) {
   return (
-    <div className="flex gap-1.5">
+    <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-6 xl:flex">
       {batch.steps.map((s, i) => {
         const tone = toneOf(s.status)
         return (

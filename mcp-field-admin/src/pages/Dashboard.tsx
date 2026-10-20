@@ -29,7 +29,7 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader title="仪表盘" onRefresh={reload} />
-      <div className="flex flex-col gap-5 px-8 pb-10 pt-7">
+      <div className="flex flex-col gap-5 px-4 pb-10 pt-4 md:px-8 md:pt-7">
         {error && <ErrorBox error={error} retry={reload} />}
         {loading && !data ? <Loading /> : data && <Body data={data} />}
       </div>
@@ -49,18 +49,18 @@ function Body({ data }: { data: Dashboard }) {
 
   return (
     <>
-      <section className={clsx('rounded-xl border bg-surface p-6', head.tone === 'err' ? 'border-err/35' : 'border-line')}>
-        <div className="flex items-center justify-between gap-6">
+      <section className={clsx('rounded-xl border bg-surface p-4 md:p-6', head.tone === 'err' ? 'border-err/35' : 'border-line')}>
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="flex min-w-0 items-center gap-3.5">
             <span className={clsx('flex size-11 shrink-0 items-center justify-center rounded-full', head.tone === 'err' ? 'bg-err/12' : head.tone === 'ok' ? 'bg-ok/12' : head.tone === 'warn' ? 'bg-warn/12' : 'bg-run/12')}>
               <Icon className={clsx('size-6', TONE_TEXT[head.tone])} />
             </span>
             <div className="min-w-0">
-              <div className="flex items-center gap-2.5">
-                <h2 className="truncate text-xl font-semibold">{head.title}</h2>
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <h2 className="text-lg font-semibold md:truncate md:text-xl">{head.title}</h2>
                 {data.batch && <BatchBadge batch={data.batch} />}
               </div>
-              <p className="mt-1 truncate text-[13px] text-text2">{head.sub}</p>
+              <p className="mt-1 text-[13px] text-text2 md:truncate">{head.sub}</p>
             </div>
           </div>
           <DetailLink date={data.today} />
@@ -72,7 +72,7 @@ function Body({ data }: { data: Dashboard }) {
         )}
       </section>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
         <Kpi label="今日新收录" value={num(today?.total)} delta={today && yesterday ? today.total - yesterday.total : undefined} deltaLabel="较昨日" foot={SERIES.map((s) => `${s.label} ${num(s.kinds.reduce((n, k) => n + (today?.byKind[k] ?? 0), 0))}`).join(' · ')} />
         <Kpi label="平台条目总数" value={num(total)} delta={week} deltaLabel="近 7 天" foot={KINDS.slice(0, 3).map((k) => `${KIND_LABEL[k]} ${num(data.totals[k])}`).join(' · ')} />
         <Kpi
@@ -88,20 +88,20 @@ function Body({ data }: { data: Dashboard }) {
         <Kpi label="待处理异常" value={num(openIssues.length)} danger={openIssues.length > 0} foot={openIssues[0] ? `${stepLabel(openIssues[0].step)}：${openIssues[0].message ?? '见运行详情'}` : '最近 7 天没有未恢复的异常'} />
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-4 xl:flex-row">
         <Card title="近 14 日新收录" sub="按收录日期统计 · 柱下圆点为当天每日任务的结果" className="min-w-0 flex-1" right={<Legend />}>
           <Chart daily={data.daily} />
         </Card>
-        <Card title="今日新收录 · 按类型" sub={`${data.today} 共 ${num(today?.total ?? 0)} 条`} className="w-[380px] shrink-0">
+        <Card title="今日新收录 · 按类型" sub={`${data.today} 共 ${num(today?.total ?? 0)} 条`} className="xl:w-[380px] xl:shrink-0">
           <TodayKinds byKind={today?.byKind} date={data.today} />
         </Card>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-4 xl:flex-row">
         <Card title="补全覆盖率 · 按类型" sub="在架条目中已完成该项的比例（不适用的不计）；点数字查看待处理的条目" className="min-w-0 flex-1">
           <CoverageTable coverage={data.coverage} />
         </Card>
-        <Card title="异常与待处理" sub={`最近 7 天 · 未恢复 ${openIssues.length} 项`} className="w-[420px] shrink-0" right={<Link to="/logs" className="text-xs text-accent">运行日志</Link>}>
+        <Card title="异常与待处理" sub={`最近 7 天 · 未恢复 ${openIssues.length} 项`} className="xl:w-[420px] xl:shrink-0" right={<Link to="/logs" className="text-xs text-accent">运行日志</Link>}>
           <Issues issues={data.issues} />
         </Card>
       </div>
@@ -111,10 +111,10 @@ function Body({ data }: { data: Dashboard }) {
 
 function Kpi({ label, value, delta, deltaLabel, foot, danger }: { label: string; value: string; delta?: number; deltaLabel?: string; foot: ReactNode; danger?: boolean }) {
   return (
-    <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-5">
+    <div className="flex min-w-0 flex-col gap-2.5 rounded-xl border border-line bg-surface p-4 md:p-5">
       <span className="text-[13px] text-text2">{label}</span>
-      <span className="flex items-end gap-2.5">
-        <span className={clsx('text-[30px] font-semibold leading-none tracking-tight tabular', danger && 'text-err')}>{value}</span>
+      <span className="flex flex-wrap items-end gap-x-2.5 gap-y-1">
+        <span className={clsx('text-[26px] font-semibold leading-none tracking-tight tabular md:text-[30px]', danger && 'text-err')}>{value}</span>
         {delta !== undefined && (
           <span className={clsx('flex items-center gap-1 whitespace-nowrap pb-0.5 text-xs', delta >= 0 ? 'text-ok' : 'text-text3')}>
             {delta >= 0 ? <TrendUp className="size-3.5" /> : <TrendDown className="size-3.5" />}
@@ -130,7 +130,7 @@ function Kpi({ label, value, delta, deltaLabel, foot, danger }: { label: string;
 
 function Legend() {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
       {SERIES.map((s) => (
         <span key={s.key} className="flex items-center gap-1.5 text-xs text-text2">
           <span className={clsx('size-2.5 rounded-sm', s.color)} />
@@ -151,34 +151,36 @@ function Chart({ daily }: { daily: Dashboard['daily'] }) {
   const max = niceMax(Math.max(...daily.map((d) => d.total), 1))
   const H = 200
   return (
-    <div className="flex gap-2.5">
-      <div className="flex h-[200px] flex-col justify-between pb-0 text-right font-mono text-[10px] text-text3">
-        {[max, (max * 2) / 3, max / 3, 0].map((v) => (
-          <span key={v}>{compact(Math.round(v))}</span>
-        ))}
-      </div>
-      <div className="flex flex-1 gap-2.5">
-        {daily.map((d, i) => {
-          const last = i === daily.length - 1
-          return (
-            <Link key={d.date} to={`/daily?date=${d.date}`} className="group flex min-w-0 flex-1 flex-col items-center gap-2" title={`${d.date}：${num(d.total)} 条`}>
-              <div className="flex w-full flex-col justify-end gap-px border-b border-line" style={{ height: H }}>
-                {d.total === 0 && d.status === 'failed' ? (
-                  <div className="flex h-full items-center justify-center rounded border border-err/30 bg-err/5 text-[10px] text-err">失败</div>
-                ) : (
-                  SERIES.map((s, j) => {
-                    const v = s.kinds.reduce((n, k) => n + d.byKind[k], 0)
-                    if (!v) return null
-                    const top = SERIES.slice(j + 1).every((x) => !x.kinds.reduce((n, k) => n + d.byKind[k], 0))
-                    return <div key={s.key} className={clsx(s.color, 'w-full opacity-90 group-hover:opacity-100', top && 'rounded-t-[3px]')} style={{ height: Math.max(3, (v / max) * H), order: -j }} />
-                  })
-                )}
-              </div>
-              <span className={clsx('font-mono text-[10px]', last ? 'text-ink' : 'text-text3')}>{d.date.slice(5)}</span>
-              {d.status ? <Dot state={d.status} size={7} /> : <span className="size-[7px] rounded-full border border-line" title="没有运行记录" />}
-            </Link>
-          )
-        })}
+    <div className="-mx-1 overflow-x-auto px-1">
+      <div className="flex min-w-[520px] gap-2.5">
+        <div className="flex h-[200px] flex-col justify-between pb-0 text-right font-mono text-[10px] text-text3">
+          {[max, (max * 2) / 3, max / 3, 0].map((v) => (
+            <span key={v}>{compact(Math.round(v))}</span>
+          ))}
+        </div>
+        <div className="flex flex-1 gap-2.5">
+          {daily.map((d, i) => {
+            const last = i === daily.length - 1
+            return (
+              <Link key={d.date} to={`/daily?date=${d.date}`} className="group flex min-w-0 flex-1 flex-col items-center gap-2" title={`${d.date}：${num(d.total)} 条`}>
+                <div className="flex w-full flex-col justify-end gap-px border-b border-line" style={{ height: H }}>
+                  {d.total === 0 && d.status === 'failed' ? (
+                    <div className="flex h-full items-center justify-center rounded border border-err/30 bg-err/5 text-[10px] text-err">失败</div>
+                  ) : (
+                    SERIES.map((s, j) => {
+                      const v = s.kinds.reduce((n, k) => n + d.byKind[k], 0)
+                      if (!v) return null
+                      const top = SERIES.slice(j + 1).every((x) => !x.kinds.reduce((n, k) => n + d.byKind[k], 0))
+                      return <div key={s.key} className={clsx(s.color, 'w-full opacity-90 group-hover:opacity-100', top && 'rounded-t-[3px]')} style={{ height: Math.max(3, (v / max) * H), order: -j }} />
+                    })
+                  )}
+                </div>
+                <span className={clsx('font-mono text-[10px]', last ? 'text-ink' : 'text-text3')}>{d.date.slice(5)}</span>
+                {d.status ? <Dot state={d.status} size={7} /> : <span className="size-[7px] rounded-full border border-line" title="没有运行记录" />}
+              </Link>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -216,44 +218,46 @@ function CoverageTable({ coverage }: { coverage: Coverage[] }) {
     return { pct: (sum('ok') / applicable) * 100, failed: sum('failed'), pending: sum('pending'), warn: sum('warn') }
   }
   return (
-    <table className="w-full text-[13px]">
-      <thead>
-        <tr className="border-b border-line text-left text-xs text-text3">
-          <th className="w-[180px] py-2 font-normal">补全项</th>
-          {COVERAGE_COLUMNS.map((c) => (
-            <th key={c.label} className="py-2 font-normal">
-              {c.label}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {STAGES.map((stage) => (
-          <tr key={stage} className="border-b border-line last:border-0">
-            <td className="py-2">
-              <div>{STAGE_LABEL[stage]}</div>
-              <div className="font-mono text-[10px] text-text3">{STAGE_COMMAND[stage]}</div>
-            </td>
-            {COVERAGE_COLUMNS.map((col) => {
-              const c = cell(stage, col.kinds)
-              if (!c) return <td key={col.label} className="font-mono text-xs text-text3">—</td>
-              const tone = c.pct >= 95 ? 'bg-ok' : c.pct >= 80 ? 'bg-warn' : 'bg-err'
-              return (
-                <td key={col.label} className="pr-4">
-                  <Link to={`/items?kind=${col.kinds[0]}&stage=${stage}&stageState=${c.failed ? 'failed' : 'pending'}`} className="flex items-center gap-2" title={`失败 ${num(c.failed)} · 警告 ${num(c.warn)} · 待处理 ${num(c.pending)}`}>
-                    <span className="w-12 font-mono text-xs tabular">{c.pct >= 99.95 ? '100%' : `${c.pct.toFixed(1)}%`}</span>
-                    <span className="h-1 flex-1 rounded-full bg-white/[0.05]">
-                      <span className={clsx('block h-full rounded-full', tone)} style={{ width: `${c.pct}%` }} />
-                    </span>
-                    {c.failed > 0 && <span className="font-mono text-[10px] text-err">{num(c.failed)}</span>}
-                  </Link>
-                </td>
-              )
-            })}
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] text-[13px]">
+        <thead>
+          <tr className="border-b border-line text-left text-xs text-text3">
+            <th className="w-[180px] py-2 font-normal">补全项</th>
+            {COVERAGE_COLUMNS.map((c) => (
+              <th key={c.label} className="py-2 font-normal">
+                {c.label}
+              </th>
+            ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {STAGES.map((stage) => (
+            <tr key={stage} className="border-b border-line last:border-0">
+              <td className="py-2">
+                <div>{STAGE_LABEL[stage]}</div>
+                <div className="font-mono text-[10px] text-text3">{STAGE_COMMAND[stage]}</div>
+              </td>
+              {COVERAGE_COLUMNS.map((col) => {
+                const c = cell(stage, col.kinds)
+                if (!c) return <td key={col.label} className="font-mono text-xs text-text3">—</td>
+                const tone = c.pct >= 95 ? 'bg-ok' : c.pct >= 80 ? 'bg-warn' : 'bg-err'
+                return (
+                  <td key={col.label} className="pr-4">
+                    <Link to={`/items?kind=${col.kinds[0]}&stage=${stage}&stageState=${c.failed ? 'failed' : 'pending'}`} className="flex items-center gap-2" title={`失败 ${num(c.failed)} · 警告 ${num(c.warn)} · 待处理 ${num(c.pending)}`}>
+                      <span className="w-12 font-mono text-xs tabular">{c.pct >= 99.95 ? '100%' : `${c.pct.toFixed(1)}%`}</span>
+                      <span className="h-1 flex-1 rounded-full bg-white/[0.05]">
+                        <span className={clsx('block h-full rounded-full', tone)} style={{ width: `${c.pct}%` }} />
+                      </span>
+                      {c.failed > 0 && <span className="font-mono text-[10px] text-err">{num(c.failed)}</span>}
+                    </Link>
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

@@ -121,7 +121,8 @@ export function BlogEditorPage() {
   const [loadError, setLoadError] = useState<Error>()
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const [mode, setMode] = useState<'edit' | 'split' | 'preview'>('split')
+  // 分栏在手机上太窄，窄屏默认只编辑
+  const [mode, setMode] = useState<'edit' | 'split' | 'preview'>(() => (window.matchMedia('(min-width: 768px)').matches ? 'split' : 'edit'))
   const { data: ai } = useApi<AiOptions>('/blog/ai/options')
   const [dialog, setDialog] = useState<'body' | 'all' | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
@@ -378,24 +379,25 @@ export function BlogEditorPage() {
 
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b border-line bg-bg/90 px-8 backdrop-blur">
-        <div className="flex min-w-0 items-center gap-3">
-          <button onClick={back} className="rounded-md p-1.5 text-text3 hover:bg-white/5 hover:text-ink" title="返回文章列表">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line bg-bg/90 px-4 py-2.5 backdrop-blur md:h-16 md:flex-nowrap md:px-8 md:py-0">
+        <div className="flex min-w-0 items-center gap-2 md:gap-3">
+          <button onClick={back} className="-ml-1.5 rounded-md p-1.5 text-text3 hover:bg-white/5 hover:text-ink" title="返回文章列表">
             <ArrowLeft className="size-[18px]" />
           </button>
-          <h1 className="text-lg font-semibold">{post ? '编辑文章' : '写文章'}</h1>
-          {post && <span className={clsx('rounded-full px-2.5 py-0.5 text-xs', !published ? 'bg-white/5 text-text2' : scheduled ? 'bg-run/15 text-run' : 'bg-ok/10 text-ok')}>{!published ? '草稿' : scheduled ? '定时发布' : '已发布'}</span>}
-          <span className={clsx('text-xs', msg ? (msg.ok ? 'text-ok' : 'text-err') : 'text-text3')}>{msg?.text ?? (dirty ? '有未保存的修改 · ⌘S 保存' : post ? `已保存 ${dateTime(post.updatedAt)}` : '')}</span>
+          <h1 className="whitespace-nowrap text-base font-semibold md:text-lg">{post ? '编辑文章' : '写文章'}</h1>
+          {post && <span className={clsx('shrink-0 rounded-full px-2.5 py-0.5 text-xs', !published ? 'bg-white/5 text-text2' : scheduled ? 'bg-run/15 text-run' : 'bg-ok/10 text-ok')}>{!published ? '草稿' : scheduled ? '定时发布' : '已发布'}</span>}
+          <span className={clsx('truncate text-xs', msg ? (msg.ok ? 'text-ok' : 'text-err') : 'text-text3')}>{msg?.text ?? (dirty ? '有未保存的修改 · ⌘S 保存' : post ? `已保存 ${dateTime(post.updatedAt)}` : '')}</span>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center justify-end gap-2 max-md:w-full md:gap-2.5">
           {post && published && !scheduled && (
-            <a href={post.url} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] text-text2 hover:bg-white/5 hover:text-ink">
+            <a href={post.url} target="_blank" rel="noreferrer" title="在网站查看" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-text2 hover:bg-white/5 hover:text-ink md:px-3">
               <ArrowSquareOut className="size-[15px]" />
-              在网站查看
+              <span className="max-md:hidden">在网站查看</span>
             </a>
           )}
           <Button icon={<MagicWand className="size-[15px] text-accent" />} onClick={() => setDialog('all')} disabled={!ai || generating}>
-            AI 一键生成
+            <span className="max-sm:hidden">AI 一键生成</span>
+            <span className="sm:hidden">AI 生成</span>
           </Button>
           {post && <Button danger icon={<Trash className="size-[15px]" />} onClick={remove} disabled={!!busy || generating} />}
           {published ? (
@@ -420,9 +422,9 @@ export function BlogEditorPage() {
         </div>
       </header>
 
-      <div className="flex gap-6 px-8 pb-10 pt-6">
+      <div className="flex flex-col gap-6 px-4 pb-10 pt-4 md:px-8 md:pt-6 lg:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <input value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="文章标题" className="bg-transparent text-[26px] font-bold tracking-tight outline-none placeholder:text-text3/60" />
+          <input value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="文章标题" className="bg-transparent text-[22px] font-bold tracking-tight outline-none placeholder:text-text3/60 md:text-[26px]" />
           <div className="relative">
             <textarea
               value={form.summary}
@@ -446,7 +448,7 @@ export function BlogEditorPage() {
           </div>
 
           <section className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface">
-            <div className="flex items-center justify-between gap-3 border-b border-line px-2.5 py-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-2.5 py-1.5">
               <div className="flex min-w-0 flex-wrap items-center gap-0.5">
                 {TOOLS.map(({ icon: Icon, title, edit, gap }) => (
                   <span key={title} className="flex items-center">
@@ -470,7 +472,7 @@ export function BlogEditorPage() {
                   AI 写正文
                 </button>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 max-md:ml-auto">
                 <span className="hidden whitespace-nowrap font-mono text-[11px] text-text3 2xl:inline">{chars.toLocaleString('en-US')} 字</span>
                 <div className="flex gap-0.5 rounded-lg bg-subtle p-0.5">
                   {(
@@ -480,7 +482,7 @@ export function BlogEditorPage() {
                       ['preview', Eye, '预览'],
                     ] as const
                   ).map(([m, Icon, label]) => (
-                    <button key={m} onClick={() => setMode(m)} title={label} className={clsx('flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs', mode === m ? 'bg-white/10 font-medium text-ink' : 'text-text3 hover:text-ink')}>
+                    <button key={m} onClick={() => setMode(m)} title={label} className={clsx('flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs', m === 'split' && 'max-md:hidden', mode === m ? 'bg-white/10 font-medium text-ink' : 'text-text3 hover:text-ink')}>
                       <Icon className="size-3.5" />
                       {label}
                     </button>
@@ -488,7 +490,7 @@ export function BlogEditorPage() {
                 </div>
               </div>
             </div>
-            <div className="flex h-[calc(100vh-150px)] min-h-[520px]">
+            <div className="flex h-[70dvh] min-h-[400px] md:h-[calc(100vh-150px)] md:min-h-[520px]">
               <textarea
                 ref={textarea}
                 readOnly={generating}
@@ -510,10 +512,10 @@ export function BlogEditorPage() {
                 }}
                 spellCheck={false}
                 placeholder={'用 Markdown 写正文。\n\n## 二级标题会出现在文章目录里\n\n粘贴或拖入图片会自动上传；链接到站内条目（例如 [Linear](/servers/linear)）会出现在“文中提到的服务”。'}
-                className={clsx('h-full resize-none bg-transparent p-5 font-mono text-[13.5px] leading-[1.75] outline-none placeholder:text-text3/70', mode === 'preview' ? 'hidden' : mode === 'split' ? 'w-1/2 border-r border-line' : 'w-full')}
+                className={clsx('h-full resize-none bg-transparent p-4 font-mono text-[13.5px] leading-[1.75] outline-none placeholder:text-text3/70 md:p-5', mode === 'preview' ? 'hidden' : mode === 'split' ? 'w-1/2 border-r border-line' : 'w-full')}
               />
               {mode !== 'edit' && (
-                <div className={clsx('h-full overflow-y-auto px-8 py-6', mode === 'split' ? 'w-1/2' : 'mx-auto w-full max-w-[860px]')}>
+                <div className={clsx('h-full overflow-y-auto px-4 py-5 md:px-8 md:py-6', mode === 'split' ? 'w-1/2' : 'mx-auto w-full max-w-[860px]')}>
                   <MarkdownPreview source={form.body} />
                 </div>
               )}
@@ -521,7 +523,7 @@ export function BlogEditorPage() {
           </section>
         </div>
 
-        <aside className="flex w-[300px] shrink-0 flex-col gap-4">
+        <aside className="flex shrink-0 flex-col gap-4 lg:w-[300px]">
           <Panel title="发布设置">
             <Field label="地址" hint="只能用小写字母、数字和连字符；发布后再改会让旧链接失效">
               <div className="flex h-9 items-center rounded-lg border border-line bg-bg pl-3 focus-within:border-text3">

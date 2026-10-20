@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { PageHeader } from '../components/Layout'
-import { Button, Empty, ErrorBox, Loading, Pager } from '../components/ui'
+import { Button, Empty, ErrorBox, Loading, Pager, STACKED } from '../components/ui'
 import { api, qs, useApi } from '../lib/api'
 import { dateTime, num } from '../lib/format'
 import { KIND_LABEL, type Kind } from '../lib/labels'
@@ -97,21 +97,21 @@ export function FeedbackPage() {
   return (
     <>
       <PageHeader title="反馈管理" sub={data ? `共 ${num(data.counts.all)} 条 · 待处理 ${num(data.counts.open)} 条` : undefined} onRefresh={reload} />
-      <div className="flex flex-col gap-4 px-8 pb-10 pt-6">
-        <div className="flex items-center justify-between gap-4">
-          <nav className="flex gap-0.5 rounded-[10px] bg-subtle p-[3px]">
+      <div className="flex flex-col gap-4 px-4 pb-10 pt-4 md:px-8 md:pt-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <nav className="flex max-w-full gap-0.5 self-start overflow-x-auto rounded-[10px] bg-subtle p-[3px]">
             {TABS.map((t) => (
               <button
                 key={t.value}
                 onClick={() => setParams(t.value === 'open' ? {} : { status: t.value })}
-                className={clsx('flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px]', status === t.value ? 'bg-white/10 font-semibold text-ink' : 'text-text2 hover:text-ink')}
+                className={clsx('flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px]', status === t.value ? 'bg-white/10 font-semibold text-ink' : 'text-text2 hover:text-ink')}
               >
                 {t.label}
                 <span className="font-mono text-[11px] font-normal text-text3">{data ? data.counts[t.value] : ''}</span>
               </button>
             ))}
           </nav>
-          <label className="flex h-9 w-[280px] items-center gap-2 rounded-lg border border-line bg-surface px-3">
+          <label className="flex h-9 w-full items-center gap-2 rounded-lg border border-line bg-surface px-3 sm:w-[280px]">
             <MagnifyingGlass className="size-[15px] text-text3" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索条目、内容、邮箱或昵称" className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-text3" />
             {q && (
@@ -125,7 +125,7 @@ export function FeedbackPage() {
         {actionError && <ErrorBox error={actionError} />}
         <section className="rounded-xl border border-line bg-surface">
           {error && (
-            <div className="p-5">
+            <div className="p-4 md:p-5">
               <ErrorBox error={error} retry={reload} />
             </div>
           )}
@@ -136,7 +136,7 @@ export function FeedbackPage() {
           ) : (
             data && (
               <>
-                <table className="w-full table-fixed text-[13px]">
+                <table className={clsx('w-full table-fixed text-[13px]', STACKED)}>
                   <thead>
                     <tr className="border-b border-line bg-white/[0.02] text-left text-xs text-text3">
                       <th className="w-[230px] py-2.5 pl-5 font-normal">条目</th>
@@ -151,7 +151,7 @@ export function FeedbackPage() {
                   <tbody>
                     {data.data.map((row) => (
                       <tr key={row.id} className="border-b border-line align-top last:border-0">
-                        <td className="py-3 pl-5">
+                        <td className="py-3 pl-5 max-md:w-full">
                           <span className="flex items-center gap-2.5">
                             {row.iconUrl ? <img src={row.iconUrl} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-7 shrink-0 rounded-md bg-white/5 object-contain" /> : <span className="size-7 shrink-0 rounded-md bg-white/5" />}
                             <span className="min-w-0">
@@ -161,7 +161,7 @@ export function FeedbackPage() {
                           </span>
                         </td>
                         <td className="py-3 text-text2">{TYPE_LABEL[row.type] ?? row.type}</td>
-                        <td className="py-3 pr-4">
+                        <td className="py-3 pr-4 max-md:order-1 max-md:w-full">
                           <button
                             type="button"
                             onClick={() => setExpanded(expanded === row.id ? null : row.id)}
@@ -171,7 +171,7 @@ export function FeedbackPage() {
                             {row.body}
                           </button>
                         </td>
-                        <td className="py-3">
+                        <td className="py-3 max-md:max-w-full">
                           {row.userName ? (
                             <span className="block truncate">{row.userName}<span className="ml-1.5 text-xs text-text3">已登录</span></span>
                           ) : row.email ? (
@@ -189,7 +189,7 @@ export function FeedbackPage() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 pr-5">
+                        <td className="py-3 pr-5 max-md:order-2 max-md:ml-auto">
                           <span className="flex items-center justify-end gap-1 whitespace-nowrap">
                             {row.status === 'open' ? (
                               <>
@@ -215,7 +215,7 @@ export function FeedbackPage() {
                   </tbody>
                 </table>
                 {data.meta.totalPages > 1 && (
-                  <div className="flex justify-end border-t border-line px-5 py-3">
+                  <div className="flex justify-end border-t border-line px-4 py-3 md:px-5">
                     <Pager page={data.meta.page} totalPages={data.meta.totalPages} onChange={(p) => setParams((s) => (s.set('page', String(p)), s))} />
                   </div>
                 )}

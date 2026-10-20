@@ -71,17 +71,17 @@ export function AnalyticsPage() {
   return (
     <>
       <PageHeader title="访问统计" onRefresh={overview.reload} />
-      <div className="flex flex-col gap-5 px-8 pb-10 pt-7">
+      <div className="flex flex-col gap-5 px-4 pb-10 pt-4 md:px-8 md:pt-7">
         {overview.error && <ErrorBox error={overview.error} retry={overview.reload} />}
         {overview.loading && !overview.data ? <Loading /> : overview.data && <Summary data={overview.data} />}
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <h2 className="text-[15px] font-semibold">访问明细</h2>
           <Select label="时间" value={range} options={RANGES} onChange={setRange} />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 lg:grid-cols-2">
           {PANELS.map((p) => (
-            <Breakdown key={p.dim} dim={p.dim} range={range} title={p.title} label={p.label} className={p.wide ? 'col-span-2' : undefined} />
+            <Breakdown key={p.dim} dim={p.dim} range={range} title={p.title} label={p.label} className={p.wide ? 'lg:col-span-2' : undefined} />
           ))}
         </div>
 
@@ -100,7 +100,7 @@ function Summary({ data }: { data: AnalyticsOverview }) {
   const prevWeek = t.slice(-14, -7)
   return (
     <>
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
         <Kpi label="今日访客" value={today.uv} delta={today.uv - yesterday.uv} deltaLabel="较昨日全天" foot={`访问 ${num(today.visits)} 次 · 昨日访客 ${num(yesterday.uv)}`} />
         <Kpi label="今日浏览量" value={today.pv} delta={today.pv - yesterday.pv} deltaLabel="较昨日全天" foot={`昨日浏览量 ${num(yesterday.pv)}`} />
         <Kpi label="近 7 天访客" value={sum(week, 'uv')} delta={sum(week, 'uv') - sum(prevWeek, 'uv')} deltaLabel="较前 7 天" foot="每天的访客数相加" />
@@ -115,10 +115,10 @@ function Summary({ data }: { data: AnalyticsOverview }) {
 
 function Kpi({ label, value, delta, deltaLabel, foot }: { label: string; value: number; delta: number; deltaLabel: string; foot: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-5">
+    <div className="flex min-w-0 flex-col gap-2.5 rounded-xl border border-line bg-surface p-4 md:p-5">
       <span className="text-[13px] text-text2">{label}</span>
-      <span className="flex items-end gap-2.5">
-        <span className="text-[30px] font-semibold leading-none tracking-tight tabular">{num(value)}</span>
+      <span className="flex flex-wrap items-end gap-x-2.5 gap-y-1">
+        <span className="text-[26px] font-semibold leading-none tracking-tight tabular md:text-[30px]">{num(value)}</span>
         <span className={clsx('flex items-center gap-1 whitespace-nowrap pb-0.5 text-xs', delta >= 0 ? 'text-ok' : 'text-text3')}>
           {delta >= 0 ? <TrendUp className="size-3.5" /> : <TrendDown className="size-3.5" />}
           {deltaLabel} {delta >= 0 ? '+' : ''}
@@ -132,7 +132,7 @@ function Kpi({ label, value, delta, deltaLabel, foot }: { label: string; value: 
 
 function Legend() {
   return (
-    <div className="flex items-center gap-4 text-xs text-text2">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text2">
       <span className="flex items-center gap-1.5">
         <span className="size-2.5 rounded-sm bg-text3/50" />
         浏览量
@@ -156,22 +156,24 @@ function Trend({ trend }: { trend: AnalyticsOverview['trend'] }) {
   const max = niceMax(Math.max(...trend.map((d) => d.pv), 1))
   const H = 180
   return (
-    <div className="flex gap-2.5">
-      <div className="flex h-[180px] flex-col justify-between text-right font-mono text-[10px] text-text3">
-        {[max, (max * 2) / 3, max / 3, 0].map((v) => (
-          <span key={v}>{compact(Math.round(v))}</span>
-        ))}
-      </div>
-      <div className="flex flex-1 gap-1.5">
-        {trend.map((d, i) => (
-          <div key={d.day} className="group flex min-w-0 flex-1 flex-col items-center gap-2" title={`${d.day}：访客 ${num(d.uv)} · 浏览 ${num(d.pv)} · 访问 ${num(d.visits)} 次`}>
-            <div className="relative w-full border-b border-line" style={{ height: H }}>
-              {d.pv > 0 && <div className="absolute inset-x-0 bottom-0 rounded-t-[3px] bg-text3/30 group-hover:bg-text3/45" style={{ height: Math.max(2, (d.pv / max) * H) }} />}
-              {d.uv > 0 && <div className="absolute inset-x-[22%] bottom-0 rounded-t-[3px] bg-accent opacity-90 group-hover:opacity-100" style={{ height: Math.max(2, (d.uv / max) * H) }} />}
+    <div className="-mx-1 overflow-x-auto px-1">
+      <div className="flex min-w-[600px] gap-2.5">
+        <div className="flex h-[180px] flex-col justify-between text-right font-mono text-[10px] text-text3">
+          {[max, (max * 2) / 3, max / 3, 0].map((v) => (
+            <span key={v}>{compact(Math.round(v))}</span>
+          ))}
+        </div>
+        <div className="flex flex-1 gap-1.5">
+          {trend.map((d, i) => (
+            <div key={d.day} className="group flex min-w-0 flex-1 flex-col items-center gap-2" title={`${d.day}：访客 ${num(d.uv)} · 浏览 ${num(d.pv)} · 访问 ${num(d.visits)} 次`}>
+              <div className="relative w-full border-b border-line" style={{ height: H }}>
+                {d.pv > 0 && <div className="absolute inset-x-0 bottom-0 rounded-t-[3px] bg-text3/30 group-hover:bg-text3/45" style={{ height: Math.max(2, (d.pv / max) * H) }} />}
+                {d.uv > 0 && <div className="absolute inset-x-[22%] bottom-0 rounded-t-[3px] bg-accent opacity-90 group-hover:opacity-100" style={{ height: Math.max(2, (d.uv / max) * H) }} />}
+              </div>
+              <span className={clsx('font-mono text-[10px]', i === trend.length - 1 ? 'text-ink' : 'text-text3', i % 3 !== (trend.length - 1) % 3 && 'invisible')}>{d.day.slice(5)}</span>
             </div>
-            <span className={clsx('font-mono text-[10px]', i === trend.length - 1 ? 'text-ink' : 'text-text3', i % 3 !== (trend.length - 1) % 3 && 'invisible')}>{d.day.slice(5)}</span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -279,34 +281,36 @@ function Crawlers() {
 function CrawlerTable({ data }: { data: CrawlerStats }) {
   const max = Math.max(...data.bots.flatMap((b) => Object.values(b.byDay)), 1)
   return (
-    <table className="w-full text-[13px]">
-      <thead>
-        <tr className="border-y border-line text-left text-xs text-text3">
-          <th className="px-5 py-2 font-normal">爬虫</th>
-          <th className="px-3 py-2 font-normal">每天请求数</th>
-          <th className="w-24 px-3 py-2 text-right font-normal">合计</th>
-          <th className="w-20 px-3 py-2 text-right font-normal">4xx</th>
-          <th className="w-20 py-2 pl-3 pr-5 text-right font-normal">5xx</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.bots.map((b) => (
-          <tr key={b.bot} className="border-b border-line/60 last:border-0">
-            <td className="whitespace-nowrap px-5 py-2">{BOT_LABEL[b.bot] ?? b.bot}</td>
-            <td className="px-3 py-2">
-              <div className="flex h-6 items-end gap-[3px]">
-                {data.days.map((day) => {
-                  const v = b.byDay[day] ?? 0
-                  return <span key={day} title={`${day}：${num(v)}`} className={clsx('w-2.5 rounded-t-[2px]', v ? 'bg-accent/70' : 'bg-line')} style={{ height: v ? Math.max(2, (v / max) * 24) : 2 }} />
-                })}
-              </div>
-            </td>
-            <td className="px-3 py-2 text-right font-mono tabular">{num(b.total)}</td>
-            <td className={clsx('px-3 py-2 text-right font-mono tabular', b.e4xx ? 'text-warn' : 'text-text3')}>{num(b.e4xx)}</td>
-            <td className={clsx('py-2 pl-3 pr-5 text-right font-mono tabular', b.e5xx ? 'text-err' : 'text-text3')}>{num(b.e5xx)}</td>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[600px] text-[13px]">
+        <thead>
+          <tr className="border-y border-line text-left text-xs text-text3">
+            <th className="px-5 py-2 font-normal">爬虫</th>
+            <th className="px-3 py-2 font-normal">每天请求数</th>
+            <th className="w-24 px-3 py-2 text-right font-normal">合计</th>
+            <th className="w-20 px-3 py-2 text-right font-normal">4xx</th>
+            <th className="w-20 py-2 pl-3 pr-5 text-right font-normal">5xx</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {data.bots.map((b) => (
+            <tr key={b.bot} className="border-b border-line/60 last:border-0">
+              <td className="whitespace-nowrap px-5 py-2">{BOT_LABEL[b.bot] ?? b.bot}</td>
+              <td className="px-3 py-2">
+                <div className="flex h-6 items-end gap-[3px]">
+                  {data.days.map((day) => {
+                    const v = b.byDay[day] ?? 0
+                    return <span key={day} title={`${day}：${num(v)}`} className={clsx('w-2.5 rounded-t-[2px]', v ? 'bg-accent/70' : 'bg-line')} style={{ height: v ? Math.max(2, (v / max) * 24) : 2 }} />
+                  })}
+                </div>
+              </td>
+              <td className="px-3 py-2 text-right font-mono tabular">{num(b.total)}</td>
+              <td className={clsx('px-3 py-2 text-right font-mono tabular', b.e4xx ? 'text-warn' : 'text-text3')}>{num(b.e4xx)}</td>
+              <td className={clsx('py-2 pl-3 pr-5 text-right font-mono tabular', b.e5xx ? 'text-err' : 'text-text3')}>{num(b.e5xx)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

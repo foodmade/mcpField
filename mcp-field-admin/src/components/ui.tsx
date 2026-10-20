@@ -11,11 +11,15 @@ const TONE_SOFT = { ok: 'bg-ok/10', run: 'bg-run/15', warn: 'bg-warn/15', err: '
 
 export const toneOf = (state: StageState | RunState) => STATE_TONE[state].tone
 
+/** 手机上（< md）把表格每一行摊成一张卡片：表头隐藏，单元格依次排开、放不下换行；单元格自己再用 max-md:w-full、max-md:hidden 等控制占位 */
+export const STACKED =
+  'max-md:block max-md:[&_tbody]:block max-md:[&_thead]:hidden max-md:[&_tr]:flex max-md:[&_tr]:flex-wrap max-md:[&_tr]:items-center max-md:[&_tr]:gap-x-3 max-md:[&_tr]:gap-y-2 max-md:[&_tr]:px-4 max-md:[&_tr]:py-3 max-md:[&_td]:p-0'
+
 export function Card({ title, sub, right, children, className, padded = true }: { title?: ReactNode; sub?: ReactNode; right?: ReactNode; children: ReactNode; className?: string; padded?: boolean }) {
   return (
-    <section className={clsx('rounded-xl border border-line bg-surface', padded && 'p-5', className)}>
+    <section className={clsx('rounded-xl border border-line bg-surface', padded && 'p-4 md:p-5', className)}>
       {(title || right) && (
-        <header className={clsx('flex items-center justify-between gap-4', padded ? 'mb-4' : 'px-5 pb-3 pt-4')}>
+        <header className={clsx('flex flex-wrap items-center justify-between gap-x-4 gap-y-2', padded ? 'mb-4' : 'px-4 pb-3 pt-4 md:px-5')}>
           <div>
             {title && <h2 className="text-[15px] font-semibold">{title}</h2>}
             {sub && <p className="mt-0.5 text-xs text-text3">{sub}</p>}
@@ -78,9 +82,9 @@ export function Loading({ label = '加载中…' }: { label?: string }) {
 
 export function ErrorBox({ error, retry }: { error: Error; retry?: () => void }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-err/30 bg-err/5 px-5 py-4 text-sm text-err">
-      <span className="flex items-center gap-2">
-        <WarningCircle className="size-4" />
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-err/30 bg-err/5 px-4 py-3 text-sm text-err md:px-5 md:py-4">
+      <span className="flex min-w-0 items-center gap-2 break-words">
+        <WarningCircle className="size-4 shrink-0" />
         {error.message}
       </span>
       {retry && <Button onClick={retry}>重试</Button>}
@@ -92,9 +96,9 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="py-14 text-center text-sm text-text3">{children}</div>
 }
 
-/** 页码：首尾 + 当前页前后各两页 */
+/** 页码：首尾 + 当前页前后各两页（手机上各一页） */
 export function Pager({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
-  const pages = [...new Set([1, page - 2, page - 1, page, page + 1, page + 2, totalPages])].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b)
+  const pages = [...new Set([1, page - 1, page, page + 1, totalPages, ...(window.innerWidth >= 768 ? [page - 2, page + 2] : [])])].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b)
   const btn = 'flex h-8 min-w-8 items-center justify-center rounded-md px-2 font-mono text-xs tabular'
   return (
     <div className="flex items-center gap-1">

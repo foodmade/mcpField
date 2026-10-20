@@ -33,12 +33,12 @@ export function LogsPage() {
   return (
     <>
       <PageHeader title="运行日志" sub="服务器 mcp-field-crawler/logs 下的日志末尾，每 15 秒刷新" onRefresh={reload} />
-      <div className="flex flex-col gap-4 px-8 pb-10 pt-6">
-        <div className="flex items-center gap-2.5">
+      <div className="flex flex-col gap-4 px-4 pb-10 pt-4 md:px-8 md:pt-6">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Select label="日志" value={name} onChange={(v) => setParams({ name: v })} options={NAMES.map((n) => ({ value: n, label: n === 'daily' ? '每日任务 daily.log' : `${stepLabel(n)} run-${n}.log` }))} />
           <Select label="行数" value={String(lines)} onChange={(v) => setParams({ name, lines: v })} options={['200', '500', '2000', '5000'].map((v) => ({ value: v, label: `最后 ${v} 行` }))} />
           {data && (
-            <span className="text-xs text-text3">
+            <span className="break-all text-xs text-text3">
               {data.file} · {num(Math.round(data.size / 1024))} KB · 更新于 {dateTime(data.updatedAt)}
             </span>
           )}
@@ -48,7 +48,7 @@ export function LogsPage() {
           <Loading />
         ) : (
           data && (
-            <div className="h-[calc(100vh-190px)] overflow-auto rounded-xl border border-line bg-[#07080a] px-4 py-3 font-mono text-[11.5px] leading-relaxed">
+            <div className="h-[calc(100dvh-220px)] min-h-[320px] overflow-auto rounded-xl border border-line bg-[#07080a] px-3 py-3 font-mono text-[11px] md:h-[calc(100vh-190px)] md:px-4 md:text-[11.5px] leading-relaxed">
               {data.lines.length === 0 && <p className="text-text3">日志文件不存在或是空的（这个命令还没有手动运行过）</p>}
               {data.lines.map((line, i) => {
                 const { level, text } = parse(line)

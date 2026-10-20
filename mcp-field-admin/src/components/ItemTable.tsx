@@ -5,14 +5,14 @@ import type { Item, ItemPage } from '../lib/api'
 import { categoryName } from '../lib/categories'
 import { compact, dateTime, day, num } from '../lib/format'
 import { KIND_LABEL, sourceLabel, STAGE_LABEL, STATE_TONE, type Stage } from '../lib/labels'
-import { Dot, Empty, Pager, TONE_TEXT, toneOf } from './ui'
+import { Dot, Empty, Pager, STACKED, TONE_TEXT, toneOf } from './ui'
 
 /** 表格里亮灯的补全项；分类在分类列里显示（待分类时是标签） */
 const LIGHTS: Stage[] = ['icon', 'github', 'readme', 'translate', 'tools', 'tools_translate', 'intro', 'readme_translate']
 
 export function LightLegend() {
   return (
-    <div className="flex items-center gap-3.5 text-xs text-text2">
+    <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-text2">
       {(['ok', 'running', 'pending', 'warn', 'failed'] as const).map((s) => (
         <span key={s} className="flex items-center gap-1.5">
           <Dot state={s} size={7} />
@@ -38,7 +38,7 @@ export function ItemTable({ page, onPage, showKind, footer }: { page: ItemPage; 
   return (
     <>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1080px] table-fixed text-[13px]">
+        <table className={clsx('w-full table-fixed text-[13px] md:min-w-[1080px]', STACKED)}>
           <thead>
             <tr className="border-y border-line bg-white/[0.02] text-left text-xs text-text3">
               <th className="w-[290px] py-2.5 pl-5 font-normal">名称</th>
@@ -62,7 +62,7 @@ export function ItemTable({ page, onPage, showKind, footer }: { page: ItemPage; 
               return (
                 <Fragment key={key}>
                   <tr className={clsx('cursor-pointer border-b border-line hover:bg-white/[0.02]', expanded && 'bg-white/[0.03]', !item.active && 'opacity-60')} onClick={() => setOpen(expanded ? null : key)}>
-                    <td className="py-2.5 pl-5">
+                    <td className="py-2.5 pl-5 max-md:w-full">
                       <div className="flex items-center gap-3">
                         {expanded ? <CaretDown className="size-3 shrink-0 text-text3" /> : <CaretRight className="size-3 shrink-0 text-text3" />}
                         <Icon item={item} />
@@ -85,19 +85,37 @@ export function ItemTable({ page, onPage, showKind, footer }: { page: ItemPage; 
                         </span>
                       )}
                     </td>
-                    <td className="font-mono text-xs text-text2 tabular">{compact(item.popularity)}</td>
+                    <td className="font-mono text-xs text-text2 tabular">
+                      <span className="font-sans text-text3 md:hidden">热度 </span>
+                      {compact(item.popularity)}
+                    </td>
                     <td className="font-mono text-xs text-text3" title={dateTime(item.firstSeenAt)}>
+                      <span className="font-sans md:hidden">收录 </span>
                       {day(item.firstSeenAt).slice(5)}
                     </td>
                     {LIGHTS.map((s) => {
                       const st = item.stages[s]
                       return (
-                        <td key={s} className="text-center">
+                        <td key={s} className="text-center max-md:hidden">
                           {st.state === 'na' ? <span className="font-mono text-xs text-text3" title={st.note ?? '不适用'}>—</span> : <Dot state={st.state} title={`${STAGE_LABEL[s]}：${STATE_TONE[st.state].label}${st.note ? `，${st.note}` : ''}`} />}
                         </td>
                       )
                     })}
-                    <td className="pr-5 text-right">
+                    {/* 手机上没有表头，灯旁边带上补全项的名字 */}
+                    <td className="w-full md:hidden">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-text2">
+                        {LIGHTS.map((s) => {
+                          const st = item.stages[s]
+                          return (
+                            <span key={s} className={clsx('flex items-center gap-1', st.state === 'na' && 'text-text3')}>
+                              {st.state === 'na' ? <span className="font-mono">—</span> : <Dot state={st.state} size={7} />}
+                              {STAGE_LABEL[s]}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </td>
+                    <td className="pr-5 text-right max-md:hidden">
                       <a href={item.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="在网站上打开" className="inline-flex rounded-md p-1.5 text-text3 hover:bg-white/5 hover:text-ink">
                         <ArrowSquareOut className="size-4" />
                       </a>
@@ -105,7 +123,7 @@ export function ItemTable({ page, onPage, showKind, footer }: { page: ItemPage; 
                   </tr>
                   {expanded && (
                     <tr className="border-b border-line bg-white/[0.015]">
-                      <td colSpan={20} className="px-5 py-4">
+                      <td colSpan={20} className="px-5 py-4 max-md:w-full">
                         <Detail item={item} />
                       </td>
                     </tr>
@@ -116,7 +134,7 @@ export function ItemTable({ page, onPage, showKind, footer }: { page: ItemPage; 
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3.5 md:px-5">
         <span className="text-xs text-text3">
           第 {num((page.meta.page - 1) * page.meta.pageSize + 1)}–{num(Math.min(page.meta.total, page.meta.page * page.meta.pageSize))} 条 / 共 {num(page.meta.total)} 条{footer ? ` · ${footer}` : ''}
         </span>
@@ -129,8 +147,8 @@ export function ItemTable({ page, onPage, showKind, footer }: { page: ItemPage; 
 /** 展开的一行：每个补全项的状态和说明 */
 function Detail({ item }: { item: Item }) {
   return (
-    <div className="flex gap-10">
-      <dl className="grid w-[300px] shrink-0 grid-cols-[72px_1fr] gap-x-3 gap-y-1.5 text-xs">
+    <div className="flex flex-col gap-4 lg:flex-row lg:gap-10">
+      <dl className="grid shrink-0 grid-cols-[72px_1fr] gap-x-3 gap-y-1.5 text-xs lg:w-[300px]">
         <dt className="text-text3">来源</dt>
         <dd>{item.sources.map(sourceLabel).join('、')}</dd>
         <dt className="text-text3">收录时间</dt>
@@ -146,7 +164,7 @@ function Detail({ item }: { item: Item }) {
           </a>
         </dd>
       </dl>
-      <ul className="grid flex-1 grid-cols-3 gap-x-8 gap-y-2 text-xs">
+      <ul className="grid flex-1 grid-cols-1 gap-x-8 gap-y-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
         {(Object.keys(STAGE_LABEL) as Stage[]).map((s) => {
           const st = item.stages[s]
           return (

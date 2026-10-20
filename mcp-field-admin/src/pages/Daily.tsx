@@ -54,9 +54,9 @@ export function DailyPage() {
   return (
     <>
       <PageHeader title="每日采集" sub="每天北京时间 03:30 自动运行；任意一步失败不影响后面的步骤" onRefresh={reload} />
-      <div className="flex flex-col gap-5 px-8 pb-10 pt-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-5">
+      <div className="flex flex-col gap-5 px-4 pb-10 pt-4 md:px-8 md:pt-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
             <div className="flex h-9.5 items-center gap-1 rounded-lg border border-line bg-surface px-1.5">
               <button onClick={() => setDate(shiftDate(date, -1))} className="rounded p-1 text-text2 hover:bg-white/5" aria-label="前一天">
                 <CaretLeft className="size-4" />
@@ -86,7 +86,7 @@ export function DailyPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 max-lg:justify-end">
             <Link to="/logs" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3.5 text-[13px] text-text2 hover:bg-white/5 hover:text-ink">
               <TerminalWindow className="size-[15px]" />
               运行日志
@@ -130,18 +130,18 @@ function Summary({ data }: { data: Daily }) {
     ['触发方式', b ? (b.trigger === 'cron' ? '定时任务' : '手动') : '—'],
   ]
   return (
-    <div className="flex rounded-xl border border-line bg-surface">
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-3 lg:flex lg:gap-0 lg:bg-surface">
       {cells.map(([label, value], i) => (
-        <div key={label} className={clsx('flex flex-col gap-1.5 px-5 py-4', label === '步骤' ? 'flex-[2]' : 'flex-1', i < cells.length - 1 && 'border-r border-line')}>
+        <div key={label} className={clsx('flex flex-col gap-1.5 bg-surface px-4 py-3 md:px-5 md:py-4', label === '步骤' ? 'lg:flex-[2]' : 'lg:flex-1', i < cells.length - 1 && 'lg:border-r lg:border-line')}>
           <span className="text-xs text-text3">{label}</span>
-          <span className="text-[15px] font-semibold">{value}</span>
+          <span className="text-sm font-semibold md:text-[15px]">{value}</span>
         </div>
       ))}
     </div>
   )
 }
 
-const COLS = 'grid grid-cols-[230px_110px_70px_90px_1fr_220px_100px] items-center gap-x-3'
+const COLS = 'grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 md:grid-cols-[230px_110px_70px_90px_1fr_220px_100px] md:gap-y-0'
 
 function StepTable({ data, onRerun }: { data: Daily; onRerun: (step: string) => void }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
@@ -151,7 +151,7 @@ function StepTable({ data, onRerun }: { data: Daily; onRerun: (step: string) => 
   const toggle = (step: string) => setOpen((o) => new Set(o.has(step) ? [...o].filter((x) => x !== step) : [...o, step]))
   return (
     <Card title="步骤明细" sub="点击一行展开这一步的统计和最后几条警告、错误；失败的步骤默认展开" padded={false}>
-      <div className={clsx(COLS, 'border-y border-line bg-white/[0.02] px-5 py-2.5 text-xs text-text3')}>
+      <div className={clsx(COLS, 'border-y border-line bg-white/[0.02] px-5 py-2.5 text-xs text-text3 max-md:hidden')}>
         <span>步骤</span>
         <span>状态</span>
         <span>开始</span>
@@ -165,7 +165,7 @@ function StepTable({ data, onRerun }: { data: Daily; onRerun: (step: string) => 
         const bad = s.status === 'failed' || s.status === 'interrupted'
         return (
           <Fragment key={s.step}>
-            <div id={`step-${s.step}`} onClick={() => s.runs.length && toggle(s.step)} className={clsx(COLS, 'min-h-[52px] scroll-mt-20 border-b border-line px-5 py-2 text-[13px]', s.runs.length && 'cursor-pointer hover:bg-white/[0.02]', bad && 'bg-err/[0.05]')}>
+            <div id={`step-${s.step}`} onClick={() => s.runs.length && toggle(s.step)} className={clsx(COLS, 'min-h-[52px] scroll-mt-20 border-b border-line px-4 py-3 text-[13px] md:px-5 md:py-2', s.runs.length && 'cursor-pointer hover:bg-white/[0.02]', bad && 'bg-err/[0.05]')}>
               <span className="flex items-center gap-2.5">
                 <span className="font-mono text-[11px] text-text3">{String(i + 1).padStart(2, '0')}</span>
                 <span>
@@ -173,15 +173,18 @@ function StepTable({ data, onRerun }: { data: Daily; onRerun: (step: string) => 
                     {stepLabel(s.step)}
                     {s.runs.length > 0 && <CaretDown className={clsx('size-3 text-text3 transition', !expanded && '-rotate-90')} />}
                   </span>
-                  <span className="block font-mono text-[10px] text-text3">{s.step}</span>
+                  <span className="block font-mono text-[10px] text-text3">
+                    {s.step}
+                    {s.runs.length > 0 && <span className="md:hidden"> · {clock(s.startedAt)} 开始 · {duration(s.durationMs)}</span>}
+                  </span>
                 </span>
               </span>
-              <span>
+              <span className="max-md:justify-self-end">
                 <Pill state={s.status} />
               </span>
-              <span className="font-mono text-xs text-text2">{clock(s.startedAt)}</span>
-              <span className={clsx('text-xs', s.status === 'running' ? 'text-run' : 'text-text2')}>{s.runs.length ? duration(s.durationMs) : '—'}</span>
-              <span className="pr-4 text-xs text-text2">
+              <span className="font-mono text-xs text-text2 max-md:hidden">{clock(s.startedAt)}</span>
+              <span className={clsx('text-xs max-md:hidden', s.status === 'running' ? 'text-run' : 'text-text2')}>{s.runs.length ? duration(s.durationMs) : '—'}</span>
+              <span className="text-xs text-text2 max-md:col-span-2 md:pr-4">
                 {s.progress ? (
                   <span className="flex flex-col gap-1.5">
                     <span className="flex justify-between">
@@ -195,7 +198,7 @@ function StepTable({ data, onRerun }: { data: Daily; onRerun: (step: string) => 
                     </span>
                   </span>
                 ) : (
-                  <span className={clsx(bad && 'text-err')}>{s.error ? s.error.slice(0, 120) : s.runs.map((r) => r.args).filter(Boolean).join('；') || stepResult(s)}</span>
+                  <span className={clsx('break-all', bad && 'text-err')}>{s.error ? s.error.slice(0, 120) : s.runs.map((r) => r.args).filter(Boolean).join('；') || stepResult(s)}</span>
                 )}
               </span>
               <span className="flex items-center gap-3 font-mono text-xs">
@@ -227,7 +230,7 @@ function StepTable({ data, onRerun }: { data: Daily; onRerun: (step: string) => 
           </Fragment>
         )
       })}
-      {data.batch.extra.length > 0 && <p className="px-5 py-3 text-xs text-text3">另有 {data.batch.extra.map((r) => stepLabel(r.step)).join('、')} 也属于这一批次</p>}
+      {data.batch.extra.length > 0 && <p className="px-4 py-3 text-xs text-text3 md:px-5">另有 {data.batch.extra.map((r) => stepLabel(r.step)).join('、')} 也属于这一批次</p>}
     </Card>
   )
 }
@@ -244,7 +247,7 @@ function Count({ state, n }: { state: 'ok' | 'warn' | 'failed'; n: number }) {
 function StepDetail({ step }: { step: Step }) {
   const tip = advice(step)
   return (
-    <div className={clsx('flex flex-col gap-3 border-b border-line py-3.5 pl-[60px] pr-5', (step.status === 'failed' || step.status === 'interrupted') && 'bg-err/[0.05]')}>
+    <div className={clsx('flex flex-col gap-3 border-b border-line py-3.5 pl-4 pr-4 md:pl-[60px] md:pr-5', (step.status === 'failed' || step.status === 'interrupted') && 'bg-err/[0.05]')}>
       {step.runs.map((r) => (
         <RunBlock key={r.id} run={r} />
       ))}
@@ -263,9 +266,9 @@ function RunBlock({ run }: { run: Run }) {
   const lines = run.logTail
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3 text-xs text-text2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text2">
         <Dot state={run.status} size={7} />
-        <span className="font-mono">
+        <span className="break-all font-mono">
           #{run.id} {run.step} {run.args}
         </span>
         <span className="text-text3">
@@ -316,24 +319,24 @@ function NewItems({ date, newByKind }: { date: string; newByKind: Record<Kind, n
 
   return (
     <section id="items" className="scroll-mt-20 rounded-xl border border-line bg-surface">
-      <div className="flex flex-col gap-3.5 px-5 pt-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+      <div className="flex flex-col gap-3.5 px-4 pt-4 md:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <h2 className="text-[15px] font-semibold">当天新收录 · {num(total)} 条</h2>
             <span className="text-xs text-text3">每条的补全进度；新条目的分类要等次日 classify 后生效</span>
           </div>
           <LightLegend />
         </div>
-        <div className="flex items-end justify-between border-b border-line">
-          <div className="flex gap-6">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 border-b border-line">
+          <div className="flex gap-5 overflow-x-auto max-md:w-full md:gap-6">
             {[undefined, ...KINDS].map((k) => (
-              <button key={k ?? 'all'} onClick={() => set('kind', k ?? null)} className={clsx('-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 text-sm', kind === k ? 'border-ink font-semibold text-ink' : 'border-transparent text-text2 hover:text-ink')}>
+              <button key={k ?? 'all'} onClick={() => set('kind', k ?? null)} className={clsx('flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 pb-2.5 text-sm md:-mb-px', kind === k ? 'border-ink font-semibold text-ink' : 'border-transparent text-text2 hover:text-ink')}>
                 {k ? KIND_LABEL[k] : '全部'}
                 <span className="font-mono text-xs text-text3">{num(k ? newByKind[k] : total)}</span>
               </button>
             ))}
           </div>
-          <label className="flex cursor-pointer items-center gap-2 pb-2.5 text-xs text-text2">
+          <label className="flex cursor-pointer items-center gap-2 pb-2.5 text-xs text-text2 max-md:order-first">
             <input type="checkbox" checked={onlyIssues} onChange={(e) => set('issue', e.target.checked ? 'fail' : null)} className="accent-[var(--st-err)]" />
             只看有失败的
           </label>

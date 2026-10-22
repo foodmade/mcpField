@@ -96,7 +96,7 @@ export function createApp(deps: ApiDeps) {
   if (deps.analytics) app.route('/api/collect', collectRoutes(deps.analytics))
   if (deps.claims) app.route('/api/claims', claimRoutes(deps.claims, deps.auth, { cookieSecure: deps.cookieSecure ?? true }))
   const services = Object.entries(deps.entities) as [EntityKind, EntityService<EntityKind>][]
-  // GET /api/sitemap —— 各类型的条目总数；GET /api/sitemap/:kind?page&pageSize —— 分页列出 slug 与最后更新时间
+  // GET /api/sitemap —— 各类型允许收录的条目数；GET /api/sitemap/:kind?page&pageSize —— 分页列出允许收录的 slug 与最后更新时间
   app.get('/api/sitemap', async (c) => {
     const data = await Promise.all(services.map(async ([kind, service]) => ({ kind, route: ROUTE_BY_KIND[kind], total: (await service.sitemap(1, 1)).meta.total })))
     return c.json({ data })

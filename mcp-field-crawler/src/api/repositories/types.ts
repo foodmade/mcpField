@@ -6,6 +6,8 @@ export interface EntityRow<K extends EntityKind> {
   draft: EntityDraftOf<K>
   fetchedAt: string
   mappedAt: string
+  /** 详情页是否允许搜索引擎收录（只有 findBySlug 返回；没算过的按收录处理） */
+  indexable?: boolean
 }
 
 export interface CategoryCount {
@@ -47,6 +49,6 @@ export interface EntityReadRepository<K extends EntityKind> {
   viewCounts(scope?: Scope): Promise<ViewCounts>
   /** 各子类型的数量；没有子类型的类型返回空数组 */
   typeCounts(scope?: Scope): Promise<TypeCount[]>
-  /** 按 slug 排序分页列出全部条目（生成 sitemap 用） */
+  /** 按 slug 排序分页列出允许收录的条目（生成 sitemap 用） */
   sitemap(offset: number, limit: number): Promise<{ rows: SitemapEntry[]; total: number }>
 }

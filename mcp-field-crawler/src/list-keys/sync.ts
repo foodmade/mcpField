@@ -14,6 +14,8 @@ import { FEATURED, LAST_COMMIT, metric, NAME, popularity, REPO_STATS, STARS, tex
 export interface ListKeyStats {
   kind: EntityKind
   rows: number
+  /** 其中允许收录的（INDEXABLE） */
+  indexable: number
   categories: number
   seconds: number
 }
@@ -22,6 +24,21 @@ export interface ListKeyStats {
 const LOCK = 'ingest_list_keys_sync'
 
 const bool = (path: string) => sql`(JSON_EXTRACT(d.draft, ${path}) = TRUE)`
+
+/**
+ * 详情页是否允许搜索引擎收录：内容太薄的页面加 noindex、不进 sitemap，免得大量相似的聚合页拉低整站质量评价。
+ * 要有 AI 介绍（ingest_overviews，overview / describe 生成）；服务还要 ≥ 5 星，或者是官方、认证、精选、远程服务、已认领的；Skill 还要 ≥ 50 次安装。
+ * 在重建后的 ingest_list_keys 上算（k 是本表，d 是对应的发布层条目）；AI 介绍在每日任务的 publish 之后才生成，新条目第二天重建时才会变成收录。
+ * 标志位可能是 NULL，用 <=> 比较：NULL 参与 OR 会让整个结果变成 NULL（"未算过"），而不是 0。
+ */
+const INDEXABLE = sql`
+  EXISTS (SELECT 1 FROM ingest_overviews o WHERE o.source_id = d.source_id AND o.kind = d.kind AND o.external_id = d.external_id)
+  AND CASE k.kind
+    WHEN 'server' THEN COALESCE(k.stars, 0) >= 5 OR k.official <=> 1 OR k.verified <=> 1 OR k.featured <=> 1 OR k.remote <=> 1
+      OR EXISTS (SELECT 1 FROM entity_claims c WHERE c.kind = k.kind AND c.slug = k.slug AND c.revoked_at IS NULL)
+    WHEN 'skill' THEN COALESCE(k.installs, 0) >= 50
+    ELSE TRUE
+  END`
 
 async function syncKind(db: Db, kind: EntityKind): Promise<ListKeyStats> {
   const started = Date.now()
@@ -43,6 +60,11 @@ async function syncKind(db: Db, kind: EntityKind): Promise<ListKeyStats> {
           LOWER(LEFT(${NAME}, 255)), ${LAST_COMMIT}, ${textAt('$.sourceCreatedAt', 40)}
         FROM ingest_published d ${REPO_STATS}
         WHERE d.kind = ${kind}`)) as unknown as [{ affectedRows: number }]
+      await tx.execute(sql`
+        UPDATE ingest_list_keys k JOIN ingest_published d ON d.kind = k.kind AND d.slug = k.slug
+        SET k.indexable = (${INDEXABLE})
+        WHERE k.kind = ${kind}`)
+      const [[indexable]] = (await tx.execute(sql`SELECT COUNT(*) AS n FROM ingest_list_keys WHERE kind = ${kind} AND indexable = 1`)) as unknown as [{ n: number | string }[]]
       // 源站分类没有对应项时 slug 为空（JSON null 取出来可能是字符串 'null'），存成空字符串
       const [categories] = (await tx.execute(sql`
         INSERT INTO ingest_list_categories (kind, slug, position, category, source_value, is_primary)
@@ -50,7 +72,7 @@ async function syncKind(db: Db, kind: EntityKind): Promise<ListKeyStats> {
         FROM ingest_published d,
              JSON_TABLE(d.draft, '$.categories[*]' COLUMNS (position FOR ORDINALITY, slug VARCHAR(64) PATH '$.slug', source_value VARCHAR(128) PATH '$.sourceValue', is_primary JSON PATH '$.primary')) c
         WHERE d.kind = ${kind}`)) as unknown as [{ affectedRows: number }]
-      return { kind, rows: keys.affectedRows, categories: categories.affectedRows, seconds: Math.round((Date.now() - started) / 1000) }
+      return { kind, rows: keys.affectedRows, indexable: Number(indexable?.n ?? 0), categories: categories.affectedRows, seconds: Math.round((Date.now() - started) / 1000) }
     } finally {
       await tx.execute(sql`SELECT RELEASE_LOCK(${LOCK})`)
     }

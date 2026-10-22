@@ -42,7 +42,7 @@ export function DetailError({ notFound, listHref }: { notFound: { title: string;
 
 /**
  * 详情页的 SEO 标签与结构化数据（SoftwareApplication + 面包屑）。
- * 描述优先用 AI 介绍的概述，其次是简介。
+ * 描述优先用 AI 介绍的概述，其次是简介。内容太薄的条目（indexable 为 false）输出 noindex，也不在 sitemap 里。
  */
 export function DetailSeo({ kind, d, section }: { kind: Kind; d: BaseItem & DetailBase; section: string }) {
   const { m, locale } = useI18n()
@@ -75,7 +75,7 @@ export function DetailSeo({ kind, d, section }: { kind: Kind; d: BaseItem & Deta
       },
     ],
   }
-  return <Seo title={detailTitle(d.name, section)} description={description} path={path} image={d.iconUrl} type="article" jsonLd={jsonLd} />
+  return <Seo title={detailTitle(d.name, section)} description={description} path={path} image={d.iconUrl} noindex={d.indexable === false} type="article" jsonLd={jsonLd} />
 }
 
 const BADGE_ICON = { green: 'text-accent', gold: 'text-gold', blue: 'text-sky', violet: 'text-violet', gray: 'text-text3' }

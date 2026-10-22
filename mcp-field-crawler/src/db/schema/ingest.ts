@@ -493,6 +493,8 @@ export const ingestListKeys = mysqlTable(
     sortName: varchar('sort_name', { length: 255 }),
     lastCommitAt: varchar('last_commit_at', { length: 40 }),
     sourceCreatedAt: varchar('source_created_at', { length: 40 }),
+    /** 详情页是否允许搜索引擎收录（list-keys/sync.ts 的 INDEXABLE）：0 的不进 sitemap、页面输出 noindex；NULL = 还没算过，按收录处理 */
+    indexable: tinyint('indexable'),
   },
   (t) => [
     primaryKey({ columns: [t.kind, t.slug] }),

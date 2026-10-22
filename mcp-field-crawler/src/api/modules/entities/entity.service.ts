@@ -154,7 +154,7 @@ export class EntityService<K extends EntityKind> {
     return { data: { total: meta.total, views, types, categories } }
   }
 
-  /** sitemap：分页列出全部 slug 和最后更新时间 */
+  /** sitemap：分页列出允许收录的 slug 和最后更新时间 */
   async sitemap(page: number, pageSize: number) {
     const { rows, total } = await this.repository.sitemap((page - 1) * pageSize, pageSize)
     return { data: rows, meta: pageMeta({ page, pageSize }, total) }
@@ -254,7 +254,7 @@ export class EntityService<K extends EntityKind> {
     }
   }
 
-  private toDetail({ draft: d, fetchedAt, mappedAt }: EntityRow<K>, github?: GithubReadme): EntityDetail {
+  private toDetail({ draft: d, fetchedAt, mappedAt, indexable }: EntityRow<K>, github?: GithubReadme): EntityDetail {
     const readme = resolveReadme(github)
     return {
       ...this.toListItem(d),
@@ -269,6 +269,7 @@ export class EntityService<K extends EntityKind> {
       metrics: d.metrics,
       source: { id: d.sourceId, url: d.sourceUrl, fetchedAt, mappedAt, sourceCreatedAt: d.sourceCreatedAt ?? null },
       issues: d.issues.map((i) => ({ code: i.code, detail: i.detail ?? null })),
+      indexable: indexable ?? true,
       ...this.presenter.detail(d),
     }
   }

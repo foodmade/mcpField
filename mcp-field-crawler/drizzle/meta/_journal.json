@@ -176,6 +176,13 @@
       "when": 1792652651152,
       "tag": "0024_list_key_sort_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1792658765670,
+      "tag": "0025_list_key_indexable",
+      "breakpoints": true
     }
   ]
 }

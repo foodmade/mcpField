@@ -76,6 +76,8 @@ export type DetailBase = {
   metrics: { metric: string; period: string; value: number; observedOn: string }[]
   source: { id: string; url: string; fetchedAt: string; mappedAt: string; sourceCreatedAt: string | null }
   issues: { code: string; detail: string | null }[]
+  /** 是否允许搜索引擎收录：内容太薄的为 false，详情页输出 noindex（规则见 mcp-field-crawler 的 list-keys/sync.ts） */
+  indexable?: boolean
 }
 
 export type ToolParam = { path: string; type: string | null; description: string | null; required: boolean; enum: unknown[] | null; default: unknown }

@@ -88,6 +88,7 @@ interface RawRow {
   fetched_at: unknown
   mapped_at: unknown
   claimed: unknown
+  indexable?: unknown
 }
 
 export interface DraftRepositoryOptions {
@@ -319,13 +320,14 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   async findBySlug(slug: string): Promise<EntityRow<K> | null> {
     // 除了条目自己的地址，被合并进来的重复条目原来的地址也能找到它
     const [row] = await this.rows<RawRow>(sql`
-      SELECT d.draft, r.fetched_at, d.mapped_at, ${CLAIMED} AS claimed
+      SELECT d.draft, r.fetched_at, d.mapped_at, ${CLAIMED} AS claimed,
+        (SELECT k.indexable FROM ingest_list_keys k WHERE k.kind = d.kind AND k.slug = d.slug) AS indexable
       FROM ingest_published_slugs s
       JOIN ingest_published d ON d.id = s.published_id
       JOIN ingest_records r ON r.id = d.record_id
       WHERE s.kind = ${this.kind} AND s.slug = ${slug}
       LIMIT 1`)
-    return row ? this.toEntityRow(row) : null
+    return row ? { ...this.toEntityRow(row), indexable: row.indexable === null || row.indexable === undefined || Number(row.indexable) === 1 } : null
   }
 
   async viewCounts(scope?: Scope): Promise<ViewCounts> {
@@ -346,6 +348,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
   }
 
   async sitemap(offset: number, limit: number): Promise<{ rows: SitemapEntry[]; total: number }> {
+    if (await this.keysReady()) return this.sitemapFromKeys(offset, limit)
     const where = sql.join(this.base(), sql` AND `)
     // 先只按 id 排序分页，再回表取更新时间：直接带着草稿 JSON 排序上万行会超出 MySQL 的排序缓冲区
     // 更新时间用页面内容最后变化的时间：源站的更新时间会批量刷新，不代表内容变了（见 merge/publish.ts contentHash）
@@ -355,6 +358,24 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
         FROM (SELECT d.id FROM ingest_published d WHERE ${where} ORDER BY d.slug LIMIT ${limit} OFFSET ${offset}) page
         JOIN ingest_published d ON d.id = page.id`),
       this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_published d WHERE ${where}`),
+    ])
+    return {
+      rows: rows
+        .map((r) => ({ slug: r.slug, updatedAt: r.updated_at ? toIso(r.updated_at) : null }))
+        .sort((x, y) => (x.slug < y.slug ? -1 : x.slug > y.slug ? 1 : 0)),
+      total: Number(count?.total ?? 0),
+    }
+  }
+
+  /** 列表键表可用时只列允许收录的条目（indexable，NULL 是还没算过，按收录处理） */
+  private async sitemapFromKeys(offset: number, limit: number): Promise<{ rows: SitemapEntry[]; total: number }> {
+    const where = sql`k.kind = ${this.kind} AND COALESCE(k.indexable, 1) = 1`
+    const [rows, [count]] = await Promise.all([
+      this.rows<{ slug: string; updated_at: unknown }>(sql`
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.slug')) AS slug, d.content_changed_at AS updated_at
+        FROM (SELECT k.slug FROM ingest_list_keys k WHERE ${where} ORDER BY k.slug LIMIT ${limit} OFFSET ${offset}) page
+        JOIN ingest_published d ON d.kind = ${this.kind} AND d.slug = page.slug`),
+      this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_list_keys k WHERE ${where}`),
     ])
     return {
       rows: rows

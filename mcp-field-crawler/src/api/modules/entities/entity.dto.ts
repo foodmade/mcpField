@@ -95,6 +95,8 @@ export interface EntityDetail extends EntityListItem {
   source: { id: string; url: string; fetchedAt: string; mappedAt: string; sourceCreatedAt: string | null }
   /** 映射时发现的数据质量问题 */
   issues: { code: string; detail: string | null }[]
+  /** 是否允许搜索引擎收录：内容太薄的为 false，网站输出 noindex（见 list-keys/sync.ts 的 INDEXABLE） */
+  indexable: boolean
 }
 
 export interface CategoryFacet {

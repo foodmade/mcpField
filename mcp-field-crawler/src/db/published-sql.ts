@@ -3,7 +3,7 @@ import type { MetricName } from '../core/draft.ts'
 
 /*
  * 从发布层草稿 JSON 中取值的 SQL 片段（d 为 ingest_published 的别名）。
- * 列表接口和搜索表同步（search/sync.ts）共用，保证两边的名称、简介、热度算法一致。
+ * 列表接口、搜索表同步（search/sync.ts）和列表键表同步（list-keys/sync.ts）共用，保证几边的名称、简介、热度算法一致。
  */
 
 export const NAME = sql`JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.name'))`
@@ -23,6 +23,9 @@ export const REPO_STATS = sql`LEFT JOIN ingest_enrichments g ON g.enricher = 'gi
   AND g.subject_key = CONCAT('repo:github.com/', JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.owner')), '/', JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.identity.repository.name')))`
 /** 星数：GitHub 的优先，没抓到时用源站的（需要 REPO_STATS） */
 export const STARS = sql`COALESCE(CAST(JSON_EXTRACT(g.data, '$.stars') AS SIGNED), ${metric('github_stars')})`
+
+/** 最近提交时间：GitHub 的优先，没抓到时用源站的（需要 REPO_STATS） */
+export const LAST_COMMIT = sql`COALESCE(CAST(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(g.data, '$.lastCommitAt')), 'null') AS CHAR(40)), ${textAt('$.lastCommitAt', 40)})`
 
 /** 热度：该类型 sort=popular 用的指标；星数需要关联 REPO_STATS */
 export const popularity = (m: MetricName) => (m === 'github_stars' ? STARS : metric(m))

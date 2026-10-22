@@ -1,4 +1,4 @@
-import { POPULAR_METRIC, type EntityDraftOf, type MetricName, type ToolDraft } from '../../../core/draft.ts'
+import { POPULAR_METRIC, SUBTYPE_PATH, type EntityDraftOf, type MetricName, type ToolDraft } from '../../../core/draft.ts'
 import type { EntityKind } from '../../../core/types.ts'
 
 /**
@@ -96,7 +96,7 @@ const loop: EntityPresenter<'loop'> = {
 
 const agent: EntityPresenter<'agent'> = {
   popularMetric: POPULAR_METRIC.agent,
-  typePath: '$.detail.agentType',
+  typePath: SUBTYPE_PATH.agent,
   list: (d) => ({ agentType: orNull(d.detail.agentType) }),
   detail: () => ({}),
 }

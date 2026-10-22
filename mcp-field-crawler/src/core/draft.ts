@@ -46,6 +46,9 @@ export const POPULAR_METRIC: Record<EntityKind, MetricName> = {
   agent: 'github_stars',
 }
 
+/** 子类型字段在草稿里的 JSON 路径（type 筛选和计数用，列表接口和列表键表 ingest_list_keys 共用）；没有子类型的类型不填 */
+export const SUBTYPE_PATH: Partial<Record<EntityKind, string>> = { agent: '$.detail.agentType' }
+
 export type MediaType = 'icon' | 'logo' | 'cover' | 'screenshot'
 export type AliasType = 'previous_slug' | 'name' | 'command' | 'canonical_key'
 export type ListName = 'capability' | 'summary' | 'use_case'

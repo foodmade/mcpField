@@ -47,6 +47,7 @@ import { runMergePlan } from '../merge/runner.ts'
 import { publish } from '../merge/publish.ts'
 import { syncSearchIndex } from '../search/sync.ts'
 import { syncTagIndex } from '../tags/sync.ts'
+import { syncListKeys } from '../list-keys/sync.ts'
 import { changedUrls, pushChanged } from '../seo/indexnow.ts'
 import { LlmClassifier } from '../classify/classifier.ts'
 import { ClassifyRunner, collectClassifyInputs } from '../classify/runner.ts'
@@ -96,7 +97,7 @@ MCP Field 数据采集
   admin-user              创建管理后台账号或重设密码：--username <名> --password <密码>
   job-batch start|finish  每日任务（daily.sh）的批次记录，后台按批次展示每天的运行情况
   probe-worker            实测机常驻：从队列取目标，本地包在 Docker 沙箱里测、远程服务直接读 tools/list，结果写回队列（不需要数据库）
-  search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）和标签表 ingest_tags；publish 结束时两张都同步，github / translate / describe 结束时只同步搜索表
+  search-index            同步搜索表 ingest_search（关键词搜索和热门列表用）、标签表 ingest_tags 和列表键表 ingest_list_keys（列表筛选、排序、侧栏计数用）；publish 结束时都同步，github 结束时同步搜索表和列表键表，translate / describe 结束时只同步搜索表
   stats                   查看采集层统计（需要 MySQL）
 
 选项：
@@ -354,8 +355,11 @@ async function github() {
       signal: controller.signal,
     })
     logger.info(readmeStats, 'GitHub README 抓取完成')
-    // 星数变了，热门顺序跟着变
-    if (!controller.signal.aborted) await syncSearchIndex(db, kinds, logger)
+    // 星数、最近提交时间变了，热门顺序和列表排序跟着变
+    if (!controller.signal.aborted) {
+      await syncSearchIndex(db, kinds, logger)
+      await syncListKeys(db, kinds, logger)
+    }
     return { repos: repoStats, skillsSh: imported, readme: readmeStats }
   } finally {
     await pool.end()
@@ -804,6 +808,7 @@ async function publishCommand() {
     logger.info(stats, '发布完成')
     await syncSearchIndex(db, kinds, logger)
     await syncTagIndex(db, kinds, logger)
+    await syncListKeys(db, kinds, logger)
     // 推送失败不影响发布结果，之后可以用 indexnow --since 补推
     if (config.indexNow) await pushChanged(db, config.indexNow, kinds, started, logger).catch((error: unknown) => logger.warn({ err: error instanceof Error ? error.message : String(error) }, 'IndexNow 推送失败'))
     return stats
@@ -819,6 +824,7 @@ async function searchIndex() {
   try {
     await syncSearchIndex(db, kinds, logger)
     await syncTagIndex(db, kinds, logger)
+    await syncListKeys(db, kinds, logger)
   } finally {
     await pool.end()
   }

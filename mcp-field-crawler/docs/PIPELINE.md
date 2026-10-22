@@ -190,6 +190,7 @@ D+1 日 03:30 classify 分类 ──► publish 分类生效 ──► 图标若
 | overview | 输入指纹（名称、简介、标签、README 哈希，**不含分类**）或缺某种语言就重做；README 不足或星数低于 `--min-stars` 的跳过。收集时边读边过滤，内存里只留要生成的 | README 更新、简介变化 | `--stale`、`--force` |
 | readme | 整篇按 README 哈希判断要不要重译；片段按内容指纹查记忆库，不同项目里相同段落只翻一次；内容上多次失败的片段记进 `ingest_translation_failures`，之后的运行**跳过**（deferred） | README 更新 → 只重翻变化的片段 | `--stale`、`--force`；`--retry-failed` 把 deferred 的片段补上（全量跑完后用） |
 | 搜索表 ingest_search | 按发布层 + 简介译文 + 自撰简介 + 星数算每条的搜索行指纹，只改有变化的行；同一时间只允许一个同步 | publish / github / translate / describe 之后自动 | `search-index` 手动全量 |
+| 列表键表 ingest_list_keys | 按发布层 + GitHub 统计整类重建列表筛选、排序、侧栏计数要用的值；同一时间只允许一个重建 | publish / github 之后自动 | `search-index` 手动全量 |
 | IndexNow | 只推 `content_changed_at` 不早于本次 publish 开始时间的条目，每条推中英日三个地址；源站批量刷新更新时间不算内容变化 | publish 之后自动（配了 `INDEXNOW_KEY`） | `indexnow --since <时间>` 补推，`--dry-run` 只看地址 |
 
 关于 `--since auto` 的一个细节：`lastSucceededRun` 只认 `status = succeeded` 且 options 里没有 `limitPerKind` 的运行。所以 2026-10-16 白天的两次 `--limit 10` 试跑不会被当成基准，10-17 的增量会以 10-12 的全量为起点，把这几天的更新一次性补齐。
@@ -261,7 +262,7 @@ AI 介绍 ◄───── overview / describe ─► ingest_overviews + inges
 | `crawl --source <id> --limit 10` | 新来源 / 改了解析后本地小样本验证 | 上线前（见记忆：先本地 --limit 10，再 deploy + run 全量） |
 | `remap --source <id>` | 改了映射规则后不发网络请求重建草稿 | 改 mapper 后，之后要 publish |
 | `merge-plan` | 合并预演，只读，报告写 `data/merge-plan` | 改身份键规则后 |
-| `search-index` | 手动全量同步搜索表和标签表 | 一般不需要，publish 会自动做 |
+| `search-index` | 手动全量同步搜索表、标签表和列表键表 | 一般不需要，publish 会自动做 |
 | `indexnow --since <时间>` | 补推 IndexNow | publish 日志里出现"IndexNow 推送失败"时 |
 | `translate --recheck` / `--stale` | 改了校验规则 / 提示词后重查重翻 | 改规则后手动一次 |
 | `readme --retry-failed` | 补翻多次失败过的片段 | 全量跑完后；后台每日采集页展开 README 翻译那一步，点「补跑失败片段」也是它 |

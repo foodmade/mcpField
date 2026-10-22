@@ -463,6 +463,65 @@ export const ingestTags = mysqlTable(
 )
 
 /**
+ * 列表键表：一行 = 一个发布条目，存列表筛选、排序和侧栏计数要用的值，由发布层草稿和 GitHub 统计算出
+ * （list-keys/sync.ts，publish / github / search-index 结束时整类重建）。
+ * 列表先在这张窄表里筛选、排序取一页 slug，再回发布层取草稿；不用每次对整个类型解析草稿 JSON（服务 6 万条、草稿平均 10KB，现算一次 1–3 秒）。
+ * 标志位保留草稿里的三态：1 / 0 / NULL（没有这个字段），与直接查发布层时 JSON_EXTRACT(...) = TRUE / FALSE 的结果一致。
+ * 每种排序一个索引（迁移 0024 里写成降序列，与 ORDER BY 的方向一致），不带筛选和宽筛选时按索引顺序取够一页就停，不用对整类排序。
+ */
+export const ingestListKeys = mysqlTable(
+  'ingest_list_keys',
+  {
+    kind: kindCol(),
+    slug: varchar('slug', { length: 191 }).notNull(),
+    remote: tinyint('remote'),
+    featured: tinyint('featured'),
+    /** 源站的认证标识；认领（entity_claims）在查询时另算 */
+    verified: tinyint('verified'),
+    official: tinyint('official'),
+    /** 子类型（SUBTYPE_PATH，Agent：product / template）；不是字符串时为空 */
+    subtype: varchar('subtype', { length: 64 }),
+    /** 第一个分类的 slug；没有分类、或分类在 mcp-field 中没有对应项时为空（category=none 筛选） */
+    firstCategory: varchar('first_category', { length: 64 }),
+    /** 分类个数；草稿里没有 categories 时为空 */
+    categoryCount: smallint('category_count'),
+    /** sort=popular 的热度（该类型的 POPULAR_METRIC，星数优先用 GitHub 的） */
+    popularity: bigint('popularity', { mode: 'number' }),
+    stars: bigint('stars', { mode: 'number' }),
+    installs: bigint('installs', { mode: 'number' }),
+    /** 名称排序键：小写后的名称；列的排序规则是 utf8mb4_general_ci（迁移 0024 里指定），与直接查发布层时按连接排序规则比较的顺序一致 */
+    sortName: varchar('sort_name', { length: 255 }),
+    lastCommitAt: varchar('last_commit_at', { length: 40 }),
+    sourceCreatedAt: varchar('source_created_at', { length: 40 }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.kind, t.slug] }),
+    index('ix_ingest_list_keys_popular').on(t.kind, t.popularity, t.featured, t.slug),
+    index('ix_ingest_list_keys_stars').on(t.kind, t.stars, t.slug),
+    index('ix_ingest_list_keys_installs').on(t.kind, t.installs, t.slug),
+    index('ix_ingest_list_keys_name').on(t.kind, t.sortName, t.slug),
+    index('ix_ingest_list_keys_updated').on(t.kind, t.lastCommitAt, t.slug),
+    index('ix_ingest_list_keys_newest').on(t.kind, t.sourceCreatedAt, t.slug),
+  ],
+)
+
+/** 列表键表的分类：一行 = 一个发布条目的一个分类（草稿 categories 展开），与 ingest_list_keys 一起重建 */
+export const ingestListCategories = mysqlTable(
+  'ingest_list_categories',
+  {
+    kind: kindCol(),
+    slug: varchar('slug', { length: 191 }).notNull(),
+    /** 在草稿 categories 里的序号（从 1 开始） */
+    position: smallint('position').notNull(),
+    /** mcp-field 分类 slug；源站分类在 mcp-field 中没有对应项时为空字符串 */
+    category: varchar('category', { length: 64 }).notNull(),
+    sourceValue: varchar('source_value', { length: 128 }).notNull(),
+    isPrimary: boolean('is_primary').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.slug, t.position] }), index('ix_ingest_list_categories_category').on(t.kind, t.category)],
+)
+
+/**
  * 分类器的结果：一行 = 一个发布条目（按主条目的来源、类型、ID 关联）。
  * publish 时，来源没有给出分类的条目用这里的结果；输入、分类体系、提示词都没变就不重复分类。
  */

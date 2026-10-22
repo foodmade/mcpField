@@ -265,7 +265,7 @@ AI 介绍 ◄───── overview / describe ─► ingest_overviews + inges
 | `search-index` | 手动全量同步搜索表、标签表和列表键表 | 一般不需要，publish 会自动做 |
 | `indexnow --since <时间>` | 补推 IndexNow | publish 日志里出现"IndexNow 推送失败"时 |
 | `translate --recheck` / `--stale` | 改了校验规则 / 提示词后重查重翻 | 改规则后手动一次 |
-| `readme --retry-failed` | 补翻多次失败过的片段 | 全量跑完后；后台每日采集页展开 README 翻译那一步，点「补跑失败片段」也是它 |
+| `readme --retry-failed` | 补翻多次失败过的片段 | 全量跑完后；后台每日采集页 README 翻译那一行的「补跑失败片段」也是它 |
 | `classify --all` | 连来源有分类的也分，与源站对比评估 | 评估用，发布仍以来源为准 |
 | `probe-targets` → `probe-local` → `probe-import` | 本地 MCP 服务实测工具列表：线上列目标 → 实测机 Docker 沙箱跑 → 结果导回线上，publish 后生效 | 手工，分三台机器 |
 | `stats` | 采集层统计（目标状态、记录数、补全结果、质量问题、最近运行） | 排查时 |

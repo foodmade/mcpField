@@ -51,7 +51,7 @@ export function DailyPage() {
     if (confirm(`在服务器后台重新运行「${stepLabel(step)}」？`)) void run(`运行「${stepLabel(step)}」`, api('/actions/run', { method: 'POST', body: { step } }))
   }
   const retryFailed = (step: string) => {
-    if (confirm(`在服务器后台补跑「${stepLabel(step)}」中多次失败过的片段？`)) void run(`补跑「${stepLabel(step)}」的失败片段`, api('/actions/run', { method: 'POST', body: { step, retryFailed: true } }))
+    if (confirm(`在服务器后台补跑「${stepLabel(step)}」中多次失败过的片段？\n\n内容上多次失败的片段（没有结构化结果、校验不通过、输出被截断）会被记下，之后的运行都跳过，重新运行不会再翻。`)) void run(`补跑「${stepLabel(step)}」的失败片段`, api('/actions/run', { method: 'POST', body: { step, retryFailed: true } }))
   }
   const runAll = () => {
     if (confirm('在服务器后台立即跑一遍完整的每日任务？（和定时任务共用一把锁，已经在跑时不会重复启动）')) void run('每日任务', api('/actions/daily', { method: 'POST', body: { steps: [] } }))
@@ -147,7 +147,7 @@ function Summary({ data }: { data: Daily }) {
   )
 }
 
-const COLS = 'grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 md:grid-cols-[230px_110px_70px_90px_1fr_220px_100px] md:gap-y-0'
+const COLS = 'grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 md:grid-cols-[230px_110px_70px_90px_1fr_220px_220px] md:gap-y-0'
 
 function StepTable({ data, onRerun, onRetryFailed }: { data: Daily; onRerun: (step: string) => void; onRetryFailed: (step: string) => void }) {
   const [open, setOpen] = useState<Set<string>>(new Set())
@@ -218,7 +218,13 @@ function StepTable({ data, onRerun, onRetryFailed }: { data: Daily; onRerun: (st
                   <span className="text-text3">—</span>
                 )}
               </span>
-              <span className="text-right">
+              <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
+                {RETRYABLE.has(s.step) && s.runs.length > 0 && s.status !== 'running' && (
+                  <button onClick={(e) => (e.stopPropagation(), onRetryFailed(s.step))} title="补跑内容上多次失败、平时被跳过的片段" className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-text2 hover:bg-white/5 hover:text-ink">
+                    <ArrowsClockwise className="size-3" />
+                    补跑失败片段
+                  </button>
+                )}
                 {(bad || s.status === 'warning') && (
                   <button onClick={(e) => (e.stopPropagation(), onRerun(s.step))} className="inline-flex items-center gap-1 rounded-md border border-err/40 px-2 py-1 text-xs text-err hover:bg-err/10">
                     <ArrowsClockwise className="size-3" />
@@ -232,7 +238,7 @@ function StepTable({ data, onRerun, onRetryFailed }: { data: Daily; onRerun: (st
                 )}
               </span>
             </div>
-            {expanded && <StepDetail step={s} onRetryFailed={onRetryFailed} />}
+            {expanded && <StepDetail step={s} />}
           </Fragment>
         )
       })}
@@ -250,7 +256,7 @@ function Count({ state, n }: { state: 'ok' | 'warn' | 'failed'; n: number }) {
   )
 }
 
-function StepDetail({ step, onRetryFailed }: { step: Step; onRetryFailed: (step: string) => void }) {
+function StepDetail({ step }: { step: Step }) {
   const tip = advice(step)
   return (
     <div className={clsx('flex flex-col gap-3 border-b border-line py-3.5 pl-4 pr-4 md:pl-[60px] md:pr-5', (step.status === 'failed' || step.status === 'interrupted') && 'bg-err/[0.05]')}>
@@ -261,15 +267,6 @@ function StepDetail({ step, onRetryFailed }: { step: Step; onRetryFailed: (step:
         <p className="flex items-center gap-1.5 text-xs text-text3">
           <Lightbulb className="size-3.5" />
           {tip}
-        </p>
-      )}
-      {RETRYABLE.has(step.step) && step.status !== 'running' && (
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-text3">
-          <span>内容上多次失败的片段（没有结构化结果、校验不通过、输出被截断）会被记下，之后的运行都跳过，重新运行不会再翻。</span>
-          <button onClick={() => onRetryFailed(step.step)} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-text2 hover:bg-white/5 hover:text-ink">
-            <ArrowsClockwise className="size-3" />
-            补跑失败片段
-          </button>
         </p>
       )}
     </div>

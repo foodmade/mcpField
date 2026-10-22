@@ -7,8 +7,9 @@ import { posterOf } from './posters'
  * 3D 图标（model 是 models.ts 的键）：先显示预渲染的静态图（服务端渲染、首屏、没有 JS 时都能看到），
  * 接近视口时才加载 three.js 渲染引擎（单独的 chunk），在画布上播放待机动画；第一帧和静态图是同一画面，画好后淡入替换。
  * active 为 true（所在卡片被悬停或聚焦）时动画更活跃。
+ * lazy：静态图懒加载，用在首屏以下的位置。否则服务端渲染会在页头为它生成 preload，慢网下和首屏资源抢带宽。
  */
-export function Category3D({ model, size, active = false, className, style }: { model: string; size: number; active?: boolean; className?: string; style?: CSSProperties }) {
+export function Category3D({ model, size, active = false, lazy = false, className, style }: { model: string; size: number; active?: boolean; lazy?: boolean; className?: string; style?: CSSProperties }) {
   const poster = posterOf(model)
   const ref = useRef<HTMLCanvasElement>(null)
   const view = useRef<ViewHandle | null>(null)
@@ -56,7 +57,7 @@ export function Category3D({ model, size, active = false, className, style }: { 
   return (
     <div aria-hidden className={clsx('relative', className)} style={{ width: size, height: size, ...style }}>
       {poster && (
-        <img src={poster} alt={model.replace(/-/g, ' ')} width={size} height={size} decoding="async" draggable={false} className={clsx('absolute inset-0 size-full transition-opacity duration-300', live && 'opacity-0')} />
+        <img src={poster} alt={model.replace(/-/g, ' ')} width={size} height={size} loading={lazy ? 'lazy' : undefined} decoding="async" draggable={false} className={clsx('absolute inset-0 size-full transition-opacity duration-300', live && 'opacity-0')} />
       )}
       <canvas ref={ref} className={clsx('absolute inset-0 size-full transition-opacity duration-300', live ? 'opacity-100' : 'opacity-0')} />
     </div>

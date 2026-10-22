@@ -38,7 +38,7 @@ function CoverArt({ t, size, active }: { t: Tile; size: Size; active: boolean })
           maskImage: `radial-gradient(circle ${glow * 0.8}px ${at}, #000 30%, transparent)`,
         }}
       />
-      <Category3D model={t.cat.slug} size={icon} active={active} className="absolute" style={{ left: x, top: y, margin: -icon / 2 }} />
+      <Category3D model={t.cat.slug} size={icon} active={active} lazy className="absolute" style={{ left: x, top: y, margin: -icon / 2 }} />
     </div>
   )
 }

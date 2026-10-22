@@ -55,11 +55,3 @@ export function detectBrowserLocale(): Locale {
 
 export const PREF_KEY = 'mcpfield.locale'
 export const DISMISS_KEY = 'mcpfield.localeBannerDismissed'
-
-/**
- * 在 <head> 里最先同步执行：打开无前缀（中文）地址时，按已保存的语言选择、没有时按浏览器语言（同 detectBrowserLocale）
- * 直接换到对应语言的地址，避免非中文用户先看到中文页。只在浏览器里做——页面 HTML 经 Cloudflare 缓存，服务端按
- * Accept-Language 跳转会被缓存串掉；爬虫不跳，保证中文页正常收录；带 /en、/ja 前缀的地址是明确指定的语言，不跳。
- * 跳转前把原来的来源存进 sessionStorage（键同 lib/analytics.ts 的 REFERRER_KEY），跳转后 document.referrer 会变成本站。
- */
-export const LOCALE_REDIRECT_SCRIPT = `(function(){try{var p=location.pathname;if(/^\\/(en|ja)(\\/|$)/.test(p)||/bot|crawl|spider|slurp|lighthouse|headless/i.test(navigator.userAgent))return;var t=null;try{t=localStorage.getItem('${PREF_KEY}')}catch(e){}if(t!=='zh'&&t!=='en'&&t!=='ja'){t='en';var ls=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language];for(var i=0;i<ls.length;i++){var s=(ls[i]||'').toLowerCase();if(s.indexOf('zh')===0){t='zh';break}if(s.indexOf('ja')===0){t='ja';break}if(s.indexOf('en')===0){t='en';break}}}if(t==='zh')return;try{if(document.referrer)sessionStorage.setItem('mf-ref',document.referrer)}catch(e){}document.documentElement.style.display='none';location.replace('/'+t+(p==='/'?'':p)+location.search+location.hash)}catch(e){}})()`

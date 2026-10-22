@@ -4,25 +4,13 @@
  * sendBeacon 不等返回、不占主线程，不影响交互响应。自动化浏览器（navigator.webdriver）不发。
  */
 
-/** 按浏览器语言自动跳转（LOCALE_REDIRECT_SCRIPT）前把原来的来源存在这里：location.replace 之后 document.referrer 会变成本站 */
-export const REFERRER_KEY = 'mf-ref'
-
 let first = true
 
 export function trackPageView(path: string) {
   if (navigator.webdriver) return
   const entry = first
   first = false
-  let referrer: string | undefined
-  if (entry) {
-    try {
-      referrer = sessionStorage.getItem(REFERRER_KEY) ?? undefined
-      sessionStorage.removeItem(REFERRER_KEY)
-    } catch {
-      /* 隐私模式下可能不能用 sessionStorage */
-    }
-    referrer ??= document.referrer || undefined
-  }
+  const referrer = entry ? document.referrer || undefined : undefined
   const body = JSON.stringify({ p: path, ...(referrer ? { r: referrer } : {}), e: entry })
   try {
     if (!navigator.sendBeacon?.('/api/collect', new Blob([body], { type: 'text/plain' }))) {

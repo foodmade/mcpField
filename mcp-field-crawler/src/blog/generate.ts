@@ -4,7 +4,7 @@ import type { ImageSource } from './images.ts'
 import { normalizeTags } from './post.ts'
 
 /*
- * AI 写博客：用后台配置的文本模型（OpenAI 兼容接口）起标题、地址、标签，写正文（流式）和摘要，给封面写生图提示词。
+ * AI 写博客：用后台配置的文本模型（OpenAI 兼容接口）出选题、提取搜索词，起标题、地址、标签，写正文（流式）和摘要，给封面写生图提示词。
  * 正文里的插图先写成占位行 ![说明](image: 提示词)，正文写完后再逐张生成或搜索、上传，回填成真实地址（见 resolveImages）。
  */
 
@@ -40,9 +40,26 @@ export interface WriteInput {
 
 export interface PlanInput {
   direction: string
-  keywords: string
+  keywords?: string
   notes?: string
   materials: string
+}
+
+export interface TopicsInput {
+  direction: string
+  keywords?: string
+  notes?: string
+  /** 候选条目清单（materialsText 的结果） */
+  candidates: string
+  /** 已有文章和已经出过的题目：选题不要重复 */
+  existing: string[]
+}
+
+export interface Topic {
+  title: string
+  keywords: string[]
+  points: string[]
+  reason: string
 }
 
 export interface Plan {
@@ -92,7 +109,7 @@ export function bodyUserPrompt(input: WriteInput): string {
 
 const PLAN_SYSTEM = `${AUTHOR}
 
-根据作者给的主题方向、关键词和站内素材，为一篇新文章做规划。只输出一个 JSON 对象，放在 <json></json> 里：
+根据作者给的主题方向、关键词、要点和站内素材，为一篇新文章做规划；要点里写了暂定标题时，在它的基础上起标题。只输出一个 JSON 对象，放在 <json></json> 里：
 {
   "title": "中文标题，16–36 个字，具体、有信息量，不做标题党",
   "slug": "英文地址，小写字母和连字符，3–6 个词，如 remote-mcp-server-guide",
@@ -100,6 +117,29 @@ const PLAN_SYSTEM = `${AUTHOR}
   "outline": ["4–6 个二级标题，按文章顺序"],
   "coverPrompt": "English prompt for the cover illustration: a concrete visual metaphor of the topic, 1–2 sentences, no text in the image"
 }`
+
+const TOPICS_SYSTEM = `${AUTHOR}
+
+根据站内近期新增的热门条目，给博客出 4 个选题：
+- 每个选题围绕候选里的具体条目，优先选热度高、新近出现、开发者会关心的；可以把几个同类条目放在一起做对比或盘点。
+- 贴合作者选的主题方向；作者给了关键词或想法时，选题要围绕它们。
+- 不要和已有文章、出过的题目重复；4 个选题之间覆盖不同的条目或角度。
+- 不要编造候选里没有的条目和数据。
+只输出一个 JSON 对象，放在 <json></json> 里：
+{
+  "topics": [
+    {
+      "title": "暂定标题，16–36 个字，具体、有信息量，不做标题党",
+      "keywords": ["2–4 个搜索词，用来在站内找素材：先写文章主要条目的名称（照候选里的写法），再写具体的技术词或领域词；不要写 MCP、CLI、Agent、工具这类泛词"],
+      "points": ["2–4 条想写到的要点，每条一句话"],
+      "reason": "一句话说明为什么值得写，如热度、新近程度、读者需求"
+    }
+  ]
+}`
+
+const KEYWORDS_SYSTEM = `从给出的文章信息里提取 2–4 个搜索词，用来在一个收录 MCP 服务、客户端、Skill 的目录网站里找相关条目。
+搜索词要具体：产品名、服务名、技术名或领域词，如 postgres、github、playwright、浏览器自动化、数据库。不要写 MCP、服务、工具、教程、入门这类泛词。
+只输出搜索词，用英文逗号分隔，放在 <keywords></keywords> 里。`
 
 const SUMMARY_SYSTEM = `${AUTHOR}
 
@@ -115,6 +155,30 @@ const inTag = (text: string, tag: string) => {
   const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(text)
   return (m?.[1] ?? text).trim()
 }
+
+/** 取 <json> 里的 JSON 并按 schema 校验 */
+function parseJson<S extends z.ZodType>(text: string, schema: S, what: string): z.infer<S> {
+  let raw: unknown
+  try {
+    raw = JSON.parse(inTag(text, 'json').replace(/^```(?:json)?\s*|\s*```$/g, ''))
+  } catch {
+    throw new Error(`模型返回的${what}不是合法的 JSON，再试一次`)
+  }
+  return schema.parse(raw)
+}
+
+const topicsSchema = z.object({
+  topics: z
+    .array(
+      z.object({
+        title: z.string().trim().min(4).max(120),
+        keywords: z.array(z.string().trim().min(1)).max(8).default([]),
+        points: z.array(z.string().trim().min(1)).max(8).default([]),
+        reason: z.string().trim().max(300).default(''),
+      }),
+    )
+    .min(1),
+})
 
 const planSchema = z.object({
   title: z.string().trim().min(4).max(120),
@@ -163,16 +227,29 @@ export class BlogWriter {
   }
 
   async plan(input: PlanInput, signal?: AbortSignal): Promise<Plan> {
-    const user = [`主题方向：${directionGuide(input.direction)}`, `关键词：${input.keywords}`, input.notes?.trim() && `作者希望写到的要点：\n${input.notes.trim()}`, `站内素材：\n${input.materials}`].filter(Boolean).join('\n\n')
-    const text = await this.complete(PLAN_SYSTEM, user, 1_500, signal)
-    let raw: unknown
-    try {
-      raw = JSON.parse(inTag(text, 'json').replace(/^```(?:json)?\s*|\s*```$/g, ''))
-    } catch {
-      throw new Error('模型返回的规划不是合法的 JSON，再试一次')
-    }
-    const plan = planSchema.parse(raw)
+    const user = [`主题方向：${directionGuide(input.direction)}`, input.keywords?.trim() && `关键词：${input.keywords.trim()}`, input.notes?.trim() && `作者希望写到的要点：\n${input.notes.trim()}`, `站内素材：\n${input.materials}`].filter(Boolean).join('\n\n')
+    const plan = parseJson(await this.complete(PLAN_SYSTEM, user, 1_500, signal), planSchema, '规划')
     return { ...plan, slug: cleanSlug(plan.slug) || 'post', tags: normalizeTags(plan.tags) }
+  }
+
+  /** 选题：从候选条目里出几个题目，每个带搜索词和要点 */
+  async topics(input: TopicsInput, signal?: AbortSignal): Promise<Topic[]> {
+    const user = [
+      `主题方向：${directionGuide(input.direction)}`,
+      input.keywords?.trim() && `作者给的关键词：${input.keywords.trim()}`,
+      input.notes?.trim() && `作者的想法：\n${input.notes.trim()}`,
+      `已有文章和出过的题目：\n${input.existing.length ? input.existing.map((t) => `- ${t}`).join('\n') : '（还没有）'}`,
+      `候选条目：\n${input.candidates}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+    const { topics } = parseJson(await this.complete(TOPICS_SYSTEM, user, 2_000, signal), topicsSchema, '选题')
+    return topics.slice(0, 6)
+  }
+
+  /** 从标题、方向、要点里提取站内搜索词（英文逗号分隔） */
+  async searchKeywords(text: string, signal?: AbortSignal): Promise<string> {
+    return inTag(await this.complete(KEYWORDS_SYSTEM, text, 200, signal), 'keywords').replace(/\s*\n\s*/g, ', ').slice(0, 200)
   }
 
   async summary(title: string, body: string, signal?: AbortSignal): Promise<string> {

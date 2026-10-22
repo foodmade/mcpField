@@ -107,11 +107,22 @@ export interface AiOptions {
 
 export type ImageSource = 'ai' | 'stock'
 
+/** AI 选题：点选后填进关键词和要点 */
+export interface AiTopic {
+  title: string
+  /** 逗号分隔 */
+  keywords: string
+  points: string[]
+  reason: string
+}
+
 /** 流式生成的事件（一行一个 JSON） */
 export type AiEvent =
   | { type: 'ping' }
   | { type: 'stage'; stage: 'materials' | 'plan' | 'body' | 'images' | 'summary' | 'cover'; message: string }
+  | { type: 'keywords'; keywords: string }
   | { type: 'materials'; items: { name: string; path: string }[] }
+  | { type: 'topics'; topics: AiTopic[] }
   | { type: 'meta'; title: string; slug: string; tags: string[]; outline: string[] }
   | { type: 'delta'; text: string }
   | { type: 'image'; line: string; markdown: string | null; error?: string }

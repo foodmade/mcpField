@@ -5,7 +5,7 @@ import { BlogService, summarize, type BlogList, type BlogPostDetail } from '../s
 import { blogSourceHash, extractMentionTargets, normalizeTags } from '../src/blog/post.ts'
 import { BlogTranslationError, BlogTranslator, validateBlogChunk } from '../src/blog/translate.ts'
 import { cleanSlug, directionGuide, imageMarkers, resolveImages } from '../src/blog/generate.ts'
-import { searchTerms } from '../src/blog/materials.ts'
+import { interleave, searchTerms } from '../src/blog/materials.ts'
 import { maskKey } from '../src/admin-api/settings.ts'
 import { postUrl } from '../src/blog/indexnow.ts'
 import type { Llm } from '../src/llm/provider.ts'
@@ -217,6 +217,14 @@ describe('博客 AI 生成', () => {
     expect(searchTerms('远程服务, OAuth', '10 分钟在 Claude Code 里接入第一个远程 MCP 服务')).toEqual(['远程服务', 'oauth', 'claude', 'code'])
     expect(searchTerms('mcp、postgres；数据库')).toEqual(['postgres', '数据库'])
     expect(searchTerms(undefined, '纯中文标题')).toEqual([])
+    expect(searchTerms('REA, 逆向工程, CLI')).toEqual(['rea', '逆向工程'])
+    // 关键词不按空格拆：多词名称整体去搜
+    expect(searchTerms('Codebase  Memory, token 消耗')).toEqual(['codebase memory', 'token 消耗'])
+  })
+
+  it('站内素材按搜索词轮流取：前面的词不会被热门的泛词挤掉', () => {
+    expect(interleave([['rea'], ['c', 'a', 'b'], ['x']], 4)).toEqual(['rea', 'c', 'x', 'a'])
+    expect(interleave([[], ['a']], 3)).toEqual(['a'])
   })
 
   it('API Key 只回显头尾几位', () => {

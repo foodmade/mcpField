@@ -1,8 +1,8 @@
-import { CheckCircle, CircleNotch, MagicWand, Stop, WarningCircle, X } from '@phosphor-icons/react'
+import { ArrowClockwise, CheckCircle, CircleNotch, Lightbulb, MagicWand, Stop, WarningCircle, X } from '@phosphor-icons/react'
 import clsx from 'clsx'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import type { AiEvent, AiOptions, ImageSource } from '../lib/blog'
+import { aiStream, type AiEvent, type AiOptions, type AiTopic, type ImageSource } from '../lib/blog'
 import { Button } from './ui'
 
 /* 编辑器里的 AI 生成：对话框（写正文、一键生成全部）和生成进度面板 */
@@ -151,7 +151,7 @@ export function BodyDialog({ options, title, onClose, onStart }: { options: AiOp
       <Field label="主题方向">
         <DirectionPicker options={options} value={p.direction} onChange={(direction) => setP({ ...p, direction })} />
       </Field>
-      <Field label="关键词（可选）" hint="用来在站内找相关的 MCP 服务、客户端、Skill 作为素材；逗号分隔">
+      <Field label="关键词（可选）" hint="用来在站内找相关的 MCP 服务、客户端、Skill 作为素材；逗号分隔，留空时 AI 从标题、方向和要点里提取">
         <input value={p.keywords} onChange={(e) => setP({ ...p, keywords: e.target.value })} placeholder="claude code, oauth, 远程服务" className={input} />
       </Field>
       <Field label="想写到的要点（可选）">
@@ -162,10 +162,75 @@ export function BodyDialog({ options, title, onClose, onStart }: { options: AiOp
   )
 }
 
-/** 一键生成全部：只给方向和关键词，标题、地址、标签、摘要、正文、封面都由 AI 生成 */
+/** 选题卡片填进要点的内容：暂定标题 + 要点 */
+const topicNotes = (t: AiTopic) => [`暂定标题：${t.title}`, ...t.points].join('\n')
+
+/** AI 选题：按当前方向（以及填了的关键词、要点）从站内近期新增的热门条目里出几个题目，点一个填进表单 */
+function TopicPicker({ params, onPick }: { params: Pick<BodyParams, 'direction' | 'keywords' | 'notes'>; onPick: (t: AiTopic) => void }) {
+  const [state, setState] = useState<{ loading: boolean; topics: AiTopic[] | null; error?: string; picked?: number }>({ loading: false, topics: null })
+  const abort = useRef<AbortController | null>(null)
+  /** 出过的题目：换一批时不再出 */
+  const shown = useRef<string[]>([])
+  useEffect(() => () => abort.current?.abort(), [])
+
+  const load = () => {
+    abort.current?.abort()
+    const controller = new AbortController()
+    abort.current = controller
+    // 关键词和要点还是上一次选题填进去的，就不当作者的想法传，免得新一批都围着上一个题目
+    const picked = state.picked === undefined ? undefined : state.topics?.[state.picked]
+    const filled = picked && params.keywords === picked.keywords && params.notes === topicNotes(picked)
+    const body = { direction: params.direction, ...(filled ? {} : { keywords: params.keywords, notes: params.notes }), avoid: shown.current.slice(-20) }
+    setState({ loading: true, topics: null })
+    let topics: AiTopic[] = []
+    aiStream('/topics', body, (e) => e.type === 'topics' && (topics = e.topics), controller.signal)
+      .then(() => {
+        shown.current.push(...topics.map((t) => t.title))
+        setState({ loading: false, topics })
+      })
+      .catch((error: Error) => !controller.signal.aborted && setState({ loading: false, topics: null, error: error.message }))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2.5">
+        <button type="button" onClick={load} disabled={state.loading} className="flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-text2 transition-colors hover:border-text3 hover:text-ink disabled:cursor-wait disabled:opacity-60">
+          {state.loading ? <CircleNotch className="size-3.5 animate-spin text-accent" /> : state.topics ? <ArrowClockwise className="size-3.5" /> : <Lightbulb className="size-3.5 text-accent" />}
+          {state.loading ? '正在选题…' : state.topics ? '换一批' : 'AI 选题'}
+        </button>
+        <span className="text-[11px] leading-snug text-text3">{state.loading ? '模型在看近期新增的热门条目，大约要半分钟到一分钟' : '不知道写什么时用：从站内近期新增的热门条目里出题，点一个填进关键词和要点'}</span>
+      </div>
+      {state.error && <p className="text-[11px] leading-snug text-err">{state.error}</p>}
+      {state.topics?.length === 0 && <p className="text-[11px] text-text3">没有出题，再试一次</p>}
+      {state.topics && state.topics.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {state.topics.map((t, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                setState((s) => ({ ...s, picked: i }))
+                onPick(t)
+              }}
+              className={clsx('flex flex-col gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors', state.picked === i ? 'border-accent/60 bg-accent/10' : 'border-line hover:border-text3')}
+            >
+              <span className={clsx('text-[13px] font-medium', state.picked === i ? 'text-accent' : 'text-ink')}>{t.title}</span>
+              {t.reason && <span className="text-[11px] leading-snug text-text3">{t.reason}</span>}
+              <span className="text-[11px] text-text2">关键词：{t.keywords}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 一键生成全部：给方向和题目（关键词、要点或自定义方向），标题、地址、标签、摘要、正文、封面都由 AI 生成 */
 export function AllDialog({ options, onClose, onStart }: { options: AiOptions; onClose: () => void; onStart: (p: AllParams) => void }) {
   const canImage = options.image || options.stock
   const [p, setP] = useState<AllParams>({ direction: options.directions[0]!.id, keywords: '', notes: '', images: { count: canImage ? 2 : 0, source: defaultSource(options) }, cover: options.image ? 'ai' : options.stock ? 'stock' : 'none' })
+  // 预设方向只说怎么写，不说写什么：关键词、要点、自定义方向至少有一个
+  const hasTopic = !!(p.keywords.trim() || p.notes.trim() || !options.directions.some((d) => d.id === p.direction))
   return (
     <Modal
       title="AI 一键生成全部内容"
@@ -173,8 +238,9 @@ export function AllDialog({ options, onClose, onStart }: { options: AiOptions; o
       onClose={onClose}
       footer={
         <>
+          {options.text && !hasTopic && <span className="mr-auto self-center text-[11px] text-text3">填写关键词或要点，或者用「AI 选题」</span>}
           <Button onClick={onClose}>取消</Button>
-          <Button primary onClick={() => onStart(p)} disabled={!options.text || !p.keywords.trim()}>
+          <Button primary onClick={() => onStart(p)} disabled={!options.text || !hasTopic}>
             开始生成
           </Button>
         </>
@@ -184,11 +250,12 @@ export function AllDialog({ options, onClose, onStart }: { options: AiOptions; o
       <Field label="主题方向">
         <DirectionPicker options={options} value={p.direction} onChange={(direction) => setP({ ...p, direction })} />
       </Field>
-      <Field label="关键词" hint="文章围绕这些词来写，也用来在站内找相关条目作为素材；逗号分隔">
-        <input value={p.keywords} onChange={(e) => setP({ ...p, keywords: e.target.value })} placeholder="例如：postgres, 数据库, MCP 服务" className={input} autoFocus />
+      {options.text && <TopicPicker params={p} onPick={(t) => setP((cur) => ({ ...cur, keywords: t.keywords, notes: topicNotes(t) }))} />}
+      <Field label="关键词（可选）" hint="文章围绕这些词来写，也用来在站内找相关条目作为素材；逗号分隔，留空时 AI 从方向和要点里提取">
+        <input value={p.keywords} onChange={(e) => setP({ ...p, keywords: e.target.value })} placeholder="例如：postgres, 数据库, MCP 服务" className={input} />
       </Field>
       <Field label="想写到的要点（可选）">
-        <textarea value={p.notes} onChange={(e) => setP({ ...p, notes: e.target.value })} rows={3} placeholder="每行一条" className="resize-none rounded-lg border border-line bg-bg px-3 py-2 text-[13px] leading-relaxed outline-none placeholder:text-text3 focus:border-text3" />
+        <textarea value={p.notes} onChange={(e) => setP({ ...p, notes: e.target.value })} rows={4} placeholder="每行一条" className="resize-none rounded-lg border border-line bg-bg px-3 py-2 text-[13px] leading-relaxed outline-none placeholder:text-text3 focus:border-text3" />
       </Field>
       <ImagePicker options={options} value={p.images} onChange={(images) => setP({ ...p, images })} />
       <Field label="封面">
@@ -219,6 +286,8 @@ export interface Progress {
   label: string
   /** 出现过的阶段：最后一个是当前阶段 */
   stages: { stage: StageKey; message: string }[]
+  /** 没填关键词时 AI 提取的搜索词 */
+  keywords: string | null
   materials: { name: string; path: string }[] | null
   images: { ok: number; failed: number }
   warnings: string[]
@@ -227,13 +296,15 @@ export interface Progress {
   error?: string
 }
 
-export const newProgress = (label: string): Progress => ({ label, stages: [], materials: null, images: { ok: 0, failed: 0 }, warnings: [], done: null })
+export const newProgress = (label: string): Progress => ({ label, stages: [], keywords: null, materials: null, images: { ok: 0, failed: 0 }, warnings: [], done: null })
 
 /** 把一个事件记进进度（正文、标题等内容的回填由编辑器处理） */
 export function track(p: Progress, e: AiEvent): Progress {
   switch (e.type) {
     case 'stage':
       return { ...p, stages: [...p.stages.filter((s) => s.stage !== e.stage), { stage: e.stage, message: e.message }] }
+    case 'keywords':
+      return { ...p, keywords: e.keywords }
     case 'materials':
       return { ...p, materials: e.items }
     case 'image':
@@ -283,6 +354,7 @@ export function ProgressPanel({ progress, onStop, onClose }: { progress: Progres
           )
         })}
       </ol>
+      {progress.keywords && <p className="text-[11px] leading-relaxed text-text3">提取的关键词：{progress.keywords}</p>}
       {progress.materials && progress.materials.length > 0 && (
         <p className="line-clamp-2 text-[11px] leading-relaxed text-text3">站内素材：{progress.materials.map((m) => m.name).join('、')}</p>
       )}

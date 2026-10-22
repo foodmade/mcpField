@@ -1,12 +1,12 @@
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { Hono, type Context } from 'hono'
 import { stream } from 'hono/streaming'
 import { z } from 'zod'
 import type { AssetStorage } from '../assets/storage.ts'
 import { ApiError } from '../api/http/errors.ts'
-import { BlogWriter, DIRECTIONS, resolveImages } from '../blog/generate.ts'
+import { BlogWriter, DIRECTIONS, directionGuide, resolveImages } from '../blog/generate.ts'
 import { BlogImageMaker, type ImageSource } from '../blog/images.ts'
-import { materialsText, searchMaterials, searchTerms } from '../blog/materials.ts'
+import { materialsText, recentHotMaterials, searchMaterials, searchTerms, type Material } from '../blog/materials.ts'
 import type { Logger } from '../core/logger.ts'
 import type { Db } from '../db/client.ts'
 import { blogPosts } from '../db/schema/index.ts'
@@ -17,11 +17,12 @@ import { imageReady, stockReady, textReady, type BlogAiSettings, type SettingsSt
  * 博客 AI 生成（挂在 /api/admin/blog/ai 下）：
  *   GET  /options    主题方向预设，以及文本模型、生图、图库是否已配置
  *   POST /summary    { title, body } → { summary }
+ *   POST /topics     { direction, keywords?, notes?, avoid? } → 流式：近期新增的热门条目里出的几个选题
  *   POST /body       { title, direction, keywords?, notes?, images } → 流式：正文增量、插图回填
  *   POST /cover      { title, summary, source } → 流式：封面地址
- *   POST /all        { direction, keywords, notes?, images, cover } → 流式：标题、地址、标签 → 正文 → 摘要 → 插图和封面
- * 流式接口返回 NDJSON（一行一个事件），每 10 秒发一次 ping，避免 Nginx / Cloudflare 在生图的几十秒里断开连接。
- * 模型服务读后台配置（admin_settings），写正文前按关键词在站内收录里找素材。
+ *   POST /all        { direction, keywords?, notes?, images, cover } → 流式：标题、地址、标签 → 正文 → 摘要 → 插图和封面
+ * 流式接口返回 NDJSON（一行一个事件），每 10 秒发一次 ping，避免 Nginx / Cloudflare 在生图、推理模型思考的几十秒里断开连接。
+ * 模型服务读后台配置（admin_settings），写正文前按关键词在站内收录里找素材；没填关键词时先让模型从标题、方向、要点里提取。
  */
 
 type Env = { Variables: { user: AdminUser } }
@@ -39,10 +40,17 @@ const bodySchema = z.object({
 })
 const allSchema = z.object({
   direction,
-  keywords: z.string().trim().min(1, '请填写关键词').max(200),
+  keywords: z.string().trim().max(200).optional(),
   notes: z.string().trim().max(2_000).optional(),
   images: imagesSchema.default({ count: 2, source: 'ai' }),
   cover: z.enum(['ai', 'stock', 'none']).default('ai'),
+})
+const topicsSchema = z.object({
+  direction,
+  keywords: z.string().trim().max(200).optional(),
+  notes: z.string().trim().max(2_000).optional(),
+  /** 这次打开对话框已经出过的题目（换一批时不再出） */
+  avoid: z.array(z.string().trim().max(200)).max(30).default([]),
 })
 const summarySchema = z.object({ title: z.string().trim().max(200).default(''), body: z.string().trim().min(50, '正文太短，先写一些内容再生成摘要').max(500_000) })
 const coverSchema = z.object({ title: z.string().trim().min(1, '先填写标题').max(200), summary: z.string().trim().max(500).default(''), source: z.enum(['ai', 'stock']).default('ai') })
@@ -52,6 +60,9 @@ async function parse<S extends z.ZodType>(c: Context, schema: S): Promise<z.infe
   if (!result.success) throw ApiError.badRequest(result.error.issues[0]?.message ?? '请求内容不合法')
   return result.data
 }
+
+/** 选题候选：近多少天新增的 */
+const TOPIC_DAYS = 45
 
 /** 地址已被占用时依次加 -2、-3… */
 async function uniqueSlug(db: Db, slug: string): Promise<string> {
@@ -103,6 +114,28 @@ export function blogAiRoutes(deps: { db: Db; settings: SettingsStore; storage?: 
         clearInterval(ping)
       }
     })
+  }
+
+  /** 站内素材的搜索词：填了关键词直接用；没填时让模型从 context（标题、方向、要点）里提取，提取失败只用标题里的英文技术名 */
+  async function materialTerms(emit: Emit, signal: AbortSignal, w: BlogWriter, keywords: string | undefined, context: string, title?: string): Promise<string[]> {
+    if (keywords) return searchTerms(keywords, title)
+    await emit({ type: 'stage', stage: 'materials', message: '正在提取搜索关键词' })
+    try {
+      const extracted = await w.searchKeywords(context, signal)
+      await emit({ type: 'keywords', keywords: extracted })
+      return searchTerms(extracted, title)
+    } catch (error) {
+      if (signal.aborted) throw error
+      await emit({ type: 'warning', message: `没能提取关键词，站内素材可能不全：${(error as Error).message.slice(0, 120)}` })
+      return searchTerms(undefined, title)
+    }
+  }
+
+  async function findMaterials(emit: Emit, terms: string[]): Promise<Material[]> {
+    await emit({ type: 'stage', stage: 'materials', message: '正在站内找相关条目' })
+    const items = await searchMaterials(deps.db, terms)
+    await emit({ type: 'materials', items: items.map((m) => ({ name: m.name, path: m.path })) })
+    return items
   }
 
   /** 写正文并回填插图；返回最终正文 */
@@ -159,13 +192,30 @@ export function blogAiRoutes(deps: { db: Db; settings: SettingsStore; storage?: 
     return c.json({ data: { summary } })
   })
 
+  app.post('/topics', async (c) => {
+    const input = await parse(c, topicsSchema)
+    const { writer: w } = await writer()
+    return ndjson(c, 'topics', async (emit, signal) => {
+      // 已有文章的标题给模型去重；正文里链接过的条目不再当候选
+      const posts = await deps.db.select({ title: blogPosts.title, mentions: blogPosts.mentions }).from(blogPosts).orderBy(desc(blogPosts.updatedAt)).limit(100)
+      const written = new Set(posts.flatMap((p) => p.mentions.map((m) => `${m.kind}/${m.slug}`)))
+      const recent = await recentHotMaterials(deps.db, { days: TOPIC_DAYS, exclude: written })
+      // 填了关键词时，相关条目排在前面
+      const related = input.keywords ? await searchMaterials(deps.db, searchTerms(input.keywords)) : []
+      const candidates = [...related, ...recent.filter((m) => !related.some((r) => r.kind === m.kind && r.slug === m.slug))]
+      if (!candidates.length) throw ApiError.badRequest('站内没有找到近期新增的热门条目，先自己填写关键词')
+      const topics = await w.topics({ ...input, candidates: materialsText(candidates), existing: [...posts.map((p) => p.title), ...input.avoid] }, signal)
+      await emit({ type: 'topics', topics: topics.map((t) => ({ ...t, keywords: t.keywords.join(', ') })) })
+      await emit({ type: 'done', failed: [] })
+    })
+  })
+
   app.post('/body', async (c) => {
     const input = await parse(c, bodySchema)
     const { s, writer: w } = await writer()
     return ndjson(c, 'body', async (emit, signal) => {
-      await emit({ type: 'stage', stage: 'materials', message: '正在站内找相关条目' })
-      const items = await searchMaterials(deps.db, searchTerms(input.keywords, input.title))
-      await emit({ type: 'materials', items: items.map((m) => ({ name: m.name, path: m.path })) })
+      const context = [`标题：${input.title}`, `主题方向：${directionGuide(input.direction)}`, input.notes && `要点：${input.notes}`].filter(Boolean).join('\n')
+      const items = await findMaterials(emit, await materialTerms(emit, signal, w, input.keywords, context, input.title))
       const { body, failed } = await writeBody(emit, signal, w, imageMaker(s), { ...input, materials: materialsText(items) })
       await emit({ type: 'body', body })
       await emit({ type: 'done', failed })
@@ -183,12 +233,13 @@ export function blogAiRoutes(deps: { db: Db; settings: SettingsStore; storage?: 
 
   app.post('/all', async (c) => {
     const input = await parse(c, allSchema)
+    // 预设方向只说怎么写，不说写什么：没有关键词时要有自定义方向或要点
+    if (!input.keywords && DIRECTIONS[input.direction] && !input.notes) throw ApiError.badRequest('填写关键词或要点，或者用「AI 选题」挑一个题目')
     const { s, writer: w } = await writer()
     return ndjson(c, 'all', async (emit, signal) => {
       const maker = imageMaker(s)
-      await emit({ type: 'stage', stage: 'materials', message: '正在站内找相关条目' })
-      const items = await searchMaterials(deps.db, searchTerms(input.keywords))
-      await emit({ type: 'materials', items: items.map((m) => ({ name: m.name, path: m.path })) })
+      const context = [`主题方向：${directionGuide(input.direction)}`, input.notes && `要点：${input.notes}`].filter(Boolean).join('\n')
+      const items = await findMaterials(emit, await materialTerms(emit, signal, w, input.keywords, context))
       const materials = materialsText(items)
 
       await emit({ type: 'stage', stage: 'plan', message: '正在拟定标题和提纲' })

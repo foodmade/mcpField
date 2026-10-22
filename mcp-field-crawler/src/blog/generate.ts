@@ -72,7 +72,28 @@ export interface Plan {
 
 /* ========== 提示词 ========== */
 
-const AUTHOR = '你是 MCP Field（一个收录 MCP 服务、客户端、Skill 和 Agent 的目录网站）博客的资深技术作者，面向开发者写简体中文文章。'
+const AUTHOR =
+  '你是 MCP Field 博客的作者。MCP Field 是一个收录 MCP 服务、客户端、Skill 和 Agent 的目录网站。你是一名写了多年代码、每天都在用这些工具的开发者，给同行写简体中文技术文章：像在技术社区里分享自己的经验，不像产品说明书，也不像客服话术。'
+
+/**
+ * 文风：去掉“机器味”。早期生成的文章几乎每段都在兜底（“具体取决于……”“以……为准”）、
+ * 向读者交代“素材里没有给出……”、满篇“若 / 应 / 需”和“X 不等于 Y”，这里逐条点名
+ */
+const STYLE = `文风
+- 像一个懂行的同事在讲：直接给结论和做法，有自己的判断（如“我更推荐 A，因为……”“这一步最容易踩坑”），可以用“你”“我们”。
+- 写具体的东西：真实的命令、配置、报错信息、操作步骤、数字和对比。与其讲一句抽象的道理，不如举一个具体的例子。
+- 句子长短交替，段落有长有短。不要每一节都按“概念—步骤—注意事项—小结”的同一个套路写，也不要每节最后用一句话总结。
+- 不确定的事实直接不写，不要用“具体取决于……”“以……为准”“可能因……而异”来兜底。风险提醒只在真正有风险的地方说一次，说具体（会发生什么、怎么避免），不要每段都提醒。
+- 不要向读者交代你手里有什么资料、缺什么数据（不要出现“素材”“提供的信息”“给出的数据”这类说法）；没有的数据就不写，也不要声明没有。
+
+避免这些机器腔（写出来了就换一种说法或删掉）
+- 公文腔和翻译腔：若、应、需、宜、即可、能够、进行、对于……来说、在……方面、通过……的方式、旨在、助力、赋能、无缝、一站式、全方位、显著提升。
+- 空洞套话：值得注意的是、需要指出的是、总的来说、综上所述、总之、简而言之、不难看出、众所周知、在当今……的时代、随着……的发展。
+- 套路句式：“X 不等于 Y”“不是……而是……”“既能……也能……”“……，而不是……”，全文每种最多用一次。
+- 结尾不要写“先从……开始，再逐步扩展”“希望对你有帮助”这类模板话：说一个具体的建议或判断就收住。`
+
+/** 交给模型的站内条目清单的标题：读者看不到这份清单，免得模型在正文里交代“素材” */
+const MATERIALS_LABEL = '可引用的站内条目（只给你参考，读者看不到这份清单）'
 
 export function bodySystemPrompt(images: WriteInput['images']): string {
   const imageRule =
@@ -84,13 +105,15 @@ export function bodySystemPrompt(images: WriteInput['images']): string {
       : '不要插入任何图片。'
   return `${AUTHOR}
 
-写作要求
-- 只输出 Markdown 正文：不要输出文章标题（标题会单独显示），不要用一级标题；用 ## 和 ### 组织章节，一般 3–6 个二级标题。
-- 篇幅约 1500–2500 字。开头一段直接点题，结尾给出简短的结论或下一步建议。
+${STYLE}
+
+格式
+- 只输出 Markdown 正文：不要输出文章标题（标题会单独显示），不要用一级标题；用 ## 和 ### 组织章节，一般 3–6 个二级标题。二级标题短而具体，不要都写成“X：Y”的冒号格式。
+- 篇幅约 1500–2500 字。开头不要下定义、不要铺垫背景，直接说读者会碰到的问题或这篇文章的结论。
 - 中文与英文、数字之间加半角空格，使用全角标点。
 - 命令、配置、代码放进带语言标注的代码块；行内的命令、文件名、参数用反引号。
-- 提到“站内素材”里的条目时，用 Markdown 链接到给出的站内地址，例如 [GitHub](/servers/github)。只引用素材里真实存在的条目；不要编造服务名、星数、版本号、网址或数据，没有把握的事实不要写。
-- 可以用表格、列表和 > [!TIP] 提示块让内容更好读，但不要堆砌。
+- 提到“可引用的站内条目”里的条目时，用 Markdown 链接到给出的站内地址，例如 [GitHub](/servers/github)。只引用清单里的条目；不要编造服务名、星数、版本号、网址或数据。
+- 列表、表格和 > [!TIP] 提示块只在确实比段落好读时用；大部分内容用段落写。
 ${imageRule}`
 }
 
@@ -101,7 +124,7 @@ export function bodyUserPrompt(input: WriteInput): string {
     input.keywords?.trim() && `关键词：${input.keywords.trim()}`,
     input.notes?.trim() && `作者希望写到的要点：\n${input.notes.trim()}`,
     input.outline?.length && `提纲（二级标题）：\n${input.outline.map((o) => `- ${o}`).join('\n')}`,
-    `站内素材：\n${input.materials}`,
+    `${MATERIALS_LABEL}：\n${input.materials}`,
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -109,12 +132,12 @@ export function bodyUserPrompt(input: WriteInput): string {
 
 const PLAN_SYSTEM = `${AUTHOR}
 
-根据作者给的主题方向、关键词、要点和站内素材，为一篇新文章做规划；要点里写了暂定标题时，在它的基础上起标题。只输出一个 JSON 对象，放在 <json></json> 里：
+根据作者给的主题方向、关键词、要点和站内条目，为一篇新文章做规划；要点里写了暂定标题时，在它的基础上起标题。只输出一个 JSON 对象，放在 <json></json> 里：
 {
-  "title": "中文标题，16–36 个字，具体、有信息量，不做标题党",
+  "title": "中文标题，16–36 个字，具体、有信息量，像开发者会点开的文章；不做标题党，不用“完全指南”“全面解析”“深度剖析”这类词",
   "slug": "英文地址，小写字母和连字符，3–6 个词，如 remote-mcp-server-guide",
   "tags": ["3–6 个标签，英文小写短词或常用技术名，如 claude-code、remote、oauth"],
-  "outline": ["4–6 个二级标题，按文章顺序"],
+  "outline": ["4–6 个二级标题，按文章顺序：每个 4–14 个字，具体、口语化，像目录里的条目；不要都写成“X：Y”的冒号格式"],
   "coverPrompt": "English prompt for the cover illustration: a concrete visual metaphor of the topic, 1–2 sentences, no text in the image"
 }`
 
@@ -143,7 +166,10 @@ const KEYWORDS_SYSTEM = `从给出的文章信息里提取 2–4 个搜索词，
 
 const SUMMARY_SYSTEM = `${AUTHOR}
 
-根据给出的文章写一段摘要：80–140 字，一两句话说清楚这篇文章讲什么、读者能得到什么。不要用“本文”“这篇文章”开头，不要堆砌形容词。只输出摘要文字，放在 <summary></summary> 里。`
+${STYLE}
+
+根据给出的文章写一段摘要：80–140 字，一两句话，说出文章里最具体、最有用的东西（比如结论、关键步骤、对比结果），让人想点开。
+不要出现“本文”“文中”“这篇文章”“读者将”“涵盖”“介绍了”“帮助开发者”这类说法，不要罗列章节，不要堆形容词。只输出摘要文字，放在 <summary></summary> 里。`
 
 const COVER_SYSTEM = `You write prompts for an image model that draws cover illustrations for a developer-tools tech blog.
 Given the article title and summary (in Chinese), describe one concrete visual metaphor for the topic in English, 1–2 sentences: main subject, scene and composition. Never ask for text, letters or logos in the image.
@@ -227,7 +253,7 @@ export class BlogWriter {
   }
 
   async plan(input: PlanInput, signal?: AbortSignal): Promise<Plan> {
-    const user = [`主题方向：${directionGuide(input.direction)}`, input.keywords?.trim() && `关键词：${input.keywords.trim()}`, input.notes?.trim() && `作者希望写到的要点：\n${input.notes.trim()}`, `站内素材：\n${input.materials}`].filter(Boolean).join('\n\n')
+    const user = [`主题方向：${directionGuide(input.direction)}`, input.keywords?.trim() && `关键词：${input.keywords.trim()}`, input.notes?.trim() && `作者希望写到的要点：\n${input.notes.trim()}`, `站内条目：\n${input.materials}`].filter(Boolean).join('\n\n')
     const plan = parseJson(await this.complete(PLAN_SYSTEM, user, 1_500, signal), planSchema, '规划')
     return { ...plan, slug: cleanSlug(plan.slug) || 'post', tags: normalizeTags(plan.tags) }
   }

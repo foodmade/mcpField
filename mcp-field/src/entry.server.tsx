@@ -22,8 +22,12 @@ function setCacheHeaders(status: number, headers: Headers) {
   else headers.set('Cache-Control', 'no-store')
 }
 
+/** 页面响应头里指向给 AI 看的站点说明（llms.txt）和博客订阅源，agent 不用解析 HTML 就能找到 */
+const LINK = '</llms.txt>; rel="describedby"; type="text/plain", </blog/rss.xml>; rel="alternate"; type="application/rss+xml"'
+
 export default function handleRequest(request: Request, responseStatusCode: number, responseHeaders: Headers, routerContext: EntryContext) {
   setCacheHeaders(responseStatusCode, responseHeaders)
+  responseHeaders.set('Link', LINK)
 
   // https://httpwg.org/specs/rfc9110.html#HEAD
   if (request.method.toUpperCase() === 'HEAD') return new Response(null, { status: responseStatusCode, headers: responseHeaders })

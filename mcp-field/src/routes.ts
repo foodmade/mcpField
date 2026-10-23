@@ -6,6 +6,7 @@ import { index, route, type RouteConfig } from '@react-router/dev/routes'
  */
 export default [
   route('robots.txt', 'routes/robots.ts'),
+  route('llms.txt', 'routes/llms.ts'),
   route('sitemap.xml', 'routes/sitemap-index.ts'),
   route('sitemaps/:file', 'routes/sitemap.ts'),
   route('blog/rss.xml', 'routes/blog-rss.ts'),

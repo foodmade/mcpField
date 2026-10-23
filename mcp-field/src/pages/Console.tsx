@@ -1,43 +1,38 @@
 import {
-  ArrowLeft,
   ArrowUpRight,
   BookmarkSimple,
   CaretDown,
   CaretLeft,
   CaretRight,
   Check,
-  CloudArrowUp,
   Compass,
   DownloadSimple,
   Lightning,
   MagnifyingGlass,
   PlugsConnected,
-  SignOut,
   SortDescending,
   Star,
 } from '@phosphor-icons/react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { data, Link, useNavigate } from 'react-router'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { data, Link } from 'react-router'
 import * as Menu from '@radix-ui/react-dropdown-menu'
 import { AnimatePresence, motion } from 'motion/react'
 import clsx from 'clsx'
 import { EntityIcon } from '../components/EntityIcon'
-import { FavoriteToastHost } from '../components/FavoriteToast'
-import { BrandMark, Wordmark } from '../components/Logo'
+import { ConsoleShell } from '../components/console/ConsoleShell'
 import { Seo } from '../components/Seo'
 import { I18nProvider, useI18n } from '../i18n/context'
 import { DEFAULT_LOCALE, localeFromParam } from '../i18n/locales'
 import { ROUTE, type SkillItem } from '../lib/api/entities'
-import { profile, supabase, useSession } from '../lib/auth'
+import { useSession } from '../lib/auth'
 import { categoryOf, compactNumber } from '../lib/categories'
 import { developerOf, domainOf } from '../lib/entity'
 import { fetchFavorites, setFavorite, showToast, type Favorite } from '../lib/favorites'
 import type { Route } from './+types/Console'
 
 /*
- * 控制台（/console）：登录用户自己的页面，不带站点导航和页脚，不让搜索引擎收录。
- * 第一版只有「我的收藏」：列出在详情页收藏的 MCP 服务和 Skill，可按类型切换、搜索、排序，可取消收藏（轻提示里可撤销）。
- * 以后的云端托管（部署、统一接入地址、调用日志）加在侧栏里。
+ * 控制台「我的收藏」（/console）：登录用户自己的页面，不带站点导航和页脚，不让搜索引擎收录；外壳见 components/console/ConsoleShell。
+ * 列出在详情页收藏的 MCP 服务和 Skill，可按类型切换、搜索、排序，可取消收藏（轻提示里可撤销）。
  * 收藏一次全部取回（每人最多 1000 条），筛选、排序、分页都在浏览器里做；未登录时去登录页，登录后回到这里。
  */
 
@@ -66,8 +61,7 @@ const ownerOf = (f: Favorite) => (f.item ? (developerOf(f.item) ?? domainOf(f.it
 function ConsolePage() {
   const { m, to, locale } = useI18n()
   const t = m.console
-  const navigate = useNavigate()
-  const { user, pending } = useSession()
+  const { user } = useSession()
   const [list, setList] = useState<Favorite[] | null>(null)
   /** 列表取回的时间：收藏时间按它显示成"今天""3 天前" */
   const [now, setNow] = useState(0)
@@ -77,15 +71,6 @@ function ConsolePage() {
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<Sort>('recent')
   const [page, setPage] = useState(1)
-
-  // 没登录：去登录页，登录后回到控制台。只跳一次：to、navigate 在导航过程中会换成新的函数，依赖它们会反复跳转
-  const loginHref = `${to('/login')}?redirect=${encodeURIComponent(to('/console'))}`
-  const redirected = useRef(false)
-  useEffect(() => {
-    if (pending || user || redirected.current) return
-    redirected.current = true
-    navigate(loginHref, { replace: true })
-  }, [pending, user, loginHref, navigate])
 
   const userId = user?.id
   useEffect(() => {
@@ -149,110 +134,111 @@ function ConsolePage() {
     }
   }
 
+  const retry = () => {
+    setFailed(false)
+    setNonce((n) => n + 1)
+  }
+
   const ready = !!user && list !== null
   return (
-    <div className="flex min-h-dvh bg-bg text-ink">
+    <ConsoleShell
+      section="favorites"
+      title={t.heading}
+      sub={t.sub}
+      action={
+        <Link to={to('/')} className="flex h-[34px] shrink-0 items-center gap-1.5 rounded-[10px] border border-fg/[0.12] bg-fg/[0.04] px-3 text-sm transition-colors hover:border-fg/25 hover:bg-fg/[0.07]">
+          <Compass size={15} className="text-text2" />
+          {t.explore}
+        </Link>
+      }
+    >
       <Seo title={t.title} path="/console" noindex />
-      <Sidebar count={ready ? counts.all : null} />
-      <main className="flex min-w-0 flex-1 flex-col">
-        <MobileBar />
-        <header className="flex h-16 items-center justify-between gap-4 border-b border-fg/[0.08] px-5 sm:px-8">
-          <div className="flex min-w-0 items-baseline gap-2.5">
-            <h1 className="whitespace-nowrap text-lg font-semibold">{t.heading}</h1>
-            <p className="hidden truncate text-sm text-text3 sm:block">{t.sub}</p>
+      {failed ? (
+        <Notice
+          title={t.error}
+          action={
+            <button type="button" onClick={retry} className="h-9 rounded-full border border-fg/[0.12] px-4 text-sm hover:border-fg/25">
+              {t.retry}
+            </button>
+          }
+        />
+      ) : ready && list.length === 0 ? (
+        <Empty />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div role="tablist" className="flex h-9 items-center gap-0.5 rounded-[10px] border border-fg/[0.08] bg-fg/[0.03] p-[3px]">
+              {(['all', 'server', 'skill'] as Tab[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === key}
+                  onClick={() => filter(setTab)(key)}
+                  className={clsx('flex h-full items-center gap-1.5 rounded-[7px] px-3 text-sm transition-colors', tab === key ? 'bg-fg/[0.09] font-semibold text-ink' : 'text-text2 hover:text-ink')}
+                >
+                  {t.tabs[key]}
+                  <span className={clsx('font-mono text-[11px]', tab === key ? 'text-text2' : 'text-text3')}>{ready ? counts[key] : '–'}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex-1" />
+            <label className="flex h-9 w-full items-center gap-2 rounded-[10px] border border-fg/[0.08] bg-fg/[0.03] px-3 focus-within:border-fg/25 sm:w-[280px]">
+              <MagnifyingGlass size={15} className="shrink-0 text-text3" />
+              <input value={q} onChange={(e) => filter(setQ)(e.target.value)} placeholder={t.search} aria-label={t.search} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-text3" />
+            </label>
+            <SortMenu value={sort} onChange={filter(setSort)} />
           </div>
-          <Link to={to('/')} className="flex h-[34px] shrink-0 items-center gap-1.5 rounded-[10px] border border-fg/[0.12] bg-fg/[0.04] px-3 text-sm transition-colors hover:border-fg/25 hover:bg-fg/[0.07]">
-            <Compass size={15} className="text-text2" />
-            {t.explore}
-          </Link>
-        </header>
 
-        <div className="flex flex-1 flex-col gap-4 px-5 py-6 sm:px-8">
-          {failed ? (
-            <Notice title={t.error} action={<button type="button" onClick={() => {
-                  setFailed(false)
-                  setNonce((n) => n + 1)
-                }} className="h-9 rounded-full border border-fg/[0.12] px-4 text-sm hover:border-fg/25">{t.retry}</button>} />
-          ) : ready && list.length === 0 ? (
-            <Empty />
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <div role="tablist" className="flex h-9 items-center gap-0.5 rounded-[10px] border border-fg/[0.08] bg-fg/[0.03] p-[3px]">
-                  {(['all', 'server', 'skill'] as Tab[]).map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      role="tab"
-                      aria-selected={tab === key}
-                      onClick={() => filter(setTab)(key)}
-                      className={clsx('flex h-full items-center gap-1.5 rounded-[7px] px-3 text-sm transition-colors', tab === key ? 'bg-fg/[0.09] font-semibold text-ink' : 'text-text2 hover:text-ink')}
-                    >
-                      {t.tabs[key]}
-                      <span className={clsx('font-mono text-[11px]', tab === key ? 'text-text2' : 'text-text3')}>{ready ? counts[key] : '–'}</span>
-                    </button>
-                  ))}
+          <div className="overflow-hidden rounded-xl border border-fg/[0.08] bg-surface">
+            <div className="hidden h-10 items-center border-b border-fg/[0.08] bg-fg/[0.02] px-5 text-xs text-text3 md:flex">
+              <span className="flex-1">{t.cols.name}</span>
+              <span className="w-[110px]">{t.cols.type}</span>
+              <span className="hidden w-[150px] lg:block">{t.cols.category}</span>
+              <span className="w-[100px]">{t.cols.hot}</span>
+              <span className="w-[110px]">{t.cols.favoritedAt}</span>
+              <span className="w-[72px] text-right">{t.cols.actions}</span>
+            </div>
+            {!ready ? (
+              Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="flex h-16 items-center gap-3 border-b border-fg/[0.06] px-5 last:border-0">
+                  <div className="size-9 animate-pulse rounded-[9px] bg-fg/[0.06]" />
+                  <div className="h-3.5 w-40 animate-pulse rounded bg-fg/[0.06]" />
                 </div>
-                <div className="flex-1" />
-                <label className="flex h-9 w-full items-center gap-2 rounded-[10px] border border-fg/[0.08] bg-fg/[0.03] px-3 focus-within:border-fg/25 sm:w-[280px]">
-                  <MagnifyingGlass size={15} className="shrink-0 text-text3" />
-                  <input value={q} onChange={(e) => filter(setQ)(e.target.value)} placeholder={t.search} aria-label={t.search} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-text3" />
-                </label>
-                <SortMenu value={sort} onChange={filter(setSort)} />
-              </div>
+              ))
+            ) : pageRows.length === 0 ? (
+              <p className="px-5 py-12 text-center text-sm text-text3">{t.noMatch}</p>
+            ) : (
+              // 换类型、搜索、排序、翻页时整组换掉，只有取消收藏的那一行播放淡出
+              <AnimatePresence key={`${tab}|${q}|${sort}|${current}`} initial={false}>
+                {pageRows.map((x) => (
+                  <Row key={`${x.kind}:${x.slug}`} f={x} now={now} onRemove={() => void remove(x)} />
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
 
-              <div className="overflow-hidden rounded-xl border border-fg/[0.08] bg-surface">
-                <div className="hidden h-10 items-center border-b border-fg/[0.08] bg-fg/[0.02] px-5 text-xs text-text3 md:flex">
-                  <span className="flex-1">{t.cols.name}</span>
-                  <span className="w-[110px]">{t.cols.type}</span>
-                  <span className="hidden w-[150px] lg:block">{t.cols.category}</span>
-                  <span className="w-[100px]">{t.cols.hot}</span>
-                  <span className="w-[110px]">{t.cols.favoritedAt}</span>
-                  <span className="w-[72px] text-right">{t.cols.actions}</span>
-                </div>
-                {!ready ? (
-                  Array.from({ length: 6 }, (_, i) => (
-                    <div key={i} className="flex h-16 items-center gap-3 border-b border-fg/[0.06] px-5 last:border-0">
-                      <div className="size-9 animate-pulse rounded-[9px] bg-fg/[0.06]" />
-                      <div className="h-3.5 w-40 animate-pulse rounded bg-fg/[0.06]" />
-                    </div>
-                  ))
-                ) : pageRows.length === 0 ? (
-                  <p className="px-5 py-12 text-center text-sm text-text3">{t.noMatch}</p>
-                ) : (
-                  // 换类型、搜索、排序、翻页时整组换掉，只有取消收藏的那一行播放淡出
-                  <AnimatePresence key={`${tab}|${q}|${sort}|${current}`} initial={false}>
-                    {pageRows.map((x) => (
-                      <Row key={`${x.kind}:${x.slug}`} f={x} now={now} onRemove={() => void remove(x)} />
-                    ))}
-                  </AnimatePresence>
-                )}
-              </div>
-
-              {ready && shown.length > 0 && (
-                <div className="flex items-center justify-between gap-4 px-1 text-sm text-text3">
-                  <span>{t.range((current - 1) * PAGE_SIZE + 1, Math.min(current * PAGE_SIZE, shown.length), shown.length)}</span>
-                  {pages > 1 && (
-                    <div className="flex items-center gap-1.5">
-                      <PageButton label={t.prev} disabled={current === 1} onClick={() => setPage(current - 1)}>
-                        <CaretLeft size={13} />
-                      </PageButton>
-                      <span className="min-w-12 text-center font-mono text-xs text-text2">
-                        {current} / {pages}
-                      </span>
-                      <PageButton label={t.next} disabled={current === pages} onClick={() => setPage(current + 1)}>
-                        <CaretRight size={13} />
-                      </PageButton>
-                    </div>
-                  )}
+          {ready && shown.length > 0 && (
+            <div className="flex items-center justify-between gap-4 px-1 text-sm text-text3">
+              <span>{t.range((current - 1) * PAGE_SIZE + 1, Math.min(current * PAGE_SIZE, shown.length), shown.length)}</span>
+              {pages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <PageButton label={t.prev} disabled={current === 1} onClick={() => setPage(current - 1)}>
+                    <CaretLeft size={13} />
+                  </PageButton>
+                  <span className="min-w-12 text-center font-mono text-xs text-text2">
+                    {current} / {pages}
+                  </span>
+                  <PageButton label={t.next} disabled={current === pages} onClick={() => setPage(current + 1)}>
+                    <CaretRight size={13} />
+                  </PageButton>
                 </div>
               )}
-            </>
+            </div>
           )}
-        </div>
-      </main>
-      <FavoriteToastHost />
-    </div>
+        </>
+      )}
+    </ConsoleShell>
   )
 }
 
@@ -415,92 +401,6 @@ function Empty() {
           {t.skills}
         </Link>
       </div>
-    </div>
-  )
-}
-
-/** 宽屏左侧栏：品牌、我的收藏、云端托管预告、返回网站、当前账号 */
-function Sidebar({ count }: { count: number | null }) {
-  const { m, to } = useI18n()
-  const t = m.console
-  return (
-    <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col gap-6 border-r border-fg/[0.08] bg-surface px-3.5 py-5 lg:flex">
-      <Link to={to('/')} className="group flex items-center gap-2 px-2">
-        <BrandMark className="size-8 overflow-visible" />
-        <span className="flex flex-col leading-tight">
-          <Wordmark className="text-base" />
-          <span className="text-[11px] text-text3">{t.brand}</span>
-        </span>
-      </Link>
-      <nav>
-        <span aria-current="page" className="flex h-[38px] items-center gap-2.5 rounded-lg bg-fg/[0.06] px-2.5 text-sm font-semibold">
-          <BookmarkSimple size={18} />
-          <span className="flex-1">{t.heading}</span>
-          {count !== null && <span className="font-mono text-xs font-normal text-text2">{count}</span>}
-        </span>
-      </nav>
-      <div className="flex-1" />
-      <div className="rounded-[10px] border border-accent/20 bg-gradient-to-b from-accent/[0.07] to-transparent p-3.5">
-        <div className="flex items-center gap-2">
-          <CloudArrowUp size={16} className="text-accent" />
-          <span className="flex-1 text-sm font-semibold">{t.cloud.title}</span>
-          <span className="rounded-full bg-fg/[0.06] px-1.5 py-px text-[10px] text-text2">{t.cloud.soon}</span>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-text3">{t.cloud.desc}</p>
-      </div>
-      <Link to={to('/')} className="-mt-2 flex h-[34px] items-center gap-2 px-2.5 text-sm text-text2 transition-colors hover:text-ink">
-        <ArrowLeft size={15} className="text-text3" />
-        {t.back}
-      </Link>
-      <Account />
-    </aside>
-  )
-}
-
-/** 窄屏顶栏：品牌、返回网站、退出 */
-function MobileBar() {
-  const { m, to } = useI18n()
-  return (
-    <div className="flex h-14 items-center justify-between gap-3 border-b border-fg/[0.08] bg-surface px-5 lg:hidden">
-      <Link to={to('/')} className="group flex items-center gap-2">
-        <BrandMark className="size-7 overflow-visible" />
-        <Wordmark className="text-base" />
-        <span className="text-xs text-text3">· {m.console.brand}</span>
-      </Link>
-      <Link to={to('/')} className="flex items-center gap-1.5 text-sm text-text2">
-        <ArrowLeft size={14} />
-        {m.console.back}
-      </Link>
-    </div>
-  )
-}
-
-function Account() {
-  const { m, to } = useI18n()
-  const navigate = useNavigate()
-  const { user } = useSession()
-  if (!user) return <div className="h-[46px] border-t border-fg/[0.08]" />
-  const me = profile(user)
-  return (
-    <div className="flex items-center gap-2.5 border-t border-fg/[0.08] px-2 pt-3">
-      {me.avatar ? (
-        <img src={me.avatar} alt="" referrerPolicy="no-referrer" className="size-[30px] shrink-0 rounded-full object-cover" />
-      ) : (
-        <span className="grid size-[30px] shrink-0 place-items-center rounded-full bg-gradient-to-br from-accent to-blue text-[13px] font-semibold uppercase text-accent-ink">{(me.name || me.email).slice(0, 1)}</span>
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-medium">{me.name}</div>
-        <div className="truncate text-[11px] text-text3">{me.email}</div>
-      </div>
-      <button
-        type="button"
-        title={m.nav.logout}
-        aria-label={m.nav.logout}
-        onClick={() => void supabase().auth.signOut().then(() => navigate(to('/')))}
-        className="grid size-8 shrink-0 place-items-center rounded-lg text-text3 transition-colors hover:bg-fg/[0.07] hover:text-ink"
-      >
-        <SignOut size={17} />
-      </button>
     </div>
   )
 }

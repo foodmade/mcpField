@@ -2,7 +2,7 @@ import { bigint, index, mysqlTable, text, uniqueIndex, varchar, type AnyMySqlCol
 import { at, kindCol, pk, ref, sha256, timestamps } from './columns.ts'
 
 /*
- * 社区层（community）：网站用户产生的数据（评论、认领、反馈、收藏），由 API 写入，采集任务不碰。
+ * 社区层（community）：网站用户产生的数据（评论、认领、反馈、收藏、API 密钥），由 API 写入，采集任务不碰。
  * 评论按 类型 + slug 关联条目，不加外键：发布表每次 publish 整体重建，slug 会沿用，但行 id 会变。
  * 用户是 Supabase Auth 的账号（user_id 为其 UUID），昵称和头像在发表时从登录令牌里取一份存下来。
  */
@@ -119,4 +119,29 @@ export const userFavorites = mysqlTable(
     ...timestamps(),
   },
   (t) => [uniqueIndex('uq_user_favorites').on(t.userId, t.kind, t.slug), index('ix_user_favorites_user_time').on(t.userId, t.favoritedAt)],
+)
+
+/**
+ * API 密钥：给 MCP Field 的 MCP 服务（npm 包 mcpfield-mcp）用，Agent 通过它代表用户读写收藏。
+ * 只存密钥的 SHA-256；hint_prefix / hint_suffix 是 mf_ 之后的前 4 位和最后 4 位，列表里用来辨认。
+ * 撤销即删除这一行；过期的保留，等用户自己删。第一版不分权限，密钥能做用户对收藏能做的所有操作。
+ */
+export const apiKeys = mysqlTable(
+  'api_keys',
+  {
+    id: pk(),
+    /** 网站账号（Supabase Auth 的 UUID） */
+    userId: varchar('user_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 100 }).notNull(),
+    keyHash: sha256('key_hash').notNull(),
+    hintPrefix: varchar('hint_prefix', { length: 8 }).notNull(),
+    hintSuffix: varchar('hint_suffix', { length: 8 }).notNull(),
+    /** 为空表示永不过期 */
+    expiresAt: at('expires_at'),
+    lastUsedAt: at('last_used_at'),
+    /** 最近一次使用的客户端：MCP 握手时 Agent 报上来的名称（如 claude-code） */
+    lastUsedClient: varchar('last_used_client', { length: 64 }),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex('uq_api_keys_hash').on(t.keyHash), index('ix_api_keys_user').on(t.userId, t.id)],
 )

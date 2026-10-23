@@ -12,8 +12,9 @@ export default [
   route('blog/rss.xml', 'routes/blog-rss.ts'),
   // 登录页是独立页面，不在站点外壳（导航、页脚）里
   route(':lang?/login', 'pages/Login.tsx'),
-  // 控制台（我的收藏）也是独立页面，有自己的侧栏
+  // 控制台（我的收藏、API 密钥）也是独立页面，有自己的侧栏
   route(':lang?/console', 'pages/Console.tsx'),
+  route(':lang?/console/keys', 'pages/ConsoleKeys.tsx'),
   route(':lang?', 'routes/site.tsx', [
     index('pages/Home.tsx'),
     route('servers', 'pages/Servers.tsx'),

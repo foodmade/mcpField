@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { AuthUser, AuthVerifier } from '../../auth/supabase-auth.ts'
 import { ApiError } from '../../http/errors.ts'
 import { localeQuerySchema, parseQuery } from '../../http/query.ts'
+import { KEY_PREFIX, type ApiKeyService } from '../keys/key.service.ts'
 import { IMPORT_MAX, type FavoriteService } from './favorite.service.ts'
 
 const addSchema = z.object({ favoritedAt: z.iso.datetime().optional() })
@@ -23,7 +24,8 @@ const bodyOf = async <S extends z.ZodType>(c: Context, schema: S, fallback?: unk
 }
 
 /**
- * 收藏接口（挂在 /api/favorites 下），都需要 Supabase 登录令牌，只能读写自己的收藏。
+ * 收藏接口（挂在 /api/favorites 下），只能读写自己的收藏。令牌可以是网站登录令牌（Supabase），
+ * 也可以是 API 密钥（mf_ 开头，MCP 服务用，同时用 X-MCPField-Client 报上客户端名称）。
  * GET    /?locale              全部收藏（最近收藏的在前），每条带目录列表项；已下架的 item 为 null
  * GET    /keys                 收藏了的条目标识（server:slug），详情页判断是否已收藏
  * PUT    /:kind/:slug          收藏：{ favoritedAt? }（撤销取消收藏时恢复原来的时间）
@@ -31,11 +33,12 @@ const bodyOf = async <S extends z.ZodType>(c: Context, schema: S, fallback?: unk
  * POST   /import               并入浏览器本地的收藏：{ keys }，返回并入后的全部标识
  * 响应都带 Cache-Control: private, no-store。
  */
-export function favoriteRoutes(service: FavoriteService, auth: AuthVerifier | undefined) {
+export function favoriteRoutes(service: FavoriteService, auth: AuthVerifier | undefined, apiKeys?: ApiKeyService) {
   const requireUser = async (c: Context): Promise<AuthUser> => {
-    if (!auth) throw new ApiError(503, 'auth_unavailable', '登录服务未配置，暂时不能收藏')
     const header = c.req.header('authorization') ?? ''
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+    if (apiKeys && token.startsWith(KEY_PREFIX)) return apiKeys.authenticate(token, c.req.header('x-mcpfield-client'))
+    if (!auth) throw new ApiError(503, 'auth_unavailable', '登录服务未配置，暂时不能收藏')
     const user = token ? await auth.verify(token) : null
     if (!user) throw new ApiError(401, 'unauthorized', '请先登录')
     return user

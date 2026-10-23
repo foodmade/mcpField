@@ -23,6 +23,8 @@ import { CommentService } from './modules/comments/comment.service.ts'
 import { MysqlFavoriteRepository } from './modules/favorites/favorite.repository.ts'
 import { FavoriteService } from './modules/favorites/favorite.service.ts'
 import { MysqlFeedbackRepository } from './modules/feedback/feedback.repository.ts'
+import { MysqlApiKeyRepository } from './modules/keys/key.repository.ts'
+import { ApiKeyService } from './modules/keys/key.service.ts'
 import { AnalyticsCollector } from '../analytics/collector.ts'
 import { FeedbackService } from './modules/feedback/feedback.service.ts'
 import { EntityService } from './modules/entities/entity.service.ts'
@@ -75,6 +77,7 @@ const app = createApp({
   tags: new TagService(new PublishedTagReader(db)),
   comments: new CommentService(new MysqlCommentRepository(db)),
   favorites: new FavoriteService(new MysqlFavoriteRepository(db), (kind, slugs, locale) => entities[kind]!.listBySlugs(slugs, locale)),
+  apiKeys: new ApiKeyService(new MysqlApiKeyRepository(db)),
   feedback: new FeedbackService(new MysqlFeedbackRepository(db)),
   blog: new BlogService(new MysqlBlogRepository(db)),
   analytics,

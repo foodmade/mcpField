@@ -6,7 +6,7 @@ import type { Locale } from '../i18n/locales'
 
 /*
  * 隐私政策。正文按语言写在本文件里（法律文本较长，不放进界面文案）。
- * 内容要和网站的实际行为一致：用 Microsoft Clarity 和自己的访问统计（/api/collect，不用 Cookie、不存 IP）了解使用情况，没有广告追踪；偏好只存在浏览器里，收藏存在账号里；
+ * 内容要和网站的实际行为一致：用 Microsoft Clarity 和自己的访问统计（/api/collect，不用 Cookie、不存 IP）了解使用情况，没有广告追踪；偏好只存在浏览器里，收藏和 API 密钥（只存哈希）存在账号里；
  * 账号由 Supabase Auth 处理（GitHub、Google、邮箱验证码），项目位于印度孟买区域。
  * 修改正文时同步更新三种语言和生效日期。
  */
@@ -59,6 +59,7 @@ const DOCS: Record<Locale, Doc> = {
           '我们不会收到你在 GitHub 或 Google 的密码。同一个邮箱用不同方式登录，会进入同一个账号。',
           '账号还会记录创建时间、最近登录时间，以及登录时的 IP 地址和浏览器信息，用于保护账号安全，例如发现异常登录。',
           '你在详情页收藏的 MCP 服务和 Skill 保存在你的账号里（收藏了哪些条目和收藏时间），只有你自己能在控制台「我的收藏」里看到；取消收藏即删除对应记录。以前只保存在浏览器里的收藏，会在你登录时并入账号，并从浏览器中清除。',
+          '如果你在控制台创建 API 密钥（供 Claude Code 等 Agent 通过 MCP 服务访问你的收藏），我们保存密钥的名称、有效期和哈希值（不保存密钥原文），以及最近一次使用的时间和客户端名称，方便你在控制台查看；撤销密钥即删除这些记录。',
         ],
       },
       {
@@ -165,6 +166,7 @@ const DOCS: Record<Locale, Doc> = {
           'We never receive your GitHub or Google password. Signing in with the same email address through different methods takes you to the same account.',
           'Your account also records when it was created, when you last signed in, and the IP address and browser used to sign in, to protect your account, for example by spotting unusual sign-ins.',
           'MCP servers and Skills you save on a project page are stored in your account (which items, and when you saved them). Only you can see them, under “Saved” in the console, and removing an item deletes its record. Bookmarks you made earlier, when they were kept only in your browser, are moved into your account when you sign in and then cleared from the browser.',
+          'If you create API keys in the console (so agents such as Claude Code can reach your saved items through our MCP server), we store each key’s name, expiry date and a hash of the key (never the key itself), plus when it was last used and by which client, so you can see this in the console. Revoking a key deletes these records.',
         ],
       },
       {
@@ -271,6 +273,7 @@ const DOCS: Record<Locale, Doc> = {
           'GitHub や Google のパスワードを当サイトが受け取ることはありません。同じメールアドレスであれば、どの方法でログインしても同じアカウントになります。',
           'アカウントには、作成日時、最終ログイン日時、ログイン時の IP アドレスとブラウザの情報も記録されます。これは不審なログインの検知など、アカウントの保護に使用します。',
           'プロジェクトページで保存した MCP サーバーと Skill は、アカウントに保存されます（保存した項目と保存日時）。コンソールの「保存済み」でご本人だけが確認でき、保存を解除すると記録も削除されます。以前ブラウザ内にのみ保存していたブックマークは、ログイン時にアカウントへ移され、ブラウザからは消去されます。',
+          'コンソールで API キーを作成した場合（Claude Code などのエージェントが MCP サーバー経由で保存済みにアクセスするためのもの）、キーの名前、有効期限、キーのハッシュ値（キーそのものは保存しません）、最後に使われた日時とクライアント名を保存し、コンソールで確認できるようにします。キーを取り消すとこれらの記録も削除されます。',
         ],
       },
       {

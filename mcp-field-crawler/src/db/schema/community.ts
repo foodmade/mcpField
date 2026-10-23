@@ -2,7 +2,7 @@ import { bigint, index, mysqlTable, text, uniqueIndex, varchar, type AnyMySqlCol
 import { at, kindCol, pk, ref, sha256, timestamps } from './columns.ts'
 
 /*
- * 社区层（community）：网站用户产生的数据（评论、认领、反馈），由 API 写入，采集任务不碰。
+ * 社区层（community）：网站用户产生的数据（评论、认领、反馈、收藏），由 API 写入，采集任务不碰。
  * 评论按 类型 + slug 关联条目，不加外键：发布表每次 publish 整体重建，slug 会沿用，但行 id 会变。
  * 用户是 Supabase Auth 的账号（user_id 为其 UUID），昵称和头像在发表时从登录令牌里取一份存下来。
  */
@@ -99,4 +99,24 @@ export const feedback = mysqlTable(
     ...timestamps(),
   },
   (t) => [index('ix_feedback_status').on(t.status, t.id), index('ix_feedback_target').on(t.kind, t.slug), index('ix_feedback_ip_created').on(t.ipHash, t.createdAt)],
+)
+
+/**
+ * 收藏：网站用户在详情页收藏的 MCP 服务和 Skill，控制台「我的收藏」列出。每人对每个条目最多一行。
+ * slug 存收藏时的正式地址；条目之后被合并时，读取时经 ingest_published_slugs 找到代表条目。
+ * name 是收藏时的名称：条目下架后列表里仍能显示它是什么。favorited_at 是收藏时间（撤销取消收藏时恢复原值）。
+ */
+export const userFavorites = mysqlTable(
+  'user_favorites',
+  {
+    id: pk(),
+    /** 网站账号（Supabase Auth 的 UUID） */
+    userId: varchar('user_id', { length: 36 }).notNull(),
+    kind: kindCol(),
+    slug: varchar('slug', { length: 191 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    favoritedAt: at('favorited_at').notNull(),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex('uq_user_favorites').on(t.userId, t.kind, t.slug), index('ix_user_favorites_user_time').on(t.userId, t.favoritedAt)],
 )

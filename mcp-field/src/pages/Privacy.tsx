@@ -6,7 +6,7 @@ import type { Locale } from '../i18n/locales'
 
 /*
  * 隐私政策。正文按语言写在本文件里（法律文本较长，不放进界面文案）。
- * 内容要和网站的实际行为一致：用 Microsoft Clarity 和自己的访问统计（/api/collect，不用 Cookie、不存 IP）了解使用情况，没有广告追踪；偏好和收藏只存在浏览器里；
+ * 内容要和网站的实际行为一致：用 Microsoft Clarity 和自己的访问统计（/api/collect，不用 Cookie、不存 IP）了解使用情况，没有广告追踪；偏好只存在浏览器里，收藏存在账号里；
  * 账号由 Supabase Auth 处理（GitHub、Google、邮箱验证码），项目位于印度孟买区域。
  * 修改正文时同步更新三种语言和生效日期。
  */
@@ -22,7 +22,7 @@ const DOCS: Record<Locale, Doc> = {
   zh: {
     title: '隐私政策',
     description: 'MCP Field 如何收集、使用和保护你的信息：浏览网站、使用 GitHub、Google 或邮箱验证码登录时会处理哪些信息，以及你可以怎样管理这些信息。',
-    effective: '生效日期：2026 年 10 月 19 日',
+    effective: '生效日期：2026 年 10 月 23 日',
     intro: 'MCP Field（mcpfield.com，以下称“我们”）是一个 MCP 服务与开发工具的导航网站。本政策说明你浏览网站和使用账号功能时，我们会处理哪些信息、为什么处理、交给谁处理，以及你可以怎样管理这些信息。',
     toc: '目录',
     sections: [
@@ -42,7 +42,7 @@ const DOCS: Record<Locale, Doc> = {
         title: '保存在你浏览器里的数据',
         blocks: [
           '下面这些设置和记录只保存在你自己的浏览器里（localStorage / sessionStorage），不会发送给我们，清除浏览器数据即可删除：',
-          ['界面语言、明暗主题，以及是否关闭过语言提示', '你收藏的项目', '为加快页面加载而临时缓存的工具列表', '登录后的会话凭据，用于保持登录状态，退出登录时清除'],
+          ['界面语言、明暗主题，以及是否关闭过语言提示', '为加快页面加载而临时缓存的工具列表', '登录后的会话凭据，用于保持登录状态，退出登录时清除'],
           'Cloudflare 可能会设置防范恶意流量所必需的 Cookie；Microsoft Clarity 会设置统计用的 Cookie（见上文）。我们不使用广告类 Cookie。',
         ],
       },
@@ -58,6 +58,7 @@ const DOCS: Record<Locale, Doc> = {
           ],
           '我们不会收到你在 GitHub 或 Google 的密码。同一个邮箱用不同方式登录，会进入同一个账号。',
           '账号还会记录创建时间、最近登录时间，以及登录时的 IP 地址和浏览器信息，用于保护账号安全，例如发现异常登录。',
+          '你在详情页收藏的 MCP 服务和 Skill 保存在你的账号里（收藏了哪些条目和收藏时间），只有你自己能在控制台「我的收藏」里看到；取消收藏即删除对应记录。以前只保存在浏览器里的收藏，会在你登录时并入账号，并从浏览器中清除。',
         ],
       },
       {
@@ -127,7 +128,7 @@ const DOCS: Record<Locale, Doc> = {
   en: {
     title: 'Privacy Policy',
     description: 'How MCP Field collects, uses and protects your information when you browse the site or sign in with GitHub, Google or an email code, and the choices you have.',
-    effective: 'Effective October 19, 2026',
+    effective: 'Effective October 23, 2026',
     intro: 'MCP Field (mcpfield.com, “we”) is a directory of MCP servers and developer tools. This policy explains what information we handle when you browse the site or use an account, why we handle it, who processes it for us, and how you can control it.',
     toc: 'On this page',
     sections: [
@@ -147,7 +148,7 @@ const DOCS: Record<Locale, Doc> = {
         title: 'Data stored in your browser',
         blocks: [
           "The following settings and records stay in your own browser (localStorage / sessionStorage). They aren't sent to us, and clearing your browser data removes them:",
-          ['Interface language, light or dark theme, and whether you dismissed the language notice', 'Projects you bookmark', 'Tool lists cached temporarily to make pages load faster', 'Your sign-in session, which keeps you signed in and is cleared when you log out'],
+          ['Interface language, light or dark theme, and whether you dismissed the language notice', 'Tool lists cached temporarily to make pages load faster', 'Your sign-in session, which keeps you signed in and is cleared when you log out'],
           "Cloudflare may set cookies that are strictly necessary to block malicious traffic, and Microsoft Clarity sets analytics cookies (see above). We don't use advertising cookies.",
         ],
       },
@@ -163,6 +164,7 @@ const DOCS: Record<Locale, Doc> = {
           ],
           'We never receive your GitHub or Google password. Signing in with the same email address through different methods takes you to the same account.',
           'Your account also records when it was created, when you last signed in, and the IP address and browser used to sign in, to protect your account, for example by spotting unusual sign-ins.',
+          'MCP servers and Skills you save on a project page are stored in your account (which items, and when you saved them). Only you can see them, under “Saved” in the console, and removing an item deletes its record. Bookmarks you made earlier, when they were kept only in your browser, are moved into your account when you sign in and then cleared from the browser.',
         ],
       },
       {
@@ -232,7 +234,7 @@ const DOCS: Record<Locale, Doc> = {
   ja: {
     title: 'プライバシーポリシー',
     description: 'MCP Field がサイトの閲覧時や、GitHub・Google・メール認証コードでのログイン時にどのような情報を扱い、どう保護するか、またご利用者が管理できることについて説明します。',
-    effective: '施行日：2026 年 10 月 19 日',
+    effective: '施行日：2026 年 10 月 23 日',
     intro: 'MCP Field（mcpfield.com、以下「当サイト」）は、MCP サーバーと開発ツールのディレクトリです。本ポリシーでは、サイトの閲覧時やアカウント機能の利用時に当サイトが扱う情報、その目的、処理を委託する事業者、そしてご自身で情報を管理する方法について説明します。',
     toc: '目次',
     sections: [
@@ -252,7 +254,7 @@ const DOCS: Record<Locale, Doc> = {
         title: 'ブラウザに保存されるデータ',
         blocks: [
           '次の設定や記録はお使いのブラウザ内（localStorage / sessionStorage）にのみ保存され、当サイトには送信されません。ブラウザのデータを消去すると削除されます：',
-          ['表示言語、ライト／ダークテーマ、言語案内を閉じたかどうか', 'ブックマークしたプロジェクト', 'ページの表示を速くするために一時的に保存したツール一覧', 'ログイン後のセッション情報（ログイン状態を保つためのもので、ログアウト時に消去されます）'],
+          ['表示言語、ライト／ダークテーマ、言語案内を閉じたかどうか', 'ページの表示を速くするために一時的に保存したツール一覧', 'ログイン後のセッション情報（ログイン状態を保つためのもので、ログアウト時に消去されます）'],
           'Cloudflare が悪意あるトラフィックを防ぐために必要な Cookie を設定する場合があります。また、Microsoft Clarity がアクセス解析用の Cookie を設定します（上記参照）。広告目的の Cookie は使用しません。',
         ],
       },
@@ -268,6 +270,7 @@ const DOCS: Record<Locale, Doc> = {
           ],
           'GitHub や Google のパスワードを当サイトが受け取ることはありません。同じメールアドレスであれば、どの方法でログインしても同じアカウントになります。',
           'アカウントには、作成日時、最終ログイン日時、ログイン時の IP アドレスとブラウザの情報も記録されます。これは不審なログインの検知など、アカウントの保護に使用します。',
+          'プロジェクトページで保存した MCP サーバーと Skill は、アカウントに保存されます（保存した項目と保存日時）。コンソールの「保存済み」でご本人だけが確認でき、保存を解除すると記録も削除されます。以前ブラウザ内にのみ保存していたブックマークは、ログイン時にアカウントへ移され、ブラウザからは消去されます。',
         ],
       },
       {

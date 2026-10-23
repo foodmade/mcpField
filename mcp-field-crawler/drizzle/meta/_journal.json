@@ -183,6 +183,13 @@
       "when": 1792658765670,
       "tag": "0025_list_key_indexable",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1792725079977,
+      "tag": "0026_user_favorites",
+      "breakpoints": true
     }
   ]
 }

@@ -243,11 +243,11 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
       query.withTotal ? this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total ${from}`) : undefined,
     ])
     const total = count ? Number(count[0]?.total ?? 0) : null
-    return { rows: await this.draftsBySlug(page.map((r) => r.slug)), total }
+    return { rows: await this.listBySlugs(page.map((r) => r.slug)), total }
   }
 
   /** 按 slug 回发布层取一页草稿，保持传入的顺序；搜索表、列表键表比发布层晚同步时，已下架的条目在这里跳过 */
-  private async draftsBySlug(slugs: string[]): Promise<EntityRow<K>[]> {
+  async listBySlugs(slugs: string[]): Promise<EntityRow<K>[]> {
     if (slugs.length === 0) return []
     const drafts = await this.listDrafts(sql`d.kind = ${this.kind} AND d.slug IN (${sql.join(slugs.map((s) => sql`${s}`), sql`, `)})`)
     const bySlug = new Map(drafts.map((r) => [r.slug, r]))
@@ -277,7 +277,7 @@ export class DraftEntityRepository<K extends EntityKind> implements EntityReadRe
         ? this.keyTotals.get(stableJson(filters), () => this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ingest_list_keys k WHERE ${where}`).then((r) => Number(r[0]?.total ?? 0)))
         : null,
     ])
-    return { rows: await this.draftsBySlug(page.map((r) => r.slug)), total }
+    return { rows: await this.listBySlugs(page.map((r) => r.slug)), total }
   }
 
   async list(query: ListQuery): Promise<{ rows: EntityRow<K>[]; total: number | null }> {

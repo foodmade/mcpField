@@ -1,6 +1,6 @@
 import { motion } from 'motion/react'
 import {
-  ArrowRight, ArrowUpRight, BookmarkSimple, BookOpen, CaretRight, ChatCenteredText, CheckCircle, ClockCounterClockwise,
+  ArrowRight, ArrowUpRight, BookOpen, CaretRight, ChatCenteredText, CheckCircle, ClockCounterClockwise,
   GithubLogo, Globe, ShareNetwork, ShieldCheck, Sparkle, WarningCircle, type Icon,
 } from '@phosphor-icons/react'
 import { useState, type CSSProperties, type ReactNode } from 'react'
@@ -13,9 +13,9 @@ import { useI18n } from '../../i18n/context'
 import { LOCALE_META } from '../../i18n/locales'
 import { ROUTE, type BaseItem, type DetailBase, type Kind } from '../../lib/api/entities'
 import { categoryOf } from '../../lib/categories'
+import { canFavorite } from '../../lib/favorites'
 import { daysSince, developerOf, domainOf } from '../../lib/entity'
 import { absoluteUrl, detailTitle } from '../../lib/seo'
-import { parseJson, useStorage } from '../../lib/storage'
 import { EntityIcon } from '../EntityIcon'
 import { ErrorPage } from '../ErrorPage'
 import { FaqSection } from '../Faq'
@@ -23,6 +23,7 @@ import { Seo } from '../Seo'
 import { Stars } from '../directory/ServerItems'
 import { AiOverview, TagList } from './AiOverview'
 import { copyText } from './CopyButton'
+import { FavoriteButton } from './FavoriteButton'
 import { FeedbackDialog } from './FeedbackDialog'
 import { MarkdownReadme } from './MarkdownReadme'
 
@@ -33,7 +34,6 @@ import { MarkdownReadme } from './MarkdownReadme'
  */
 
 const ease = [0.22, 1, 0.36, 1] as const
-const BM_KEY = 'mcpfield.bookmarks'
 
 /** 详情页的错误边界：不存在时显示该类型的"找不到"文案（状态码 404），其余错误可重试 */
 export function DetailError({ notFound, listHref }: { notFound: { title: string; hint: string; back: string }; listHref: string }) {
@@ -290,19 +290,10 @@ export function RelatedSection<T extends BaseItem>({ kind, items, title, allLabe
 
 export type InfoRow = { icon: Icon; label: string; value: ReactNode }
 
-/** 侧栏"基本信息"和分享、收藏、报告问题按钮；值为空的行自动隐藏 */
+/** 侧栏"基本信息"和分享、收藏（只有 MCP 服务和 Skill）、报告问题按钮；值为空的行自动隐藏 */
 export function InfoSection({ kind, d, rows }: { kind: Kind; d: BaseItem; rows: InfoRow[] }) {
   const { m } = useI18n()
   const [shared, setShared] = useState(false)
-  const key = `${kind}:${d.slug}`
-  const [raw, setRaw] = useStorage(BM_KEY)
-  const saved = parseJson<string[]>(raw, []).includes(key)
-  const toggleSave = () => {
-    const list = new Set(parseJson<string[]>(raw, []))
-    if (list.has(key)) list.delete(key)
-    else list.add(key)
-    setRaw(JSON.stringify([...list]))
-  }
   const visible = rows.filter((r) => r.value !== null && r.value !== undefined && r.value !== '')
   const btn = 'flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] border text-xs transition-[color,border-color,transform] active:scale-[0.98]'
   const report = d.links.repository ? `${d.links.repository}/issues` : 'mailto:hello@mcpfield.dev'
@@ -324,9 +315,7 @@ export function InfoSection({ kind, d, rows }: { kind: Kind; d: BaseItem; rows: 
         <button onClick={() => { copyText(location.href); setShared(true); setTimeout(() => setShared(false), 1600) }} className={clsx(btn, shared ? 'border-accent/40 text-accent' : 'border-fg/10 text-text2 hover:text-ink')}>
           <ShareNetwork size={14} />{shared ? m.detail.shared : m.detail.share}
         </button>
-        <button onClick={toggleSave} aria-pressed={saved} className={clsx(btn, saved ? 'border-[#F2C94C]/40 text-gold' : 'border-fg/10 text-text2 hover:text-ink')}>
-          <BookmarkSimple size={14} weight={saved ? 'fill' : 'regular'} />{saved ? m.detail.bookmarked : m.detail.bookmark}
-        </button>
+        {canFavorite(kind) && <FavoriteButton kind={kind} slug={d.slug} name={d.name} className={btn} />}
       </div>
       <a href={report} target="_blank" rel="noreferrer" className="mt-3 flex w-fit items-center gap-1 text-xs text-text3 transition-colors hover:text-ink"><WarningCircle size={13} />{m.detail.report}</a>
     </section>

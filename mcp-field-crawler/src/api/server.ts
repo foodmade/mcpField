@@ -20,6 +20,8 @@ import { ClaimService } from './modules/claims/claim.service.ts'
 import { GithubOAuthApp } from './modules/claims/github-oauth.ts'
 import { MysqlCommentRepository } from './modules/comments/comment.repository.ts'
 import { CommentService } from './modules/comments/comment.service.ts'
+import { MysqlFavoriteRepository } from './modules/favorites/favorite.repository.ts'
+import { FavoriteService } from './modules/favorites/favorite.service.ts'
 import { MysqlFeedbackRepository } from './modules/feedback/feedback.repository.ts'
 import { AnalyticsCollector } from '../analytics/collector.ts'
 import { FeedbackService } from './modules/feedback/feedback.service.ts'
@@ -72,6 +74,7 @@ const app = createApp({
   field: new FieldService({ server: entities.server!, skill: entities.skill! }),
   tags: new TagService(new PublishedTagReader(db)),
   comments: new CommentService(new MysqlCommentRepository(db)),
+  favorites: new FavoriteService(new MysqlFavoriteRepository(db), (kind, slugs, locale) => entities[kind]!.listBySlugs(slugs, locale)),
   feedback: new FeedbackService(new MysqlFeedbackRepository(db)),
   blog: new BlogService(new MysqlBlogRepository(db)),
   analytics,

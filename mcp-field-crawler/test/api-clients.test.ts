@@ -39,6 +39,9 @@ class FakeRepository implements EntityReadRepository<'client'> {
   async findBySlug(slug: string) {
     return this.data.find((r) => r.draft.slug === slug) ?? null
   }
+  async listBySlugs(slugs: string[]) {
+    return slugs.flatMap((s) => this.data.filter((r) => r.draft.slug === s))
+  }
   async typeCounts(): Promise<TypeCount[]> {
     return []
   }

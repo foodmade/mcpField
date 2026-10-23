@@ -79,10 +79,20 @@ export class EntityService<K extends EntityKind> {
 
   private async loadList(query: ListQuery): Promise<ListResult> {
     const { rows, total } = await this.repository.list(query)
+    return { data: await this.toListItems(rows, query.locale), meta: { ...pageMeta(query, total), locale: query.locale } }
+  }
+
+  /** 按正式地址取列表项（收藏列表用），保持传入的顺序；不存在的跳过 */
+  async listBySlugs(slugs: string[], locale: Locale): Promise<EntityListItem[]> {
+    if (slugs.length === 0) return []
+    return this.toListItems(await this.repository.listBySlugs(slugs), locale)
+  }
+
+  private async toListItems(rows: EntityRow<K>[], locale: Locale): Promise<EntityListItem[]> {
     const items = rows.map((row) => this.toListItem(row.draft))
-    await Promise.all([this.localize(items, query.locale), this.mirrorIcons(items), this.applyRepoStats(items, rows.map((row) => row.draft))])
-    await this.fillGenerated(items, query.locale)
-    return { data: items, meta: { ...pageMeta(query, total), locale: query.locale } }
+    await Promise.all([this.localize(items, locale), this.mirrorIcons(items), this.applyRepoStats(items, rows.map((row) => row.draft))])
+    await this.fillGenerated(items, locale)
+    return items
   }
 
   async get(slug: string, locale: Locale = 'en'): Promise<EntityDetail | null> {

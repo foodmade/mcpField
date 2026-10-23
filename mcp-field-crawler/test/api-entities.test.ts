@@ -33,6 +33,9 @@ class FakeRepository<K extends EntityKind> implements EntityReadRepository<K> {
     const d = this.drafts.find((x) => x.slug === slug)
     return d ? this.row(d) : null
   }
+  async listBySlugs(slugs: string[]) {
+    return slugs.flatMap((s) => this.drafts.filter((x) => x.slug === s).map((d) => this.row(d)))
+  }
   async categoryCounts(scope?: Scope) {
     this.lastScope = scope
     return []

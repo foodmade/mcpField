@@ -44,6 +44,8 @@ export interface EntityReadRepository<K extends EntityKind> {
   /** 列表：返回的草稿不含 README 等大段文本；query.withTotal 为 false 时不统计总数（total 为 null） */
   list(query: ListQuery): Promise<{ rows: EntityRow<K>[]; total: number | null }>
   findBySlug(slug: string): Promise<EntityRow<K> | null>
+  /** 按正式地址取列表用的草稿，保持传入的顺序；不存在的跳过 */
+  listBySlugs(slugs: string[]): Promise<EntityRow<K>[]>
   categoryCounts(scope?: Scope): Promise<CategoryCount[]>
   /** 官方、精选、已认证的数量 */
   viewCounts(scope?: Scope): Promise<ViewCounts>

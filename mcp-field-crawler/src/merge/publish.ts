@@ -60,9 +60,11 @@ export function bulkDraftIds(items: MergeItem[], limit = BULK_REPO_LIMIT): Set<n
  * 屏蔽名单：这些账号（仓库所有者，小写）下的条目一律不发布，已发布的在下一次 publish 时下架。
  * 按账号屏蔽，换个仓库名重新登记也挡得住。
  * 2026-10-24：serpdownloaders（127 个「某某网站下载器」Skill，32 个是成人网站）、serpgames（18 个「某某游戏 online unblocked」），
- * 专做搜索排名的垃圾内容，安装数都在 960 上下，过了 Skill 的收录门槛。
+ * 专做搜索排名的垃圾内容，安装数都在 960 上下，过了 Skill 的收录门槛；
+ * reason-machines（11 个仓库 1,327 个 Skill）：把 GitHub 热门仓库（包括冒充破解、注册机的恶意仓库）批量做成 Skill，同一主题出好几个关键词变体，
+ * 有的教人安装破解软件（figma-cracked-desktop 在 skills.sh 的安全审计不通过）。
  */
-export const BLOCKED_OWNERS: ReadonlySet<string> = new Set(['serpdownloaders', 'serpgames'])
+export const BLOCKED_OWNERS: ReadonlySet<string> = new Set(['serpdownloaders', 'serpgames', 'reason-machines'])
 
 /** 返回屏蔽账号的草稿 id：按仓库地址的所有者（镜像仓库换算成原作者），没有仓库地址的 Skill 按 skillKey（owner/repo#skill） */
 export function blockedDraftIds(items: MergeItem[], owners: ReadonlySet<string> = BLOCKED_OWNERS): Set<number> {

@@ -27,7 +27,9 @@ const bool = (path: string) => sql`(JSON_EXTRACT(d.draft, ${path}) = TRUE)`
 
 /**
  * 详情页是否允许搜索引擎收录：内容太薄的页面加 noindex、不进 sitemap，免得大量相似的聚合页拉低整站质量评价。
- * 要有 AI 介绍（ingest_overviews，overview / describe 生成）；服务还要 ≥ 5 星，或者是官方、认证、精选、远程服务、已认领的；Skill 还要 ≥ 50 次安装。
+ * 要有 AI 介绍（ingest_overviews，overview / describe 生成）；服务还要 ≥ 5 星，或者是官方、认证、精选、远程服务、已认领的；
+ * Skill 还要来源仓库 ≥ 10 星（GitHub 星数，没抓到的不算），同名的只收录一个（见 NOINDEX_SKILL_COPIES）。
+ * Skill 不看安装数（2026-10-24 起）：安装数能刷（serpdownloaders 的垃圾 Skill 都在 960 次上下），对照 Search Console 也和搜索价值关系不大，安装少的每千页点击反而更多。
  * 在重建后的 ingest_list_keys 上算（k 是本表，d 是对应的发布层条目）；AI 介绍在每日任务的 publish 之后才生成，新条目第二天重建时才会变成收录。
  * 标志位可能是 NULL，用 <=> 比较：NULL 参与 OR 会让整个结果变成 NULL（"未算过"），而不是 0。
  */
@@ -36,9 +38,26 @@ const INDEXABLE = sql`
   AND CASE k.kind
     WHEN 'server' THEN COALESCE(k.stars, 0) >= 5 OR k.official <=> 1 OR k.verified <=> 1 OR k.featured <=> 1 OR k.remote <=> 1
       OR EXISTS (SELECT 1 FROM entity_claims c WHERE c.kind = k.kind AND c.slug = k.slug AND c.revoked_at IS NULL)
-    WHEN 'skill' THEN COALESCE(k.installs, 0) >= 50
+    WHEN 'skill' THEN COALESCE(k.stars, 0) >= 10
     ELSE TRUE
   END`
+
+/**
+ * 同名的 Skill 只收录一个：仓库里的 Skill 名去掉大小写和符号后相同的（多是合集仓库复制的热门 Skill，2026-10 skill-creator 有 163 个、code-review 有 145 个），
+ * 在已判定收录的里面留安装数最多的（其次星数），其余改成不收录。名字去掉符号后为空（比如全是中文）的不参与比较。
+ */
+const NOINDEX_SKILL_COPIES = sql`
+  UPDATE ingest_list_keys k JOIN (
+    SELECT slug FROM (
+      SELECT k2.slug, ROW_NUMBER() OVER (
+        PARTITION BY COALESCE(NULLIF(LOWER(REGEXP_REPLACE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.detail.skillSlug')), 'null'), '[^A-Za-z0-9]+', '')), ''), k2.slug)
+        ORDER BY COALESCE(k2.installs, 0) DESC, COALESCE(k2.stars, 0) DESC, k2.slug) AS n
+      FROM ingest_list_keys k2 JOIN ingest_published d ON d.kind = k2.kind AND d.slug = k2.slug
+      WHERE k2.kind = 'skill' AND k2.indexable = 1
+    ) ranked WHERE n > 1
+  ) copies ON copies.slug = k.slug
+  SET k.indexable = 0
+  WHERE k.kind = 'skill'`
 
 async function syncKind(db: Db, kind: EntityKind): Promise<ListKeyStats> {
   const started = Date.now()
@@ -64,6 +83,7 @@ async function syncKind(db: Db, kind: EntityKind): Promise<ListKeyStats> {
         UPDATE ingest_list_keys k JOIN ingest_published d ON d.kind = k.kind AND d.slug = k.slug
         SET k.indexable = (${INDEXABLE})
         WHERE k.kind = ${kind}`)
+      if (kind === 'skill') await tx.execute(NOINDEX_SKILL_COPIES)
       const [[indexable]] = (await tx.execute(sql`SELECT COUNT(*) AS n FROM ingest_list_keys WHERE kind = ${kind} AND indexable = 1`)) as unknown as [{ n: number | string }[]]
       // 源站分类没有对应项时 slug 为空（JSON null 取出来可能是字符串 'null'），存成空字符串
       const [categories] = (await tx.execute(sql`

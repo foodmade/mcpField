@@ -21,7 +21,7 @@ import { planMerge, type MergeGroup, type MergeItem, type MergeMember } from './
 import { collectMergeItems } from './runner.ts'
 
 /*
- * 发布：草稿 → 过滤凑数条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类、缺图标条目的所有者头像、缺简介条目的 GitHub 仓库简介、
+ * 发布：草稿 → 过滤凑数条目和屏蔽账号的条目 → 按身份键分组（merge/plan.ts）→ 每组合并成一份 → 补上分类器的分类、缺图标条目的所有者头像、缺简介条目的 GitHub 仓库简介、
  * 缺工具列表的本地服务的实测结果（probe/tools-store.ts）、Skill 在 skills.sh 排行榜上的最新安装量
  * → 整体重建 ingest_published。
  * 在一个事务里先删后写：网站在重建期间读到的仍是旧数据，提交后一次切换。
@@ -54,6 +54,23 @@ export function bulkDraftIds(items: MergeItem[], limit = BULK_REPO_LIMIT): Set<n
     byRepo.get(key)!.push(item.draftId)
   }
   return new Set([...byRepo.values()].filter((ids) => ids.length > limit).flat())
+}
+
+/**
+ * 屏蔽名单：这些账号（仓库所有者，小写）下的条目一律不发布，已发布的在下一次 publish 时下架。
+ * 按账号屏蔽，换个仓库名重新登记也挡得住。
+ * 2026-10-24：serpdownloaders（127 个「某某网站下载器」Skill，32 个是成人网站）、serpgames（18 个「某某游戏 online unblocked」），
+ * 专做搜索排名的垃圾内容，安装数都在 960 上下，过了 Skill 的收录门槛。
+ */
+export const BLOCKED_OWNERS: ReadonlySet<string> = new Set(['serpdownloaders', 'serpgames'])
+
+/** 返回屏蔽账号的草稿 id：按仓库地址的所有者（镜像仓库换算成原作者），没有仓库地址的 Skill 按 skillKey（owner/repo#skill） */
+export function blockedDraftIds(items: MergeItem[], owners: ReadonlySet<string> = BLOCKED_OWNERS): Set<number> {
+  const ownerOf = (item: MergeItem) => {
+    const repo = item.identity.repository
+    return repo ? repoKey(repo).split('/')[1] : item.identity.skillKey?.split('/')[0]?.toLowerCase()
+  }
+  return new Set(items.filter((item) => owners.has(ownerOf(item) ?? '')).map((item) => item.draftId))
 }
 
 export interface PreviousSlug {
@@ -133,6 +150,8 @@ export interface PublishStats {
   drafts: number
   /** 判定为凑数、没有发布的草稿 */
   bulk: number
+  /** 屏蔽账号（BLOCKED_OWNERS）的草稿，没有发布 */
+  blocked: number
   /** 发布的条目（合并后） */
   published: number
   /** 含多条草稿的组 */
@@ -157,7 +176,8 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
   const started = Date.now()
   const all = await collectMergeItems(db, kinds)
   const bulk = bulkDraftIds(all)
-  const plan = planMerge(all.filter((item) => !bulk.has(item.draftId)))
+  const blocked = blockedDraftIds(all)
+  const plan = planMerge(all.filter((item) => !bulk.has(item.draftId) && !blocked.has(item.draftId)))
   const jobs: GroupJob[] = plan.groups.map((group) => ({ kind: group.kind, key: group.key, group, primary: pickPrimary(group.members) }))
 
   const previous = await db
@@ -187,7 +207,7 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
   const probes = new ProbedToolsStore(db)
   const skillInstalls = new SkillsShActivityStore(db)
   const canonical = new Set([...slugs].map(([job, slug]) => slugKey(job.kind, slug)))
-  logger.info({ drafts: all.length, bulk: bulk.size, groups: jobs.length }, '开始发布')
+  logger.info({ drafts: all.length, bulk: bulk.size, blocked: blocked.size, groups: jobs.length }, '开始发布')
 
   const now = new Date()
   const bySources: Record<string, number> = {}
@@ -285,5 +305,5 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
       }
     }
   })
-  return { drafts: all.length, bulk: bulk.size, published: jobs.length, merged: jobs.filter((j) => j.group.members.length > 1).length, bySources, seconds: Math.round((Date.now() - started) / 1000) }
+  return { drafts: all.length, bulk: bulk.size, blocked: blocked.size, published: jobs.length, merged: jobs.filter((j) => j.group.members.length > 1).length, bySources, seconds: Math.round((Date.now() - started) / 1000) }
 }

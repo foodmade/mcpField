@@ -4,7 +4,7 @@ import type { EntityDraft, ServerDetailDraft, SkillAuditDraft } from '../src/cor
 import { parseRepositoryUrl } from '../src/core/identity.ts'
 import { hasBrokenName, mergeDrafts, pickPrimary } from '../src/merge/merge-drafts.ts'
 import type { MergeItem } from '../src/merge/plan.ts'
-import { assignSlugs, bulkDraftIds, contentChangedAt, contentHash } from '../src/merge/publish.ts'
+import { assignSlugs, blockedDraftIds, bulkDraftIds, contentChangedAt, contentHash } from '../src/merge/publish.ts'
 
 const detail = (over: Partial<ServerDetailDraft> = {}): ServerDetailDraft => ({ isRemote: false, transports: [], packages: [], envVars: [], remotes: [], tools: [], ...over })
 
@@ -192,6 +192,22 @@ describe('bulkDraftIds', () => {
       item(10, undefined),
     ]
     expect([...bulkDraftIds(items, 2)].sort()).toEqual([1, 2, 3])
+  })
+})
+
+describe('blockedDraftIds', () => {
+  const item = (id: number, identity: MergeItem['identity']): MergeItem => ({ draftId: id, sourceId: 'skills-sh', kind: 'skill', externalId: `x/${id}`, slug: `x-${id}`, name: 'x', identity })
+
+  it('屏蔽账号下的条目：按仓库所有者（不分大小写、镜像仓库按原作者），没有仓库地址时按 skillKey；名字相近的账号不算', () => {
+    const items = [
+      item(1, { repository: parseRepositoryUrl('https://github.com/SerpDownloaders/skills') }),
+      item(2, { repository: parseRepositoryUrl('https://github.com/serpdownloaders/more-skills/tree/main/x') }),
+      item(3, { skillKey: 'serpgames/skills#snake-game-online-unblocked' }),
+      item(4, { repository: parseRepositoryUrl('https://github.com/mcp-mirror/serpgames_skills') }),
+      item(5, { repository: parseRepositoryUrl('https://github.com/serpapi/skills'), skillKey: 'serpapi/skills#serpapi-web-search' }),
+      item(6, {}),
+    ]
+    expect([...blockedDraftIds(items)].sort()).toEqual([1, 2, 3, 4])
   })
 })
 

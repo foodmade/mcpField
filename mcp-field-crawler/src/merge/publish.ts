@@ -6,7 +6,7 @@ import { repoKey } from '../core/identity.ts'
 import type { Logger } from '../core/logger.ts'
 import type { EntityKind } from '../core/types.ts'
 import type { Db } from '../db/client.ts'
-import { ingestDrafts, ingestPublished, ingestPublishedSlugs } from '../db/schema/index.ts'
+import { ingestDrafts, ingestPublished, ingestPublishedSlugs, ingestRecords, ingestTargets } from '../db/schema/index.ts'
 import { classifyKey } from '../classify/classifier.ts'
 import { applyClassification } from '../classify/runner.ts'
 import { ClassificationStore } from '../classify/store.ts'
@@ -54,6 +54,15 @@ export function bulkDraftIds(items: MergeItem[], limit = BULK_REPO_LIMIT): Set<n
     byRepo.get(key)!.push(item.draftId)
   }
   return new Set([...byRepo.values()].filter((ids) => ids.length > limit).flat())
+}
+
+/**
+ * 源站的上架日期不晚于我们第一次发现这个条目的时间：官方 Registry 的 publishedAt 是最新版本的发布时间，作者发新版本后就变成当天，
+ * 早就收录的条目会被首页算成"新上架"（2026-10-29 pipeworx-io 等批量发版，当天 3400 个里 2866 个是老条目）
+ */
+export function capSourceCreatedAt(draft: EntityDraft, discoveredAt: Date | null): void {
+  if (!draft.sourceCreatedAt || !discoveredAt) return
+  if (Date.parse(draft.sourceCreatedAt) > discoveredAt.getTime()) draft.sourceCreatedAt = discoveredAt.toISOString()
 }
 
 export interface PreviousSlug {
@@ -201,8 +210,10 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
         batchSize,
       )) {
         const rows = await tx
-          .select({ id: ingestDrafts.id, recordId: ingestDrafts.recordId, draft: ingestDrafts.draft, mappedAt: ingestDrafts.mappedAt })
+          .select({ id: ingestDrafts.id, recordId: ingestDrafts.recordId, draft: ingestDrafts.draft, mappedAt: ingestDrafts.mappedAt, discoveredAt: ingestTargets.discoveredAt })
           .from(ingestDrafts)
+          .leftJoin(ingestRecords, eq(ingestRecords.id, ingestDrafts.recordId))
+          .leftJoin(ingestTargets, eq(ingestTargets.id, ingestRecords.targetId))
           .where(inArray(ingestDrafts.id, batch.flatMap((j) => j.group.members.map((m) => m.draftId))))
         const byId = new Map(rows.map((r) => [r.id, r]))
         // 名称可疑的组要看 GitHub README 里有没有提到这个名称（见 hasBrokenName），只为这些组读 README
@@ -215,7 +226,12 @@ export async function publish(db: Db, kinds: readonly EntityKind[], logger: Logg
         const readmeByKey = await readmes.find([...readmeKeys.values()])
 
         const drafts = batch.map((job) => {
-          const members = job.group.members.map((m) => byId.get(m.draftId)!.draft as EntityDraft)
+          const members = job.group.members.map((m) => {
+            const row = byId.get(m.draftId)!
+            const draft = row.draft as EntityDraft
+            capSourceCreatedAt(draft, row.discoveredAt)
+            return draft
+          })
           const primary = members[job.group.members.indexOf(job.primary)]!
           const readmeKey = readmeKeys.get(job)
           const readme = readmeKey ? readmeByKey.get(readmeKey)?.content : undefined

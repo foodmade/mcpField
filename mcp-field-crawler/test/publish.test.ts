@@ -4,7 +4,7 @@ import type { EntityDraft, ServerDetailDraft, SkillAuditDraft } from '../src/cor
 import { parseRepositoryUrl } from '../src/core/identity.ts'
 import { hasBrokenName, mergeDrafts, pickPrimary } from '../src/merge/merge-drafts.ts'
 import type { MergeItem } from '../src/merge/plan.ts'
-import { assignSlugs, bulkDraftIds, contentChangedAt, contentHash } from '../src/merge/publish.ts'
+import { assignSlugs, bulkDraftIds, capSourceCreatedAt, contentChangedAt, contentHash } from '../src/merge/publish.ts'
 
 const detail = (over: Partial<ServerDetailDraft> = {}): ServerDetailDraft => ({ isRemote: false, transports: [], packages: [], envVars: [], remotes: [], tools: [], ...over })
 
@@ -170,6 +170,28 @@ describe('mergeDrafts（Skill）', () => {
     const sh = skill('skills-sh', [{ auditor: 'Socket', result: 'pass', riskLevel: 'SAFE', summary: 'No alerts' }], ['scripts/merge.py'])
     const merged = mergeDrafts([sh, so], { primary: so, slug: 'pdf', identityKey: 'skill:anthropics/skills#pdf' })
     expect(merged.detail).toMatchObject({ canonicalKey: 'anthropics/skills#pdf', audits: [{ auditor: 'Socket', riskLevel: 'SAFE' }], files: ['scripts/merge.py'] })
+  })
+})
+
+describe('capSourceCreatedAt', () => {
+  const withCreated = (at?: string) => ({ sourceCreatedAt: at }) as EntityDraft
+
+  it('上架日期晚于首次发现（源站发了新版本）时改成首次发现的时间', () => {
+    const d = withCreated('2026-10-29T01:54:59.114Z')
+    capSourceCreatedAt(d, new Date('2026-10-12T03:31:42.713Z'))
+    expect(d.sourceCreatedAt).toBe('2026-10-12T03:31:42.713Z')
+  })
+
+  it('上架日期早于首次发现、没有上架日期或不知道发现时间的不变', () => {
+    const d = withCreated('2026-10-29T08:59:43.210Z')
+    capSourceCreatedAt(d, new Date('2026-10-29T11:36:56.049Z'))
+    expect(d.sourceCreatedAt).toBe('2026-10-29T08:59:43.210Z')
+    const none = withCreated()
+    capSourceCreatedAt(none, new Date('2026-10-12T00:00:00Z'))
+    expect(none.sourceCreatedAt).toBeUndefined()
+    const unknown = withCreated('2026-10-29T08:59:43.210Z')
+    capSourceCreatedAt(unknown, null)
+    expect(unknown.sourceCreatedAt).toBe('2026-10-29T08:59:43.210Z')
   })
 })
 

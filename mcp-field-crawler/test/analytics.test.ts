@@ -54,6 +54,14 @@ describe('isBot / parseUa', () => {
     expect(isBot(IPHONE)).toBe(false)
   })
 
+  it('桌面版浏览器主版本过旧的算爬虫，手机上的不按版本判断', () => {
+    expect(isBot('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36')).toBe(true)
+    expect(isBot('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0')).toBe(true)
+    expect(isBot('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0')).toBe(true)
+    expect(isBot('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0')).toBe(false)
+    expect(isBot('Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.88 Mobile Safari/537.36')).toBe(false)
+  })
+
   it('设备、浏览器、系统', () => {
     expect(parseUa(CHROME_MAC)).toEqual({ device: 'desktop', browser: 'Chrome', os: 'macOS' })
     expect(parseUa(IPHONE)).toEqual({ device: 'mobile', browser: 'Safari', os: 'iOS' })

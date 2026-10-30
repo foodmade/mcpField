@@ -36,7 +36,20 @@ export function sourceOf(referrer: string | undefined, siteHost: string): string
 /** 爬虫、监控、脚本：不计入访问（它们一般不执行 JS，这里是第二道过滤） */
 const BOT = /bot\b|bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|pingdom|uptime|monitor|preview|python|curl|wget|httpclient|okhttp|java\/|go-http|node-fetch|axios|undici|facebookexternalhit|embedly|googleother|google-inspectiontool|chrome-lighthouse|phantomjs|puppeteer|playwright/i
 
-export const isBot = (ua: string) => !ua || BOT.test(ua)
+/**
+ * 桌面版 Chrome / Edge / Firefox 会自动更新，主版本低于这个数（2024 年初以前的版本）的几乎都是伪造的 UA：
+ * 2026-10-30 有爬虫用住宅代理、带 Chrome 116–120 / Firefox 120–121 的 UA 执行页面 JS，一天刷出 4000 多个访客，
+ * 平时真实访客基本是最近几个版本。手机、平板上的 WebView 可能长期不更新，不按版本判断
+ */
+const MIN_DESKTOP_MAJOR = 122
+const DESKTOP_VERSION = /(?:Chrome|Edg|Firefox)\/(\d+)\./g
+
+function isOutdatedDesktop(ua: string): boolean {
+  if (/Mobi|Android|iPhone|iPad|iPod|Tablet/i.test(ua)) return false
+  return [...ua.matchAll(DESKTOP_VERSION)].some((m) => Number(m[1]) < MIN_DESKTOP_MAJOR)
+}
+
+export const isBot = (ua: string) => !ua || BOT.test(ua) || isOutdatedDesktop(ua)
 
 export interface UaInfo {
   device: 'mobile' | 'tablet' | 'desktop'

@@ -66,7 +66,7 @@ export const ja: Messages = {
     total: '収録数',
     live: 'リアルタイム',
     daily: '直近 14 日の新着',
-    dailyNote: '掲載元の公開日で数えた MCP サーバー・クライアント・Loops・Agents',
+    dailyNote: '収録日（北京時間）で数えた MCP サーバー・Skills・クライアント・CLI・Loops・Agents',
     dailyAria: (date, n) => `${date} に ${n} 件追加`,
     others: (n) => `その他 ${n} 種類`,
     recent: '新着',

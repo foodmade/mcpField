@@ -8,9 +8,9 @@ export interface SiteStats {
   /** 远程 MCP 服务的数量 */
   remote: number
   /**
-   * 近 DAYS 天每天新增的条目数，截止到有数据的最后一天（当天的数据要等每日任务跑完才有）。
-   * 按源站的上架日期（sourceCreatedAt）统计：我们的首次发现时间集中在全量导入那几天，反映不了每天的新增。
-   * Skill、CLI 没有上架日期，不计入。
+   * 近 DAYS 天每天新收录的条目数，截止到有数据的最后一天（当天的数据要等每日任务跑完才有）。
+   * 按我们的收录日期（admin_item_status.first_seen_date，北京时间）统计、包含全部类型，与管理后台仪表盘的"近 14 天新收录"一致。
+   * 以前按源站的上架日期，Registry 发新版本会刷新日期，Skill、CLI 也没有上架日期，和后台对不上（2026-10-30 改）
    */
   daily: { date: string; count: number }[]
   /** 发布层最近一次重建的时间（网站数据的更新时间） */
@@ -24,6 +24,9 @@ export interface StatsReader {
 const DAYS = 14
 /** 发布层每天只重建一次，统计结果缓存一段时间 */
 const TTL_MS = 10 * 60_000
+
+/** 北京时间的日期 YYYY-MM-DD（收录日期按北京时间分天，与管理后台一致） */
+const beijingDate = (at: Date) => new Date(at.getTime() + 8 * 3600_000).toISOString().slice(0, 10)
 
 /** mysql2 对原生查询可能返回 Date 或 'YYYY-MM-DD HH:MM:SS'（UTC）字符串 */
 function toIso(value: unknown): string | null {
@@ -42,23 +45,23 @@ export class PublishedStatsReader implements StatsReader {
   }
 
   /**
-   * 数量和上架日期读列表键表 ingest_list_keys（与发布层一一对应，publish 结束时重建）；直接对发布层逐行解析草稿 JSON，
-   * 线上远程服务数、近几天新增各要 8 秒左右。列表键表还没生成时（新部署还没跑过 search-index）仍查发布层
+   * 数量读列表键表 ingest_list_keys（与发布层一一对应，publish 结束时重建）；直接对发布层逐行解析草稿 JSON，
+   * 线上远程服务数要 8 秒左右。列表键表还没生成时（新部署还没跑过 search-index）仍查发布层。每天新收录的数量读 admin_item_status
    */
-  async read(days: number): Promise<SiteStats> {
+  async read(days: number, now = new Date()): Promise<SiteStats> {
     const keys = (await this.rows(sql`SELECT 1 FROM ingest_list_keys LIMIT 1`)).length > 0
     const from = keys ? sql`ingest_list_keys d` : sql`ingest_published d`
     const remote = keys ? sql`d.remote = 1` : sql`JSON_EXTRACT(d.draft, '$.detail.isRemote') = TRUE`
-    const created = keys ? sql`LEFT(d.source_created_at, 10)` : sql`LEFT(JSON_UNQUOTE(JSON_EXTRACT(d.draft, '$.sourceCreatedAt')), 10)`
+    const since = beijingDate(new Date(now.getTime() - (days + 1) * 86_400_000))
     const [kinds, remotes, daily, latest] = await Promise.all([
       this.rows<{ kind: EntityKind; total: number | string }>(sql`SELECT d.kind, COUNT(*) AS total FROM ${from} GROUP BY d.kind`),
       this.rows<{ total: number | string }>(sql`SELECT COUNT(*) AS total FROM ${from} WHERE d.kind = 'server' AND ${remote}`),
-      // 先取最近有数据的那天，再往前数 days 天
+      // 先取最近有数据的那天，再往前数 days 天；admin_item_status 由每日任务的 admin-sync 维护（见 admin/sync.ts）
       this.rows<{ day: string; total: number | string }>(sql`
-        SELECT ${created} AS day, COUNT(*) AS total
-        FROM ${from}
-        WHERE ${created} >= DATE_FORMAT(UTC_DATE() - INTERVAL ${days + 1} DAY, '%Y-%m-%d') AND ${created} <= DATE_FORMAT(UTC_DATE(), '%Y-%m-%d')
-        GROUP BY day`),
+        SELECT DATE_FORMAT(first_seen_date, '%Y-%m-%d') AS day, COUNT(*) AS total
+        FROM admin_item_status
+        WHERE first_seen_date >= ${since}
+        GROUP BY first_seen_date`),
       // publish 每类整体删掉重插，同一次发布的行发布时间相同：id 最大的一行就是最近一次发布（MAX 要扫整张发布表）
       this.rows<{ at: unknown }>(sql`SELECT d.published_at AS at FROM ingest_published d ORDER BY d.id DESC LIMIT 1`),
     ])

@@ -63,9 +63,9 @@ export const zh = {
   stats: {
     total: '累计收录',
     live: '实时',
-    daily: '近 14 天新上架',
-    dailyNote: '按源站上架日期统计的 MCP 服务、客户端、Loops 与 Agents',
-    dailyAria: (date: string, n: string) => `${date} 新上架 ${n} 个`,
+    daily: '近 14 天新收录',
+    dailyNote: '按收录日期（北京时间）统计的 MCP 服务、Skills、客户端、CLI、Loops 与 Agents',
+    dailyAria: (date: string, n: string) => `${date} 新收录 ${n} 个`,
     others: (n: number) => `其他 ${n} 类`,
     recent: '最新上架',
     recentMore: '查看最新上架',

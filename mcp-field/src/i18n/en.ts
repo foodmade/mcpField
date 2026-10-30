@@ -65,9 +65,9 @@ export const en: Messages = {
   stats: {
     total: 'Indexed',
     live: 'Live',
-    daily: 'New in the last 14 days',
-    dailyNote: 'MCP servers, clients, Loops and Agents by their listing date on the source',
-    dailyAria: (date, n) => `${n} new on ${date}`,
+    daily: 'Added in the last 14 days',
+    dailyNote: 'MCP servers, Skills, clients, CLIs, Loops and Agents by the date we added them (Beijing time)',
+    dailyAria: (date, n) => `${n} added on ${date}`,
     others: (n) => `${n} other types`,
     recent: 'Just listed',
     recentMore: 'See the newest',
